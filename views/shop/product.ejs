@@ -1,7 +1,7 @@
 <div class="crumb"><a href="/">首页</a> › <% if (category&&category.parent_name) { %><a href="/products?cat=<%= category.parent_cid %>"><%= category.parent_name %></a> › <% } %><% if (category) { %><a href="/products?cat=<%= category.id %>"><%= category.name %></a> › <% } %><%= p.name %></div>
 <div class="card pd">
   <div class="gallery"><div class="main"><img id="mainImg" src="<%= images[0] %>" alt=""></div>
-    <div class="thumbs"><% images.forEach((im,i)=>{ %><img src="<%= im %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
+    <div class="thumbs"><% images.forEach((im,i)=>{ %><img loading="lazy" decoding="async" src="<%= im %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
   <div>
     <h1><% if (brand) { %><span class="tag gold"><%= brand.name %></span><% } %><%= p.name %></h1>
     <div class="subt"><%= p.subtitle %></div>
@@ -34,14 +34,14 @@
 <form id="buyForm" method="post" action="/checkout" class="hide"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="sku_id"><input name="qty"><input name="promo_type"><input name="promo_id"><input name="group_id"></form>
 <div class="card sec">
   <div class="tabs"><a href="#detail" class="on">商品详情</a><a href="#reviews">用户评价(<%= rs.n %>)</a><a href="#after">售后保障</a></div>
-  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% images.slice(1).forEach(im=>{ %><img src="<%= im %>" style="border-radius:10px"><% }) %></div></div>
+  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% images.slice(1).forEach(im=>{ %><img loading="lazy" decoding="async" src="<%= im %>" style="border-radius:10px"><% }) %></div></div>
 </div>
 <div class="card sec" id="reviews">
   <div class="sec-h"><h2>用户评价</h2><span class="muted">好评率 <b class="price" style="color:var(--red)"><%= rs.n? Math.round((rs.good||0)/rs.n*100):100 %>%</b> · 综合 <%= (rs.avg||5).toFixed(1) %> 分</span></div>
   <div class="sortbar"><a class="<%= rv==='all'?'on':'' %>" href="<%= qs(req,{rv:'all'}) %>#reviews">全部</a><a class="<%= rv==='good'?'on':'' %>" href="<%= qs(req,{rv:'good'}) %>#reviews">好评</a><a class="<%= rv==='bad'?'on':'' %>" href="<%= qs(req,{rv:'bad'}) %>#reviews">中差评</a><a class="<%= rv==='img'?'on':'' %>" href="<%= qs(req,{rv:'img'}) %>#reviews">有图(<%= rs.img||0 %>)</a></div>
   <% if (!reviews.length) { %><div class="empty" style="padding:30px">暂无评价</div><% } %>
   <% reviews.forEach(r=>{ %><div class="review"><div class="avatar" style="width:40px;height:40px;font-size:16px"><%= r.nickname.slice(0,1) %></div><div style="flex:1"><div class="flex between"><b><%= r.nick %></b><span class="muted"><%= r.created_at.slice(0,10) %></span></div><div class="stars"><%= '★'.repeat(r.rating)+'☆'.repeat(5-r.rating) %></div><div><%= r.content %></div>
-    <% if (r.imgs.length) { %><div class="rimgs"><% r.imgs.forEach(i=>{ %><img src="<%= i %>"><% }) %></div><% } %>
+    <% if (r.imgs.length) { %><div class="rimgs"><% r.imgs.forEach(i=>{ %><img loading="lazy" decoding="async" src="<%= i %>"><% }) %></div><% } %>
     <% if (r.reply) { %><div class="reply"><b>商家回复:</b><%= r.reply %></div><% } %></div></div><% }) %>
 </div>
 <div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc">正品保障;签收后 7 天内可申请退款/退货退款;发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>

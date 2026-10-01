@@ -1,5 +1,5 @@
 <div class="card auth" style="max-width:560px"><h2>👥 参与拼团</h2>
-<div class="flex"><img src="<%= img %>" style="width:96px;height:96px;border-radius:10px;object-fit:cover"><div><b><%= p.name %></b><br><span class="price"><big><%= gb.price %></big></span> <span class="mkt"><%= p.market_price %></span></div></div>
+<div class="flex"><img loading="lazy" decoding="async" src="<%= img %>" style="width:96px;height:96px;border-radius:10px;object-fit:cover"><div><b><%= p.name %></b><br><span class="price"><big><%= gb.price %></big></span> <span class="mkt"><%= p.market_price %></span></div></div>
 <p class="mt">发起人:<b><%= g.nickname.slice(0,1) %>**</b> · <%= g.need %> 人成团 · 已参团 <b><%= g.joined %></b> 人 · <% if(g.status==='open'&&!expired){ %>剩余 <span class="cd" data-countdown="<%= g.expire_at %>" data-reload="1"></span><% } else { %><span class="tag"><%= {success:'已成团',failed:'拼团失败',open:'已过期'}[g.status] %></span><% } %></p>
 <p>团员:<% members.forEach(m=>{ %><span class="tag gold"><%= m.nickname %></span><% }) %></p>
 <% if(g.status==='open'&&!expired&&g.joined<g.need){ %>

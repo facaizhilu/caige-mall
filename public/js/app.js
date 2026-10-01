@@ -10,6 +10,14 @@
     function auto(){clearInterval(t);t=setInterval(function(){go(i+1)},4500)}
     d.forEach(function(x,k){x.onclick=function(){go(k);auto()}});
     var l=el.querySelector('.carr.l'),r=el.querySelector('.carr.r');if(l)l.onclick=function(){go(i-1);auto()};if(r)r.onclick=function(){go(i+1);auto()};
+    // 触摸滑动
+    var sx=0,sy=0,tm=false;
+    el.addEventListener('touchstart',function(e){var q=e.touches[0];sx=q.clientX;sy=q.clientY;tm=true;clearInterval(t)},{passive:true});
+    el.addEventListener('touchend',function(e){if(!tm)return;tm=false;var q=e.changedTouches[0],dx=q.clientX-sx,dy=q.clientY-sy;
+      if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.3){go(i+(dx<0?1:-1));el.dataset.swiped=1;setTimeout(function(){delete el.dataset.swiped},350)}auto()},{passive:true});
+    el.addEventListener('click',function(e){if(el.dataset.swiped){e.preventDefault();e.stopPropagation()}},true);
+    document.addEventListener('visibilitychange',function(){document.hidden?clearInterval(t):auto()});
+    if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){return go(0)}
     go(0);auto();
   });
   // 倒计时

@@ -1,6 +1,6 @@
 <a class="pcard" href="/product/<%= p.id %>">
   <% if (p.is_new) { %><span class="ribbon">新品</span><% } else if (p.is_hot) { %><span class="ribbon">热卖</span><% } %>
-  <div class="pic"><img src="<%= p.img %>" alt="<%= p.name %>" loading="lazy"></div>
+  <div class="pic"><img loading="lazy" decoding="async" src="<%= p.img %>" alt="<%= p.name %>" loading="lazy"></div>
   <div class="info">
     <div class="name"><%= p.name %></div>
     <div class="sub"><%= p.subtitle %></div>

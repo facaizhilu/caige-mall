@@ -32,3 +32,27 @@ table.t{width:100%;border-collapse:collapse}.t th{background:#fafbfc;text-align:
 details.fold>summary{cursor:pointer;color:var(--ink2)}
 @media(max-width:1000px){.g4,.g6{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
 @media(max-width:800px){.side{position:fixed;left:-240px;z-index:50;transition:.2s}.side.open{left:0}.menu-btn{display:block}.content{padding:14px}.kv{grid-template-columns:80px 1fr}.perms{grid-template-columns:1fr}}
+
+/* ===== 移动端 v3 ===== */
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+.layout{min-height:100vh;min-height:100dvh}.side{height:100vh;height:100dvh;-webkit-overflow-scrolling:touch}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.tbl-wrap table.t{min-width:560px}
+.side-mask{display:none}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(max-width:800px){
+ .side{left:-260px;width:240px;padding-bottom:env(safe-area-inset-bottom);box-shadow:none}.side.open{box-shadow:6px 0 24px rgba(0,0,0,.35)}
+ .side a{padding:12px 20px;min-height:44px}
+ .side.open+.side-mask{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:45}
+ .top{padding:0 12px;padding-top:env(safe-area-inset-top);height:calc(56px + env(safe-area-inset-top));gap:8px}.top>b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .top .u{gap:8px;font-size:13px}.top .u a:first-child{display:none}
+ .menu-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:24px}
+ .content{padding:12px 12px calc(32px + env(safe-area-inset-bottom))}.card{padding:14px}
+ .grid[style*="grid-template-columns"],.g2,.g3,.g4,.g6{grid-template-columns:minmax(0,1fr)!important}.g4,.g6{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .btn{min-height:40px;padding:8px 14px}.btn.sm{min-height:36px;padding:4px 12px}
+ input,select,textarea,input[type=text],input[type=password],input[type=number],input[type=email],input[type=date],input[type=datetime-local],input[type=search],input[type=tel]{font-size:16px!important;min-height:44px}
+ input[type=checkbox],input[type=radio]{min-height:0!important;width:20px;height:20px}
+ .toolbar input,.toolbar select{width:100%;min-width:0;flex:1 1 140px}
+ .kpi b{font-size:22px}.pager{justify-content:center}.pager a,.pager span{min-width:40px;height:40px;line-height:38px}
+ .login-card{padding:26px 20px}.imgs img{width:72px;height:72px}
+ .card{overflow-x:auto}
+}

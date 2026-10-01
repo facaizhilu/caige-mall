@@ -1,13 +1,14 @@
 <div class="hero">
   <div class="catside"><% navCats.forEach(c=>{ %><a href="/products?cat=<%= c.id %>"><span><%= c.icon %></span><%= c.name %></a><% }) %><a href="/products">📦 全部商品 ›</a></div>
+  <% const hx=c=>/^[0-9a-f]{3,8}$/i.test(c||'')?'#'+c:(c||'#d4202a'); %>
   <div class="carousel" data-carousel>
     <% banners.forEach((b,i)=>{ %>
-      <a class="slide<%= b.image?' img':'' %>" href="<%= b.link||'/' %>" style="background:linear-gradient(120deg,<%= b.bg1 %>,<%= b.bg2 %>)">
+      <a class="slide<%= b.image?' img':'' %>" href="<%= b.link||'/' %>" style="background:linear-gradient(120deg,<%= hx(b.bg1) %>,<%= hx(b.bg2) %>)">
         <% if (b.image) { %><img src="<%= b.image %>" alt="<%= b.title %>"><% } else { %>
         <div class="tx"><h2><%= b.title %></h2><p><%= b.subtitle %></p><span class="btn">立即查看 ›</span></div><div class="bigmark"><%= ['🛍️','⚡','👥','🎁','💰'][i%5] %></div><% } %>
       </a>
     <% }) %>
-    <button class="carr l">‹</button><button class="carr r">›</button>
+    <button class="carr l" aria-label="上一张">‹</button><button class="carr r" aria-label="下一张">›</button>
     <div class="dots"><% banners.forEach(()=>{ %><i></i><% }) %></div>
   </div>
   <div class="userbox">
@@ -34,8 +35,8 @@
     <% const live=seckills.find(s=>s.live); const nxt=seckills[0]; %>
     <span><%= live?'距结束':'距开始' %> <span class="cd" data-countdown="<%= live?live.end_at:nxt.start_at %>" data-reload="1"></span></span>
     <a class="more" href="/seckill">更多秒杀 ›</a></div>
-  <div class="grid"><% seckills.forEach(s=>{ %>
-    <a class="pcard" href="/product/<%= s.product_id %>"><span class="ribbon"><%= s.live?'抢购中':'即将开始' %></span><div class="pic"><img src="<%= s.img %>" alt=""></div>
+  <div class="grid hs"><% seckills.forEach(s=>{ %>
+    <a class="pcard" href="/product/<%= s.product_id %>"><span class="ribbon"><%= s.live?'抢购中':'即将开始' %></span><div class="pic"><img loading="lazy" decoding="async" src="<%= s.img %>" alt=""></div>
       <div class="info"><div class="name"><%= s.name %></div><div class="meta"><span class="price"><big><%= s.price %></big><span class="mkt"><%= s.market_price %></span></span></div>
       <div class="bar"><i style="width:<%= Math.round(s.sold/s.stock*100) %>%"></i></div><div class="sales">已抢 <%= Math.round(s.sold/s.stock*100) %>%</div></div></a>
   <% }) %></div>
@@ -45,11 +46,11 @@
   <div class="grid"><% hot.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div>
 <% if (groups.length) { %>
 <div class="sec"><div class="sec-h"><h2>👥 拼团特惠</h2><a href="/groupbuy">更多拼团 ›</a></div>
-  <div class="grid"><% groups.forEach(g=>{ %><a class="pcard" href="/product/<%= g.product_id %>"><span class="ribbon"><%= g.size %>人团</span><div class="pic"><img src="<%= g.img %>" alt=""></div><div class="info"><div class="name"><%= g.name %></div><div class="meta"><span class="price"><big><%= g.price %></big><span class="mkt"><%= g.market_price %></span></span><span class="tag">拼团价</span></div></div></a><% }) %></div></div>
+  <div class="grid"><% groups.forEach(g=>{ %><a class="pcard" href="/product/<%= g.product_id %>"><span class="ribbon"><%= g.size %>人团</span><div class="pic"><img loading="lazy" decoding="async" src="<%= g.img %>" alt=""></div><div class="info"><div class="name"><%= g.name %></div><div class="meta"><span class="price"><big><%= g.price %></big><span class="mkt"><%= g.market_price %></span></span><span class="tag">拼团价</span></div></div></a><% }) %></div></div>
 <% } %>
 <div class="sec"><div class="sec-h"><h2>🆕 新品上市</h2><a href="/products?sort=new">查看更多 ›</a></div>
   <div class="grid"><% fresh.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div>
 <div class="sec"><div class="sec-h"><h2>🎟️ 超值优惠券</h2><a href="/coupons">领券中心 ›</a></div>
-  <div class="grid g2"><% coupons.slice(0,4).forEach(c=>{ %><div class="coupon"><div class="l"><b><%= c.amount %></b><small><%= c.threshold?'满'+c.threshold+'可用':'无门槛' %></small></div><div class="r"><b><%= c.name %></b><span class="muted"><%= c.description %> · 领取后<%= c.valid_days %>天内有效</span></div><div class="act"><form method="post" action="/coupons/<%= c.id %>/claim"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary sm">立即领取</button></form></div></div><% }) %></div></div>
+  <div class="grid g2 hs"><% coupons.slice(0,4).forEach(c=>{ %><div class="coupon"><div class="l"><b><%= c.amount %></b><small><%= c.threshold?'满'+c.threshold+'可用':'无门槛' %></small></div><div class="r"><b><%= c.name %></b><span class="muted"><%= c.description %> · 领取后<%= c.valid_days %>天内有效</span></div><div class="act"><form method="post" action="/coupons/<%= c.id %>/claim"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary sm">立即领取</button></form></div></div><% }) %></div></div>
 <div class="sec"><div class="sec-h"><h2>🏷️ 品牌精选</h2><a href="/products">全部品牌 ›</a></div>
   <div class="grid g5" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))"><% brands.forEach(b=>{ %><a class="card" href="/products?brand=<%= b.id %>" style="text-align:center;padding:16px 8px;border-top:4px solid <%= b.color %>"><b style="font-size:18px;color:<%= b.color %>"><%= b.name %></b></a><% }) %></div></div>

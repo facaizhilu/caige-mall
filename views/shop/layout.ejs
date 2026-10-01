@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#d4202a"><meta name="format-detection" content="telephone=no">
 <meta name="csrf" content="<%= csrf %>">
 <title><%= title %> - <%= shop.shop_name %></title>
 <link rel="icon" href="/favicon.ico">
-<link rel="stylesheet" href="/static/css/shop.css?v=4">
+<link rel="stylesheet" href="/static/css/shop.css?v=6">
 </head><body>
 <div class="topbar"><div class="wrap">
   <div>欢迎来到<%= shop.shop_name %>!<span style="margin-left:12px">客服热线 <%= shop.service_phone %></span></div>
@@ -18,9 +18,9 @@
 </div></div>
 <% if (shop.announcement) { %><div class="notice-bar"><%= shop.announcement %></div><% } %>
 <header class="header"><div class="wrap">
-  <a class="logo" href="/"><i>财</i><span><%= shop.shop_name %><small><%= shop.slogan %></small></span></a>
+  <a class="logo" href="/" aria-label="首页"><i>财</i><span><%= shop.shop_name %><small><%= shop.slogan %></small></span></a>
   <div class="search">
-    <form action="/products" method="get"><input name="q" value="<%= (typeof q==='string')?q:'' %>" placeholder="搜索商品、品牌,例如:手机" maxlength="40"><button>搜 索</button></form>
+    <form action="/products" method="get"><input name="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="搜索商品" value="<%= (typeof q==='string')?q:'' %>" placeholder="搜索商品、品牌,例如:手机" maxlength="40"><button>搜 索</button></form>
     <div class="hotwords">热搜:<% hotWords.forEach(w=>{ %><a href="/products?q=<%= encodeURIComponent(w) %>"><%= w %></a><% }) %></div>
   </div>
   <div class="hactions">
@@ -40,7 +40,7 @@
     <div><h4><%= shop.shop_name %></h4><p><%= shop.slogan %></p><p>客服 <%= shop.service_phone %><br><%= shop.service_hours %></p></div>
     <div><h4>新手指南</h4><a href="/help">注册与登录</a><a href="/help">如何下单</a><a href="/help">优惠与积分</a></div>
     <div><h4>配送与售后</h4><a href="/help">运费规则</a><a href="/aftersales">退款/退货</a><a href="/me/invoices">发票说明</a></div>
-    <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a></div>
+    <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a><a href="/admin">商家后台</a></div>
   </div>
   <div class="cp">© 2026 <%= shop.shop_name %> · <%= shop.icp %> · 本站为演示站点,所有商品与订单均为虚构,支付为模拟支付 · <%= shop.address %></div>
 </div></footer>
@@ -51,5 +51,5 @@
   <a href="<%= user?'/me':'/login' %>" class="<%= req.path.startsWith('/me')?'on':'' %>"><span>👤</span>我的</a>
 </nav>
 <script>window.REGIONS=<%- JSON.stringify(regions) %>;</script>
-<script src="/static/js/app.js?v=3"></script>
+<script src="/static/js/app.js?v=4"></script>
 </body></html>

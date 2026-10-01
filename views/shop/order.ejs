@@ -13,7 +13,7 @@
   <div class="card"><h3 style="margin-top:0">订单信息</h3><dl class="kv"><dt>下单时间</dt><dd><%= o.created_at %></dd><dt>支付方式</dt><dd><%= o.pay_method?PAY_METHOD[o.pay_method]:'-' %></dd><dt>支付时间</dt><dd><%= o.paid_at||'-' %></dd><dt>类型</dt><dd><%= {normal:'普通订单',seckill:'限时秒杀',group:'拼团订单',points:'积分兑换'}[o.type] %></dd></dl></div>
 </div>
 <div class="card mt"><h3 style="margin-top:0">商品清单</h3>
-  <% items.forEach(i=>{ %><div class="oi"><img src="<%= i.image %>"><div style="flex:1"><a href="<%= i.product_id?'/product/'+i.product_id:'#' %>"><b><%= i.name %></b></a><br><span class="muted"><%= i.spec_text %></span></div><span class="price"><%= i.price %></span><span>× <%= i.qty %></span></div><% }) %>
+  <% items.forEach(i=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= i.image %>"><div style="flex:1"><a href="<%= i.product_id?'/product/'+i.product_id:'#' %>"><b><%= i.name %></b></a><br><span class="muted"><%= i.spec_text %></span></div><span class="price"><%= i.price %></span><span>× <%= i.qty %></span></div><% }) %>
   <hr style="border:0;border-top:1px solid var(--line)">
   <dl class="kv" style="grid-template-columns:1fr auto;max-width:360px;margin-left:auto"><dt>商品金额</dt><dd class="right"><%= money(o.goods_amount) %></dd><dt>运费</dt><dd class="right"><%= money(o.freight) %></dd><dt>会员折扣</dt><dd class="right">-<%= money(o.level_discount) %></dd><dt>优惠券</dt><dd class="right">-<%= money(o.coupon_discount) %></dd><dt>积分抵扣(<%= o.points_used %>分)</dt><dd class="right">-<%= money(o.points_discount) %></dd><dt><b>实付款</b></dt><dd class="right price"><big><%= o.pay_amount.toFixed(2) %></big></dd></dl>
   <div class="flex wrapf mt" style="justify-content:flex-end">

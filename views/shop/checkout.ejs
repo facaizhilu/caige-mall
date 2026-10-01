@@ -13,13 +13,13 @@
       <div class="grid g2" style="grid-template-columns:1fr 1fr">
         <div class="form-row"><label>收货人</label><input name="new_name" maxlength="20"></div><div class="form-row"><label>手机号</label><input name="new_phone" type="tel" maxlength="11"></div>
       </div>
-      <div class="grid g3" style="grid-template-columns:repeat(3,1fr)"><select name="new_province" data-r="province"></select><select name="new_city" data-r="city"></select><select name="new_district" data-r="district"></select></div>
+      <div class="grid g3 rg" style="grid-template-columns:repeat(3,1fr)"><select name="new_province" data-r="province"></select><select name="new_city" data-r="city"></select><select name="new_district" data-r="district"></select></div>
       <div class="form-row mt"><input name="new_detail" placeholder="街道、门牌号等详细地址" maxlength="100"></div>
       <label><input type="checkbox" name="save_addr" value="1" checked style="width:auto"> 保存到我的地址</label>
     </div>
   </div>
   <div class="card ck-sec"><h3>🛍️ 商品清单</h3>
-    <% q.lines.forEach(l=>{ %><div class="oi"><img src="<%= l.image %>"><div style="flex:1"><b><%= l.name %></b><br><span class="muted"><%= l.spec_text %></span></div><span class="price"><%= l.price %></span><span>× <%= l.qty %></span></div><% }) %>
+    <% q.lines.forEach(l=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= l.image %>"><div style="flex:1"><b><%= l.name %></b><br><span class="muted"><%= l.spec_text %></span></div><span class="price"><%= l.price %></span><span>× <%= l.qty %></span></div><% }) %>
     <div class="form-row mt"><label>订单备注</label><input name="remark" maxlength="100" placeholder="选填,如:请工作日送货"></div>
   </div>
   <% if (!promo) { %>

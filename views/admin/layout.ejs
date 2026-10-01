@@ -1,6 +1,6 @@
 <% if (typeof layoutless!=='undefined' && layoutless) { %><%- body %><% } else { %>
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf" content="<%= csrf %>">
-<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=2"></head><body>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="csrf" content="<%= csrf %>">
+<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=3"></head><body>
 <div class="layout">
 <aside class="side" id="side">
   <div class="brand"><i>财</i><span><%= shop.shop_name %><small>管理后台</small></span></div>
@@ -16,15 +16,17 @@
      ]; %>
   <% menu.forEach(g=>{ const items=g[1].filter(m=>can(m[0])); if(!items.length) return; %><h6><%= g[0] %></h6>
     <% items.forEach(m=>{ const on = m[1]==='/admin' ? req.originalUrl.split('?')[0]==='/admin'||req.originalUrl.split('?')[0]==='/admin/' : req.originalUrl.split('?')[0].startsWith(m[1]); %><a href="<%= m[1] %>" class="<%= on?'on':'' %>"><span><%- m[2].replace(/<span.*$/,'') %></span><%- (m[2].match(/<span.*$/)||[''])[0] %></a><% }) %><% }) %>
-</aside>
+</aside><div class="side-mask" onclick="document.getElementById('side').classList.remove('open')"></div>
 <div class="main">
-  <div class="top"><button class="menu-btn" onclick="document.getElementById('side').classList.toggle('open')">☰</button><b><%= title %></b>
+  <div class="top"><button class="menu-btn" aria-label="菜单" onclick="document.getElementById('side').classList.toggle('open')">☰</button><b><%= title %></b>
     <div class="u"><a href="/" target="_blank">🛒 查看商城</a><a href="/admin/password"><%= admin.name %>(<%= admin.role_name %>)</a>
     <form method="post" action="/admin/logout" style="margin:0"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">退出</button></form></div></div>
   <div class="content"><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %><%- body %></div>
 </div></div>
 <script>
 var CSRF=document.querySelector('meta[name=csrf]').content;
+document.querySelectorAll('table.t').forEach(function(t){if(!t.closest('.tbl-wrap')){var w=document.createElement('div');w.className='tbl-wrap';t.parentNode.insertBefore(w,t);w.appendChild(t)}});
+document.querySelectorAll('#side a').forEach(function(a){a.addEventListener('click',function(){document.getElementById('side').classList.remove('open')})});
 document.addEventListener('submit',function(e){var m=e.target.dataset.confirm;if(m&&!confirm(m))e.preventDefault()});
 </script>
 </body></html><% } %>

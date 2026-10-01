@@ -1,7 +1,7 @@
 <div class="crumb"><a href="/orders">我的订单</a> › 评价晒单</div>
 <form method="post" action="/order/<%= o.id %>/review" enctype="multipart/form-data" class="card"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <p class="muted">评价提交后需经平台审核方可展示,审核通过奖励 <%= shop.review_points %> 积分。可上传最多 3 张图片(png/jpg/gif/webp,单张≤3MB)。</p>
-<% items.forEach(i=>{ %><div class="review"><img src="<%= i.image %>" style="width:70px;height:70px;border-radius:8px;object-fit:cover"><div style="flex:1"><b><%= i.name %></b> <span class="muted"><%= i.spec_text %></span>
+<% items.forEach(i=>{ %><div class="review"><img loading="lazy" decoding="async" src="<%= i.image %>" style="width:70px;height:70px;border-radius:8px;object-fit:cover"><div style="flex:1"><b><%= i.name %></b> <span class="muted"><%= i.spec_text %></span>
 <% if(i.reviewed){ %><div class="tag green">已评价</div><% } else { %>
 <div class="form-row mt"><label>评分</label><select name="rating_<%= i.id %>" style="max-width:160px"><option value="5">★★★★★ 非常满意</option><option value="4">★★★★ 满意</option><option value="3">★★★ 一般</option><option value="2">★★ 较差</option><option value="1">★ 很差</option></select></div>
 <div class="form-row"><textarea name="content_<%= i.id %>" rows="3" maxlength="500" placeholder="说说商品使用感受,帮助其他买家~"></textarea></div>

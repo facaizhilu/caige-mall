@@ -7,7 +7,7 @@
   <% items.forEach(i=>{ %>
   <div class="cartrow" data-id="<%= i.id %>" data-price="<%= i.price %>">
     <span><input type="checkbox" name="cart_id" value="<%= i.id %>" class="chk" <%= i.ok?'checked':'disabled' %>></span>
-    <a class="pn" href="/product/<%= i.pid %>"><img src="<%= i.img %>"><span><b><%= i.name %></b><br><span class="muted"><%= i.spec_text %></span><% if(!i.ok){ %> <span class="tag">已下架/缺货</span><% } %></span></a>
+    <a class="pn" href="/product/<%= i.pid %>"><img loading="lazy" decoding="async" src="<%= i.img %>"><span><b><%= i.name %></b><br><span class="muted"><%= i.spec_text %></span><% if(!i.ok){ %> <span class="tag">已下架/缺货</span><% } %></span></a>
     <span class="price hide-m"><%= i.price %></span>
     <span><div class="qty"><button type="button" class="m">−</button><input value="<%= i.qty %>" class="q"><button type="button" class="p">+</button></div></span>
     <span class="price sub"><%= (i.price*i.qty).toFixed(2) %></span>
