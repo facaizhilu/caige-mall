@@ -1,0 +1,2 @@
+<div class="crumb"><a href="/">首页</a> › <a href="<%= a.category==='notice'?'/notices':'/help' %>"><%= a.category==='notice'?'商城公告':(a.category==='help'?'帮助中心':'关于') %></a> › <%= a.title %></div>
+<div class="card"><h2 style="margin-top:0"><%= a.title %></h2><div class="muted mb"><%= a.created_at.slice(0,10) %> · 阅读 <%= a.views %></div><div class="desc"><%- a.content %></div></div>

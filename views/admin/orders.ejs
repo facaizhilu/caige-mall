@@ -1,0 +1,13 @@
+<div class="card">
+ <div class="flex wrapf" style="margin-bottom:12px"><a class="btn sm <%= !status?'primary':'' %>" href="/admin/orders">全部</a><% Object.keys(ORDER_STATUS).forEach(k=>{ %><a class="btn sm <%= status===k?'primary':'' %>" href="/admin/orders?status=<%= k %>"><%= ORDER_STATUS[k] %> <%= counts[k]||0 %></a><% }) %></div>
+ <form class="toolbar" method="get"><input type="hidden" name="status" value="<%= status %>"><input type="search" name="q" value="<%= q %>" placeholder="订单号/收货人/手机/运单号" style="min-width:220px">
+  <select name="type"><option value="">全部类型</option><option value="normal" <%= type==='normal'?'selected':'' %>>普通</option><option value="seckill" <%= type==='seckill'?'selected':'' %>>秒杀</option><option value="group" <%= type==='group'?'selected':'' %>>拼团</option><option value="points" <%= type==='points'?'selected':'' %>>积分兑换</option></select>
+  <input type="date" name="from" value="<%= from %>"> - <input type="date" name="to" value="<%= to %>"><button class="btn">查询</button><span class="sp"></span><a class="btn" href="/admin/orders/export">导出订单CSV</a></form>
+ <div class="tbl-wrap"><table class="t"><tr><th>订单号</th><th>商品</th><th>收货人</th><th>实付</th><th>状态</th><th>下单时间</th><th>操作</th></tr>
+ <% pg.rows.forEach(o=>{ %><tr><td><a href="/admin/orders/<%= o.id %>"><b><%= o.order_no %></b></a><br><% if(o.type!=='normal'){ %><span class="tag gold"><%= {seckill:'秒杀',group:'拼团',points:'积分兑换'}[o.type] %></span><% } %><span class="muted"><%= o.uphone %></span></td>
+  <td><% o.items.slice(0,2).forEach(i=>{ %><div class="flex" style="margin:2px 0"><img class="thumb" style="width:32px;height:32px" src="<%= i.image %>"><span><%= i.name.slice(0,16) %> <span class="muted">×<%= i.qty %></span></span></div><% }) %></td>
+  <td><%= o.receiver %><br><span class="muted"><%= o.province %><%= o.city %></span></td><td class="price">¥<%= o.pay_amount.toFixed(2) %></td>
+  <td><span class="os <%= o.status %>"><%= ORDER_STATUS[o.status] %></span><% if(o.type==='group'&&o.status==='paid'&&o.groupStatus!=='success'){ %><br><span class="tag gold">待成团</span><% } %></td><td class="muted"><%= o.created_at.slice(0,16) %></td>
+  <td style="white-space:nowrap"><a class="btn sm" href="/admin/orders/<%= o.id %>">详情</a><% if(o.status==='paid'&&(o.type!=='group'||o.groupStatus==='success')){ %> <a class="btn sm primary" href="/admin/orders/<%= o.id %>#ship">发货</a><% } %></td></tr><% }) %>
+ <% if(!pg.rows.length){ %><tr><td colspan="7" class="muted" style="text-align:center;padding:30px">暂无订单</td></tr><% } %></table></div>
+ <%- include('../partials/apager') %></div>

@@ -1,0 +1,2 @@
+<div class="me"><%- include("_menu",{cur:"favorites"}) %><div class="card"><h3 style="margin-top:0">我的收藏(<%= rows.length %>)</h3>
+<% if(!rows.length){ %><div class="empty"><div class="e">⭐</div>还没有收藏商品</div><% } else { %><div class="grid g3" style="grid-template-columns:repeat(3,1fr)"><% rows.forEach(p=>{ %><div><%- include('../partials/card',{p}) %><form method="post" action="/favorite/<%= p.id %>" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm block">取消收藏</button></form></div><% }) %></div><% } %></div></div>

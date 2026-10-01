@@ -1,0 +1,4 @@
+<% if (pg.pages > 1) { %><div class="pager"><span class="muted" style="border:0;background:none">共 <%= pg.total %> 条</span>
+  <% if (pg.page > 1) { %><a href="<%= qs(req,{page:pg.page-1}) %>">‹</a><% } %>
+  <% for (let i=1;i<=pg.pages;i++) { if (i===1||i===pg.pages||Math.abs(i-pg.page)<=2) { %><% if (i===pg.page) { %><span class="on"><%= i %></span><% } else { %><a href="<%= qs(req,{page:i}) %>"><%= i %></a><% } %><% } else if (Math.abs(i-pg.page)===3) { %><span>…</span><% } } %>
+  <% if (pg.page < pg.pages) { %><a href="<%= qs(req,{page:pg.page+1}) %>">›</a><% } %></div><% } else { %><div class="muted" style="margin-top:10px">共 <%= pg.total %> 条</div><% } %>

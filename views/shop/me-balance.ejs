@@ -1,0 +1,11 @@
+<div class="me"><%- include("_menu",{cur:"balance"}) %><div>
+<div class="card"><span class="muted">账户余额</span><div class="price" style="font-size:34px"><b><%= user.balance.toFixed(2) %></b></div>
+  <div class="sim mt">充值为模拟功能:不会产生真实扣款,也未接入真实支付渠道。</div>
+  <form method="post" action="/me/recharge" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>">
+   <div class="opts" id="amts"><% RECHARGE.forEach(r=>{ %><span class="chip" data-a="<%= r[0] %>">充 ¥<%= r[0] %><%= r[1]?' 送 ¥'+r[1]:'' %></span><% }) %></div>
+   <div class="flex mt wrapf"><input type="number" name="amount" id="amt" min="1" max="10000" step="0.01" placeholder="自定义金额" style="max-width:180px" required>
+    <select name="method" style="max-width:200px"><option value="wechat">微信支付(模拟)</option><option value="alipay">支付宝(模拟)</option></select><button class="btn primary">立即充值</button></div></form></div>
+<div class="card mt"><h3 style="margin-top:0">余额明细</h3><table class="tbl"><tr><th>时间</th><th>说明</th><th class="right">变动</th><th class="right">余额</th></tr>
+<% pg.rows.forEach(r=>{ %><tr><td><%= r.created_at %></td><td><%= r.remark %></td><td class="right"><b style="color:<%= r.delta>=0?'var(--ok)':'var(--red)' %>"><%= r.delta>0?'+':'' %><%= r.delta.toFixed(2) %></b></td><td class="right"><%= r.balance.toFixed(2) %></td></tr><% }) %></table><%- include('../partials/pager') %></div>
+</div></div>
+<script>document.querySelectorAll('#amts .chip').forEach(function(c){c.onclick=function(){document.querySelectorAll('#amts .chip').forEach(function(x){x.classList.remove('on')});c.classList.add('on');amt.value=c.dataset.a}})</script>

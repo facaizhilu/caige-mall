@@ -1,0 +1,10 @@
+<div class="crumb"><a href="/orders">我的订单</a> › 申请售后</div>
+<form method="post" action="/order/<%= o.id %>/aftersale" enctype="multipart/form-data" class="card" style="max-width:700px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<h3 style="margin-top:0">申请退款 / 退货退款</h3>
+<% items.forEach(i=>{ %><div class="oi"><img src="<%= i.image %>"><div><b><%= i.name %></b><br><span class="muted"><%= i.spec_text %> × <%= i.qty %></span></div></div><% }) %>
+<p>订单实付 <b class="price"><%= o.pay_amount.toFixed(2) %></b>,审核通过后退回<b>账户余额</b>(演示)。</p>
+<div class="form-row"><label>售后类型</label><select name="type"><option value="refund">仅退款(未收到货/协商一致)</option><% if(o.status!=='paid'){ %><option value="refund_return">退货退款(已收到货)</option><% } %></select></div>
+<div class="form-row"><label>原因</label><select name="reason" required><option>商品与描述不符</option><option>质量问题</option><option>不想要了/拍错</option><option>尺码/规格不合适</option><option>商家发错货</option><option>其他</option></select></div>
+<div class="form-row"><label>问题描述</label><textarea name="description" rows="3" maxlength="500"></textarea></div>
+<div class="form-row"><label>上传凭证(最多3张)</label><input type="file" name="images" accept="image/*" multiple></div>
+<button class="btn primary lg">提交申请</button></form>

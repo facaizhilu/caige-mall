@@ -1,0 +1,37 @@
+<div class="crumb"><a href="/orders">我的订单</a> › 订单详情</div>
+<div class="card mb">
+  <div class="flex between"><h3 style="margin:0">订单号 <%= o.order_no %></h3><span class="os <%= o.status %>" style="font-size:15px"><%= ORDER_STATUS[o.status] %></span></div>
+  <% if (['unpaid','paid','shipped','completed'].includes(o.status)) { const idx={unpaid:0,paid:1,shipped:2,completed:3}[o.status]; %>
+  <div class="steps mt"><% ['提交订单','支付成功','商家发货','交易完成'].forEach((s,i)=>{ %><div class="<%= i<=idx?'on':'' %>"><%= s %></div><% }) %></div><% } %>
+  <% if (o.status==='unpaid') { %><div class="sim mb">请在 <b><%= expireAt %></b> 前完成支付,超时将自动取消。 <a class="btn primary sm" href="/order/<%= o.id %>/pay">去支付(模拟)</a></div><% } %>
+  <% if (group) { %><div class="sim mb">👥 拼团状态:<b><%= {open:'拼团中,还差'+(group.need-group.joined)+'人',success:'拼团成功',failed:'拼团失败(已自动退款)'}[group.status] %></b> <% if (group.status==='open') { %><a href="/group/<%= group.id %>">邀请好友参团 ›</a><% } %></div><% } %>
+  <% if (o.status==='cancelled'||o.status==='refunded') { %><p class="muted">原因:<%= o.cancel_reason %> · <%= o.cancelled_at %></p><% } %>
+</div>
+<div class="grid g2" style="grid-template-columns:1fr 1fr">
+  <div class="card"><h3 style="margin-top:0">收货信息</h3><dl class="kv"><dt>收货人</dt><dd><%= o.receiver %> <%= o.phone %></dd><dt>地址</dt><dd><%= o.province %> <%= o.city %> <%= o.district %> <%= o.detail %></dd><dt>备注</dt><dd><%= o.remark||'-' %></dd></dl>
+    <% if (o.tracking_no) { %><dl class="kv mt"><dt>物流公司</dt><dd><%= o.express_company %></dd><dt>运单号</dt><dd><%= o.tracking_no %></dd></dl><a class="btn sm mt" href="/order/<%= o.id %>/logistics">查看物流轨迹</a><% } %></div>
+  <div class="card"><h3 style="margin-top:0">订单信息</h3><dl class="kv"><dt>下单时间</dt><dd><%= o.created_at %></dd><dt>支付方式</dt><dd><%= o.pay_method?PAY_METHOD[o.pay_method]:'-' %></dd><dt>支付时间</dt><dd><%= o.paid_at||'-' %></dd><dt>类型</dt><dd><%= {normal:'普通订单',seckill:'限时秒杀',group:'拼团订单',points:'积分兑换'}[o.type] %></dd></dl></div>
+</div>
+<div class="card mt"><h3 style="margin-top:0">商品清单</h3>
+  <% items.forEach(i=>{ %><div class="oi"><img src="<%= i.image %>"><div style="flex:1"><a href="<%= i.product_id?'/product/'+i.product_id:'#' %>"><b><%= i.name %></b></a><br><span class="muted"><%= i.spec_text %></span></div><span class="price"><%= i.price %></span><span>× <%= i.qty %></span></div><% }) %>
+  <hr style="border:0;border-top:1px solid var(--line)">
+  <dl class="kv" style="grid-template-columns:1fr auto;max-width:360px;margin-left:auto"><dt>商品金额</dt><dd class="right"><%= money(o.goods_amount) %></dd><dt>运费</dt><dd class="right"><%= money(o.freight) %></dd><dt>会员折扣</dt><dd class="right">-<%= money(o.level_discount) %></dd><dt>优惠券</dt><dd class="right">-<%= money(o.coupon_discount) %></dd><dt>积分抵扣(<%= o.points_used %>分)</dt><dd class="right">-<%= money(o.points_discount) %></dd><dt><b>实付款</b></dt><dd class="right price"><big><%= o.pay_amount.toFixed(2) %></big></dd></dl>
+  <div class="flex wrapf mt" style="justify-content:flex-end">
+    <% if (o.status==='unpaid') { %><a class="btn primary" href="/order/<%= o.id %>/pay">去支付</a><form method="post" action="/order/<%= o.id %>/cancel" data-confirm="确定取消订单?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger">取消订单</button></form><% } %>
+    <% if (o.status==='shipped') { %><form method="post" action="/order/<%= o.id %>/confirm" data-confirm="确认已收到商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary">确认收货</button></form><% } %>
+    <% if (o.status==='completed') { %><a class="btn" href="/order/<%= o.id %>/review">评价晒单</a><% } %>
+    <% if (['paid','shipped','completed'].includes(o.status) && o.type!=='points' && !aftersale) { %><a class="btn" href="/order/<%= o.id %>/aftersale">申请退款/退货</a><% } %>
+    <% if (aftersale) { %><a class="btn" href="/aftersale/<%= aftersale.id %>">售后进度:<%= AFTERSALE_STATUS[aftersale.status] %></a><% } %>
+  </div>
+</div>
+<% if (['paid','shipped','completed'].includes(o.status) && o.type!=='points') { %>
+<div class="card mt"><h3 style="margin-top:0">🧾 发票</h3>
+  <% if (invoice) { %><dl class="kv"><dt>抬头</dt><dd><%= invoice.title %> (<%= invoice.type==='company'?'企业':'个人' %>)</dd><dt>邮箱</dt><dd><%= invoice.email %></dd><dt>状态</dt><dd><span class="tag <%= invoice.status==='issued'?'green':'' %>"><%= invoice.status==='issued'?'已开具 '+invoice.invoice_no:(invoice.status==='rejected'?'已驳回:'+invoice.admin_note:'待开具') %></span></dd></dl>
+  <% } else { %><details><summary class="btn sm">申请电子发票</summary>
+    <form method="post" action="/order/<%= o.id %>/invoice" class="mt" style="max-width:480px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="form-row"><label>发票类型</label><select name="type" onchange="document.getElementById('taxrow').classList.toggle('hide',this.value!=='company')"><option value="personal">个人</option><option value="company">企业</option></select></div>
+      <div class="form-row"><label>发票抬头</label><input name="title" required maxlength="60"></div>
+      <div class="form-row hide" id="taxrow"><label>纳税人识别号</label><input name="tax_no" maxlength="20"></div>
+      <div class="form-row"><label>接收邮箱</label><input type="email" name="email" required></div><button class="btn primary">提交申请</button></form></details><% } %>
+</div><% } %>
+<div class="card mt"><h3 style="margin-top:0">订单跟踪</h3><ul class="timeline"><% traces.forEach(t=>{ %><li><%= t.text %><time><%= t.time %></time></li><% }) %></ul></div>

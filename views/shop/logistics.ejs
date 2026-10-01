@@ -1,0 +1,6 @@
+<div class="crumb"><a href="/orders">我的订单</a> › <a href="/order/<%= o.id %>">订单详情</a> › 物流跟踪</div>
+<div class="card">
+  <div class="flex"><% if (items[0]) { %><img src="<%= items[0].image %>" style="width:80px;height:80px;border-radius:10px;object-fit:cover"><% } %><div><b><%= o.express_company||'暂未发货' %></b><br>运单号:<%= o.tracking_no||'-' %> <% if(o.tracking_no){ %><span class="muted">(演示轨迹,非真实快递数据)</span><% } %></div></div>
+  <ul class="timeline mt"><% traces.forEach(t=>{ %><li><%= t.text %><time><%= t.time %></time></li><% }) %></ul>
+  <% if (o.status==='shipped') { %><form method="post" action="/order/<%= o.id %>/logistics/simulate"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">⏩ 模拟物流更新(演示)</button></form><% } %>
+</div>

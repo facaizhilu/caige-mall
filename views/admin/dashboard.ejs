@@ -1,0 +1,22 @@
+<div class="grid g4">
+  <div class="kpi r"><span>今日销售额</span><b>¥<%= stats.todaySales.toFixed(2) %></b><small>今日订单 <%= stats.todayOrders %> 笔</small></div>
+  <div class="kpi go"><span>累计销售额</span><b>¥<%= stats.totalSales.toFixed(0) %></b><small>累计订单 <%= stats.totalOrders %> · 客单价 ¥<%= stats.unitPrice.toFixed(1) %></small></div>
+  <div class="kpi"><span>会员总数</span><b><%= stats.members %></b><small>今日新增 <%= stats.todayMembers %></small></div>
+  <div class="kpi"><span>在售商品</span><b><%= stats.products %></b><small><a href="/admin/inventory" style="color:var(--red)">库存预警 <%= warnCount %> 项</a></small></div>
+</div>
+<div class="grid g4 mt">
+  <a class="kpi" href="/admin/orders?status=paid"><span>待发货订单</span><b style="color:#0369a1"><%= stats.toShip %></b></a>
+  <a class="kpi" href="/admin/orders?status=unpaid"><span>待付款订单</span><b style="color:#d97706"><%= stats.unpaid %></b></a>
+  <a class="kpi" href="/admin/aftersales?status=pending"><span>待处理售后</span><b style="color:var(--red)"><%= stats.pendingAS %></b></a>
+  <a class="kpi" href="/admin/reviews?status=pending"><span>待审核评价</span><b><%= stats.pendingReview %></b></a>
+</div>
+<div class="grid g2 mt" style="grid-template-columns:3fr 2fr">
+  <div class="card"><h3>近 7 天销售趋势</h3><%- trend %></div>
+  <div class="card"><h3>订单状态分布</h3><%- statusChart %></div>
+</div>
+<div class="grid g2" style="grid-template-columns:3fr 2fr">
+  <div class="card"><div class="flex between"><h3>最新订单</h3><a href="/admin/orders" class="muted">全部订单 ›</a></div><div class="tbl-wrap"><table class="t"><tr><th>订单号</th><th>会员</th><th>金额</th><th>状态</th><th>时间</th></tr>
+    <% recent.forEach(o=>{ %><tr><td><a href="/admin/orders/<%= o.id %>"><%= o.order_no %></a></td><td><%= o.nickname %></td><td class="price">¥<%= o.pay_amount.toFixed(2) %></td><td><span class="os <%= o.status %>"><%= ORDER_STATUS[o.status] %></span></td><td class="muted"><%= o.created_at.slice(5,16) %></td></tr><% }) %></table></div></div>
+  <div><div class="card"><h3>热销商品 TOP5(件)</h3><%- topChart %></div>
+  <div class="card"><h3>⚠️ 库存预警</h3><% if(!warns.length){ %><span class="muted">库存充足</span><% } %><% warns.forEach(w=>{ %><div class="flex between" style="padding:3px 0"><a href="/admin/products/<%= w.pid %>/edit"><%= w.name.slice(0,16) %> · <%= w.spec_text %></a><span class="tag"><%= w.stock %> 件</span></div><% }) %></div></div>
+</div>

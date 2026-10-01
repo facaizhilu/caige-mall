@@ -1,0 +1,2 @@
+<div class="card"><form class="toolbar" method="get"><input type="search" name="q" value="<%= q %>" placeholder="管理员/操作/详情"><button class="btn">搜索</button><span class="sp"></span><a class="btn" href="/admin/logs/export">导出CSV</a></form>
+<table class="t"><tr><th>时间</th><th>管理员</th><th>操作</th><th>详情</th><th>IP</th></tr><% pg.rows.forEach(l=>{ %><tr><td class="muted"><%= l.created_at %></td><td><%= l.admin_name %></td><td><b><%= l.action %></b></td><td><%= l.detail %></td><td class="muted"><%= l.ip %></td></tr><% }) %></table><%- include('../partials/apager') %></div>

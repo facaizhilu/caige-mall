@@ -1,0 +1,28 @@
+{
+  "name": "caige-mall",
+  "version": "1.0.0",
+  "description": "财哥商城 - 中文电商演示站",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node lib/seed.js --reset",
+    "test": "node test/smoke.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "ejs": "^3.1.10",
+    "express": "^4.22.3",
+    "express-session": "^1.19.0",
+    "multer": "^1.4.4"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

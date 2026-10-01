@@ -1,0 +1,18 @@
+<div class="card" style="max-width:760px"><h3><%= title %></h3>
+<form method="post" action="<%= base %>/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= row.id||'' %>">
+<% cfg.fields.forEach(f=>{ const v = row[f.name]; %>
+ <div class="form-row"><% if (f.type==='checkbox') { %><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="<%= f.name %>" value="1" <%= v?'checked':'' %> style="width:auto"> <%= f.label %></label>
+ <% } else { %><label><%= f.label %><%= f.required?' *':'' %></label>
+  <% if (f.type==='textarea') { %><textarea name="<%= f.name %>" rows="8"><%= v %></textarea>
+  <% } else if (f.type==='select') { const os = optsOf(f); %><select name="<%= f.name %>"><% os.forEach(o=>{ %><option value="<%= o.v %>" <%= String(o.v)===String(v)?'selected':'' %>><%= o.t %></option><% }) %></select>
+  <% } else if (f.type==='number') { %><input type="number" name="<%= f.name %>" value="<%= v %>" step="<%= f.int?1:0.01 %>" <%= f.min!=null?'min='+f.min:'' %>>
+  <% } else if (f.type==='datetime') { %><input type="datetime-local" name="<%= f.name %>" value="<%= toDT(v) %>">
+  <% } else if (f.type==='image') { %><% if (v) { %><img src="<%= v %>" style="height:60px;border-radius:8px;display:block;margin-bottom:6px"><% } %><input type="text" name="<%= f.name %>" value="<%= v %>" placeholder="图片地址(可留空)"><div style="margin-top:6px"><input type="file" name="<%= f.name %>_file" accept="image/*"></div>
+  <% } else if (f.type==='perms') { const sel = String(v).split(','); %><div class="perms"><label><input type="checkbox" name="permissions_all" value="1" <%= v==='all'?'checked':'' %> onchange="document.querySelectorAll('.pm').forEach(c=>c.disabled=this.checked)"> <b>全部权限(超级管理员)</b></label>
+     <% Object.keys(PERMS).forEach(k=>{ %><label><input type="checkbox" class="pm" name="perm" value="<%= k %>" <%= sel.includes(k)?'checked':'' %> <%= v==='all'?'disabled':'' %>> <%= PERMS[k] %></label><% }) %></div><input type="hidden" name="permissions" id="permsHid" value="<%= v %>">
+     <script>document.querySelector('form[action$="/save"]').addEventListener('submit',function(){var all=document.querySelector('[name=permissions_all]').checked;document.getElementById('permsHid').value=all?'all':[].map.call(document.querySelectorAll('.pm:checked'),function(c){return c.value}).join(',')})</script>
+  <% } else { %><input type="text" name="<%= f.name %>" value="<%= v %>" <%= f.required?'required':'' %>><% } %>
+  <% if (f.help) { %><div class="help"><%= f.help %></div><% } %>
+ <% } %></div>
+<% }) %>
+<button class="btn primary">保存</button> <a class="btn" href="<%= base %>">返回</a></form></div>

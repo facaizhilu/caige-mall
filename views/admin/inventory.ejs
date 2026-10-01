@@ -1,0 +1,5 @@
+<div class="card"><p class="muted">库存 ≤ <b><%= th %></b> 的在售规格(阈值可在「站点设置」调整)。在此可直接补货。</p>
+<table class="t"><tr><th>商品</th><th>规格</th><th>编码</th><th>当前库存</th><th>补货/调整为</th></tr>
+<% rows.forEach(s=>{ %><tr><td><a href="/admin/products/<%= s.pid %>/edit"><%= s.name %></a> <%- s.status?'':'<span class="tag gray">已下架</span>' %></td><td><%= s.spec_text %></td><td><%= s.code %></td><td><span class="tag"><%= s.stock %></span></td>
+<td><form method="post" action="/admin/products/<%= s.pid %>/stock" class="flex"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="sku_id" value="<%= s.id %>"><input type="number" name="stock" min="0" value="<%= s.stock+50 %>" style="width:100px"><button class="btn sm primary">更新</button></form></td></tr><% }) %>
+<% if(!rows.length){ %><tr><td colspan="5" class="muted" style="text-align:center;padding:30px">🎉 所有规格库存充足</td></tr><% } %></table></div>

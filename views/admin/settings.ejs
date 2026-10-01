@@ -1,0 +1,15 @@
+<form method="post" action="/admin/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="card"><h3>站点信息</h3><div class="form-grid">
+<div class="form-row"><label>商城名称 *</label><input name="shop_name" value="<%= s.shop_name %>" required></div><div class="form-row"><label>Slogan</label><input name="slogan" value="<%= s.slogan %>"></div>
+<div class="form-row" style="grid-column:1/-1"><label>顶部公告条(留空则不显示)</label><input name="announcement" value="<%= s.announcement %>"></div>
+<div class="form-row"><label>客服电话</label><input name="service_phone" value="<%= s.service_phone %>"></div><div class="form-row"><label>客服时间</label><input name="service_hours" value="<%= s.service_hours %>"></div>
+<div class="form-row"><label>客服邮箱</label><input name="service_email" value="<%= s.service_email %>"></div><div class="form-row"><label>备案号</label><input name="icp" value="<%= s.icp %>"></div>
+<div class="form-row" style="grid-column:1/-1"><label>公司/发货地址</label><input name="address" value="<%= s.address %>"></div></div></div>
+<div class="card"><h3>交易与会员规则</h3><div class="form-grid">
+<div class="form-row"><label>积分抵现比例(多少积分抵 ¥1)</label><input type="number" name="points_rate" value="<%= s.points_rate %>"></div><div class="form-row"><label>积分最高抵扣订单百分比(%)</label><input type="number" name="points_max_percent" value="<%= s.points_max_percent %>"></div>
+<div class="form-row"><label>分销佣金比例(%)</label><input type="number" step="0.1" name="commission_rate" value="<%= s.commission_rate %>"></div><div class="form-row"><label>邀请好友奖励积分</label><input type="number" name="referral_points" value="<%= s.referral_points %>"></div>
+<div class="form-row"><label>注册奖励积分</label><input type="number" name="register_points" value="<%= s.register_points %>"></div><div class="form-row"><label>评价通过奖励积分</label><input type="number" name="review_points" value="<%= s.review_points %>"></div>
+<div class="form-row"><label>每日签到基础积分</label><input type="number" name="signin_base" value="<%= s.signin_base %>"></div><div class="form-row"><label>库存预警阈值</label><input type="number" name="stock_warn" value="<%= s.stock_warn %>"></div>
+<div class="form-row"><label>待付款自动取消(分钟)</label><input type="number" name="unpaid_cancel_minutes" value="<%= s.unpaid_cancel_minutes %>"></div><div class="form-row"><label>发货后自动确认收货(天)</label><input type="number" name="auto_confirm_days" value="<%= s.auto_confirm_days %>"></div>
+<div class="form-row"><label>售后申请有效期(天)</label><input type="number" name="aftersale_days" value="<%= s.aftersale_days %>"></div></div></div>
+<button class="btn primary" style="padding:9px 30px">保存设置</button></form>

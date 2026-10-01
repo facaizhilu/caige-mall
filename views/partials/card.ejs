@@ -1,0 +1,9 @@
+<a class="pcard" href="/product/<%= p.id %>">
+  <% if (p.is_new) { %><span class="ribbon">新品</span><% } else if (p.is_hot) { %><span class="ribbon">热卖</span><% } %>
+  <div class="pic"><img src="<%= p.img %>" alt="<%= p.name %>" loading="lazy"></div>
+  <div class="info">
+    <div class="name"><%= p.name %></div>
+    <div class="sub"><%= p.subtitle %></div>
+    <div class="meta"><span class="price"><big><%= (+p.price).toFixed(p.price%1?2:0) %></big></span><span class="sales">已售 <%= p.sales %></span></div>
+  </div>
+</a>

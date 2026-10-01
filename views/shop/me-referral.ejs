@@ -1,0 +1,9 @@
+<div class="me"><%- include("_menu",{cur:"referral"}) %><div>
+<div class="card"><h3 style="margin-top:0">👥 邀请好友 · 分销</h3><p class="muted">好友通过您的链接注册:您得 <%= shop.referral_points %> 积分;好友每笔订单确认收货后,您可获得实付金额 <%= shop.commission_rate %>% 的佣金。</p>
+ <div class="form-row"><label>我的邀请码</label><b style="font-size:22px;color:var(--red);letter-spacing:4px"><%= user.invite_code %></b></div>
+ <div class="form-row"><label>邀请链接</label><input value="<%= link %>" readonly onclick="this.select()"></div></div>
+<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b><%= invitees.length %></b><span>已邀请人数</span></div><div class="stat"><b>¥<%= sum.available.toFixed(2) %></b><span>可提现佣金</span></div><div class="stat"><b>¥<%= sum.settled.toFixed(2) %></b><span>已转入余额</span></div></div>
+<form method="post" action="/me/referral/settle" class="mb"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary" <%= sum.available<=0?'disabled':'' %>>佣金转入余额</button></form>
+<div class="card"><h3 style="margin-top:0">我邀请的好友</h3><table class="tbl"><tr><th>昵称</th><th>手机号</th><th>注册时间</th><th class="right">累计消费</th></tr><% invitees.forEach(i=>{ %><tr><td><%= i.nickname %></td><td><%= U.maskPhone(i.phone) %></td><td><%= i.created_at.slice(0,10) %></td><td class="right"><%= money(i.total_spent) %></td></tr><% }) %></table></div>
+<div class="card mt"><h3 style="margin-top:0">佣金明细</h3><table class="tbl"><tr><th>时间</th><th>订单</th><th>来源</th><th class="right">佣金</th><th>状态</th></tr><% list.forEach(c=>{ %><tr><td><%= c.created_at %></td><td><%= c.order_no %></td><td><%= c.nickname %></td><td class="right"><%= money(c.amount) %></td><td><%= {available:'可提现',settled:'已转余额',revoked:'已撤销'}[c.status] %></td></tr><% }) %></table></div>
+</div></div>

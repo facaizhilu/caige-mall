@@ -1,0 +1,27 @@
+<% const imgs = U.jsonArr(p.images); %>
+<form method="post" action="/admin/products/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id||'' %>">
+<div class="card"><h3>基本信息</h3><div class="form-grid">
+ <div class="form-row" style="grid-column:1/-1"><label>商品名称 *</label><input type="text" name="name" value="<%= p.name %>" required maxlength="80"></div>
+ <div class="form-row" style="grid-column:1/-1"><label>副标题/卖点</label><input type="text" name="subtitle" value="<%= p.subtitle %>" maxlength="100"></div>
+ <div class="form-row"><label>分类 *</label><select name="category_id"><option value="">请选择</option><% cats.filter(c=>c.parent).forEach(c=>{ %><option value="<%= c.v %>" <%= p.category_id==c.v?'selected':'' %>><%= c.t.replace('　└ ','') %></option><% }) %></select><div class="help">仅可选择二级分类</div></div>
+ <div class="form-row"><label>品牌</label><select name="brand_id"><option value="0">无</option><% brands.forEach(b=>{ %><option value="<%= b.id %>" <%= p.brand_id==b.id?'selected':'' %>><%= b.name %></option><% }) %></select></div>
+ <div class="form-row"><label>划线价(元)</label><input type="number" step="0.01" name="market_price" value="<%= p.market_price %>"></div>
+ <div class="form-row"><label>运费模板</label><select name="template_id"><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= p.template_id==t.id?'selected':'' %>><%= t.name %></option><% }) %></select></div>
+ <div class="form-row"><label>排序(大的在前)</label><input type="number" name="sort" value="<%= p.sort||0 %>"></div>
+ <div class="form-row"><label>重量(kg)</label><input type="number" step="0.01" name="weight" value="<%= p.weight||0.5 %>"></div>
+</div>
+<div class="flex wrapf"><label><input type="checkbox" name="status" value="1" <%= p.status?'checked':'' %>> 上架</label><label><input type="checkbox" name="is_hot" value="1" <%= p.is_hot?'checked':'' %>> 热卖推荐</label><label><input type="checkbox" name="is_new" value="1" <%= p.is_new?'checked':'' %>> 新品</label></div></div>
+<div class="card"><h3>商品图片 <span class="muted" style="font-weight:400">(第一张为主图,最多 9 张)</span></h3>
+ <div class="imgs"><% imgs.forEach(i=>{ %><div class="im"><img src="<%= i %>"><label><input type="checkbox" name="images_keep" value="<%= i %>" checked> 保留</label></div><% }) %></div>
+ <div class="form-row mt"><label>上传新图片(png/jpg/gif/webp,≤3MB)</label><input type="file" name="image_files" accept="image/*" multiple></div>
+ <div class="form-row"><label>或粘贴图片地址(每行一个,以 / 或 http 开头)</label><textarea name="image_urls" rows="2"></textarea></div>
+ <div class="help">不添加图片时将无主图,前台会显示默认占位图。</div></div>
+<div class="card"><h3>规格与库存(SKU)</h3>
+ <div class="form-row" style="max-width:420px"><label>规格名称(逗号分隔,最多 3 项)</label><input type="text" name="spec_names" id="specNames" value="<%= p.spec_names %>" placeholder="如:颜色,尺码"></div>
+ <p class="help">每行一个 SKU,规格值用「/」分隔且与规格名称顺序对应,例如规格名称「颜色,尺码」→ 规格值「黑色 / L」。已有订单引用的 SKU 不会被物理删除。</p>
+ <table class="t" id="skuTable"><tr><th>规格值</th><th>价格(元)</th><th>库存</th><th>编码</th><th></th></tr>
+ <% skus.forEach(s=>{ const attrs = typeof s.attrs==='string'?JSON.parse(s.attrs||'{}'):s.attrs; %><tr><td><input type="hidden" name="sku_id" value="<%= s.id||'' %>"><input type="text" name="sku_spec" value="<%= Object.values(attrs).join(' / ') %>"></td><td><input type="number" step="0.01" min="0" name="sku_price" value="<%= s.price %>"></td><td><input type="number" min="0" name="sku_stock" value="<%= s.stock %>"></td><td><input type="text" name="sku_code" value="<%= s.code||'' %>"></td><td><button type="button" class="btn sm danger" onclick="this.closest('tr').remove()">移除</button></td></tr><% }) %></table>
+ <button type="button" class="btn sm mt" onclick="addSku()">＋ 添加规格</button></div>
+<div class="card"><h3>商品详情(支持 HTML)</h3><textarea name="description" rows="8"><%= p.description %></textarea></div>
+<button class="btn primary" style="padding:9px 30px">保存商品</button> <a class="btn" href="/admin/products">返回列表</a></form>
+<script>function addSku(){var t=document.getElementById('skuTable');var tr=document.createElement('tr');tr.innerHTML='<td><input type="hidden" name="sku_id" value=""><input type="text" name="sku_spec"></td><td><input type="number" step="0.01" min="0" name="sku_price"></td><td><input type="number" min="0" name="sku_stock" value="100"></td><td><input type="text" name="sku_code"></td><td><button type="button" class="btn sm danger" onclick="this.closest(\'tr\').remove()">移除</button></td>';t.appendChild(tr)}</script>

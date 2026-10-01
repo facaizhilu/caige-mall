@@ -1,0 +1,6 @@
+<div class="crumb"><a href="/">首页</a> › 限时秒杀</div>
+<div class="flash-sale"><div class="hd"><h2>⚡ 限时秒杀</h2><span>每日准点开抢,先到先得</span></div>
+<% if(!rows.length){ %><div class="empty" style="color:#fff">暂无秒杀活动</div><% } %>
+<div class="grid"><% rows.forEach(s=>{ const pct=Math.round(s.sold/s.stock*100); %><a class="pcard" style="color:var(--ink)" href="/product/<%= s.product_id %>"><span class="ribbon"><%= s.live?'抢购中':'即将开始' %></span><div class="pic"><img src="<%= s.img %>"></div><div class="info"><div class="name"><%= s.name %></div><div class="meta"><span class="price"><big><%= s.price %></big><span class="mkt"><%= s.market_price %></span></span></div>
+<div class="bar"><i style="width:<%= pct %>%"></i></div><div class="flex between"><span class="sales">已抢 <%= pct %>%</span><span class="sales"><%= s.live?'距结束':'距开始' %> <span class="cd" data-countdown="<%= s.live?s.end_at:s.start_at %>" data-reload="1"></span></span></div>
+<span class="btn primary sm block mt"><%= s.live?(s.sold>=s.stock?'已抢光':'马上抢'):'提醒我' %></span></div></a><% }) %></div></div>

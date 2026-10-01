@@ -1,0 +1,9 @@
+<div class="crumb"><a href="/">首页</a> › 联系客服</div>
+<div class="grid g2" style="grid-template-columns:2fr 1fr">
+<div class="card"><h3 style="margin-top:0">💬 在线客服 <span class="muted" style="font-size:12px">(<%= shop.service_hours %>,留言后智能助手即时回复常见问题,人工客服稍后回复)</span></h3>
+<% if(!user){ %><div class="empty"><div class="e">🔒</div>登录后可咨询客服<br><br><a class="btn primary" href="/login?next=/service">去登录</a></div><% } else { %>
+<div class="chat" id="chat"><div class="msg">您好,我是财哥商城客服助手,请问有什么可以帮您?<small>系统</small></div><% msgs.forEach(m=>{ %><div class="msg <%= m.sender==='user'?'user':'' %>"><%= m.content %><small><%= m.created_at %><%= m.sender==='staff'?' · 人工客服':'' %></small></div><% }) %><span id="end"></span></div>
+<form method="post" action="/service" class="flex mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="content" placeholder="请输入您的问题…" required maxlength="500" autocomplete="off"><button class="btn primary" style="flex:none">发送</button></form>
+<script>var c=document.getElementById('chat');c.scrollTop=c.scrollHeight</script><% } %></div>
+<div><div class="card"><h3 style="margin-top:0">联系方式</h3><dl class="kv"><dt>热线</dt><dd><%= shop.service_phone %></dd><dt>时间</dt><dd><%= shop.service_hours %></dd><dt>邮箱</dt><dd><%= shop.service_email %></dd><dt>地址</dt><dd><%= shop.address %></dd></dl></div>
+<div class="card mt"><h3 style="margin-top:0">常见问题</h3><% faq.forEach(a=>{ %><a style="display:block;padding:3px 0" href="/article/<%= a.id %>">· <%= a.title %></a><% }) %></div></div></div>

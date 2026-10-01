@@ -1,0 +1,10 @@
+<div class="card">
+  <div class="toolbar"><% if (hasSearch) { %><form class="flex" method="get"><input type="search" name="q" value="<%= q %>" placeholder="搜索…"><button class="btn">搜索</button></form><% } %><span class="sp"></span><a class="btn primary" href="<%= base %>/new">＋ 新增<%= cfg.singular %></a></div>
+  <div class="tbl-wrap"><table class="t"><tr><% cfg.cols.forEach(c=>{ %><th><%= c.label %></th><% }) %><th>操作</th></tr>
+  <% pg.rows.forEach(x=>{ %><tr><% cfg.cols.forEach(c=>{ %><td><%- c.f(x) %></td><% }) %><td style="white-space:nowrap">
+    <a class="btn sm" href="<%= base %>/<%= x.id %>/edit">编辑</a>
+    <% if (cfg.toggle) { %><form method="post" action="<%= base %>/<%= x.id %>/toggle" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm"><%= cfg.toggle==='is_hot' ? (x.is_hot?'取消热搜':'设为热搜') : (x[cfg.toggle]?'停用':'启用') %></button></form><% } %>
+    <form method="post" action="<%= base %>/<%= x.id %>/delete" style="display:inline" data-confirm="确定删除?此操作不可恢复"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">删除</button></form></td></tr><% }) %>
+  <% if (!pg.rows.length) { %><tr><td colspan="<%= cfg.cols.length+1 %>" class="muted" style="text-align:center;padding:30px">暂无数据</td></tr><% } %></table></div>
+  <%- include('../partials/apager') %>
+</div>

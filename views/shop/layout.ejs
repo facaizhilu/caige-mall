@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf" content="<%= csrf %>">
+<title><%= title %> - <%= shop.shop_name %></title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/static/css/shop.css?v=3">
+</head><body>
+<div class="topbar"><div class="wrap">
+  <div>欢迎来到<%= shop.shop_name %>!<span style="margin-left:12px">客服热线 <%= shop.service_phone %></span></div>
+  <div>
+  <% if (user) { %>
+    <a href="/me">你好,<%= user.nickname %></a><a href="/orders">我的订单</a><a href="/me/favorites">我的收藏</a>
+    <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link">退出登录</button></form>
+  <% } else { %><a href="/login">请登录</a><a href="/register">免费注册</a><% } %>
+    <a href="/help">帮助中心</a><a href="/service">联系客服</a><a href="/admin" target="_blank">商家后台</a>
+  </div>
+</div></div>
+<% if (shop.announcement) { %><div class="notice-bar"><%= shop.announcement %></div><% } %>
+<header class="header"><div class="wrap">
+  <a class="logo" href="/"><i>财</i><span><%= shop.shop_name %><small><%= shop.slogan %></small></span></a>
+  <div class="search">
+    <form action="/products" method="get"><input name="q" value="<%= (typeof q==='string')?q:'' %>" placeholder="搜索商品、品牌,例如:手机" maxlength="40"><button>搜 索</button></form>
+    <div class="hotwords">热搜:<% hotWords.forEach(w=>{ %><a href="/products?q=<%= encodeURIComponent(w) %>"><%= w %></a><% }) %></div>
+  </div>
+  <div class="hactions">
+    <a class="hbtn" href="/cart">🛒 购物车<% if (cartCount) { %><span class="badge" id="cartBadge"><%= cartCount %></span><% } else { %><span class="badge hide" id="cartBadge">0</span><% } %></a>
+    <a class="hbtn" href="<%= user?'/me':'/login' %>">👤 <%= user?'会员中心':'登录/注册' %></a>
+  </div>
+</div></header>
+<nav class="nav"><div class="wrap">
+  <a class="all" href="/products">☰ 全部商品</a><a href="/">首页</a>
+  <% navCats.forEach(c=>{ %><a href="/products?cat=<%= c.id %>"><%= c.name %></a><% }) %>
+  <a href="/seckill">⚡限时秒杀</a><a href="/groupbuy">👥拼团</a><a href="/coupons">领券中心</a><a href="/points-mall">积分商城</a>
+</div></nav>
+<div class="wrap"><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %></div>
+<main><div class="wrap"><%- body %></div></main>
+<footer class="footer"><div class="wrap">
+  <div class="cols">
+    <div><h4><%= shop.shop_name %></h4><p><%= shop.slogan %></p><p>客服 <%= shop.service_phone %><br><%= shop.service_hours %></p></div>
+    <div><h4>新手指南</h4><a href="/help">注册与登录</a><a href="/help">如何下单</a><a href="/help">优惠与积分</a></div>
+    <div><h4>配送与售后</h4><a href="/help">运费规则</a><a href="/aftersales">退款/退货</a><a href="/me/invoices">发票说明</a></div>
+    <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a></div>
+  </div>
+  <div class="cp">© 2026 <%= shop.shop_name %> · <%= shop.icp %> · 本站为演示站点,所有商品与订单均为虚构,支付为模拟支付 · <%= shop.address %></div>
+</div></footer>
+<nav class="mnav">
+  <a href="/" class="<%= req.path==='/'?'on':'' %>"><span>🏠</span>首页</a>
+  <a href="/products" class="<%= req.path==='/products'?'on':'' %>"><span>🗂️</span>分类</a>
+  <a href="/cart" class="<%= req.path==='/cart'?'on':'' %>"><span>🛒</span>购物车<% if (cartCount) { %><i class="badge"><%= cartCount %></i><% } %></a>
+  <a href="<%= user?'/me':'/login' %>" class="<%= req.path.startsWith('/me')?'on':'' %>"><span>👤</span>我的</a>
+</nav>
+<script>window.REGIONS=<%- JSON.stringify(regions) %>;</script>
+<script src="/static/js/app.js?v=3"></script>
+</body></html>

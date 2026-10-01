@@ -1,0 +1,2 @@
+<div class="crumb"><a href="/">首页</a> › <%= title %></div>
+<div class="card"><h3 style="margin-top:0"><%= title %></h3><% rows.forEach(a=>{ %><div class="flex between" style="padding:12px 0;border-bottom:1px dashed var(--line)"><a href="/article/<%= a.id %>"><span class="tag gold"><%= a.topic %></span><%= a.title %></a><span class="muted"><%= a.created_at.slice(0,10) %></span></div><% }) %></div>

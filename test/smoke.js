@@ -1,0 +1,129 @@
+// 冒烟测试:node test/smoke.js [baseUrl]  (需要服务已启动;会写入演示库,建议在全新库上运行)
+const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000);
+let pass = 0, fail = 0;
+class Client {
+  constructor() { this.cookies = {}; this.csrf = ''; }
+  async req(method, path, body, opts = {}) {
+    const headers = { Cookie: Object.entries(this.cookies).map(([k, v]) => k + '=' + v).join('; ') };
+    let b;
+    if (body) { if (opts.json) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; } b = new URLSearchParams({ _csrf: this.csrf, ...body }).toString(); headers['Content-Type'] = 'application/x-www-form-urlencoded'; }
+    if (opts.accept) headers.Accept = opts.accept;
+    const r = await fetch(base + path, { method, headers, body: b, redirect: 'manual' });
+    for (const c of r.headers.getSetCookie ? r.headers.getSetCookie() : []) { const [kv] = c.split(';'); const i = kv.indexOf('='); this.cookies[kv.slice(0, i)] = kv.slice(i + 1); }
+    const text = await r.text();
+    const m = text.match(/name="csrf" content="([0-9a-f]+)"/) || text.match(/name="_csrf" value="([0-9a-f]+)"/); if (m) this.csrf = m[1];
+    return { status: r.status, loc: r.headers.get('location'), text, headers: r.headers };
+  }
+  get(p) { return this.req('GET', p); }
+  post(p, b, o) { return this.req('POST', p, b || {}, o); }
+}
+const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } else { fail++; console.log('  ✘', name, extra || ''); } };
+(async () => {
+  const phone = '139' + String(Date.now()).slice(-8);
+  const shop = new Client(), adm = new Client();
+  console.log('== 前台 ==');
+  for (const p of ['/', '/products', '/products?q=手机', '/products?cat=1&sort=price_asc', '/product/1', '/seckill', '/groupbuy', '/coupons', '/points-mall', '/help', '/notices', '/service', '/login', '/register', '/article/1']) { const r = await shop.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
+  ok((await shop.get('/img/gen.svg?t=A&a=ff0000&b=00ff00')).text.includes('<svg'), '占位图 SVG');
+  ok((await shop.get('/cart')).status === 302, '未登录访问购物车跳转登录');
+  let r = await shop.get('/register');
+  r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员', agree: '1' });
+  ok(r.status === 302 && r.loc === '/me', '注册成功并登录', r.status + ' ' + r.loc);
+  r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('会员中心'), '会员中心');
+  ok((await shop.get('/me/coupons')).text.includes('新人专享券'), '新人券已发放');
+  r = await shop.post('/me/addresses', { name: '张三', phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '科技园 1 号' });
+  ok(r.status === 302, '新增收货地址');
+  r = await shop.post('/me/addresses', { name: '坏', phone: '123', province: '广东省', city: '深圳市', district: '南山区', detail: 'x' }); ok((await shop.get('/me/addresses')).text.includes('张三'), '地址列表');
+  r = await shop.post('/me/signin'); r = await shop.get('/me/points'); ok(r.text.includes('已签到'), '每日签到');
+  // 登出再用密码/短信登录
+  await shop.get('/'); await shop.post('/logout'); await shop.get('/login'); r = await shop.post('/login', { phone, password: 'wrong' }); ok(r.text.includes('手机号或密码错误'), '错误密码被拒');
+  r = await shop.post('/login', { phone, password: 'abc12345' }); ok(r.status === 302, '密码登录'); await shop.get('/');
+  await shop.get('/'); await shop.post('/logout'); await shop.get('/login');
+  r = await shop.post('/sms/send', { phone }, { accept: 'application/json' }); const sms = JSON.parse(r.text); ok(sms.ok && sms.demoCode, '短信验证码(模拟)发送');
+  r = await shop.post('/login/sms', { phone, code: sms.demoCode }); ok(r.status === 302, '短信验证码登录'); await shop.get('/');
+  // CSRF
+  const bad = await fetch(base + '/me/signin', { method: 'POST', headers: { Cookie: Object.entries(shop.cookies).map(([k, v]) => k + '=' + v).join('; ') }, body: '' }); ok(bad.status === 403, 'CSRF 缺失被拒绝');
+  // 加购与下单
+  r = await shop.get('/product/3'); const sku = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; ok(!!sku, '商品详情含 SKU', sku);
+  r = await shop.post('/cart/add', { sku_id: sku, qty: 2 }, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '加入购物车');
+  r = await shop.post('/cart/add', { sku_id: sku, qty: 99999 }, { accept: 'application/json' }); ok(!JSON.parse(r.text).ok, '超库存加购被拒');
+  r = await shop.get('/cart'); const cid = (r.text.match(/name="cart_id" value="(\d+)"/) || [])[1]; ok(!!cid, '购物车有商品');
+  r = await shop.post('/checkout', { cart_id: cid, from_cart: '1' }); ok(r.status === 200 && r.text.includes('确认订单'), '结算页');
+  const addrId = (r.text.match(/name="address_id" value="(\d+)"/) || [])[1];
+  const items = (r.text.match(/name="items" value='([^']+)'/) || [])[1].replace(/&#34;/g, '"');
+  r = await shop.post('/api/quote', { items, address_id: addrId }, { accept: 'application/json' }); const q = JSON.parse(r.text); ok(q.ok && q.pay > 0, '运费/金额试算', r.text.slice(0, 100));
+  r = await shop.post('/order/create', { items, from_cart: '1', address_id: addrId, coupon_id: '', use_points: '0', remark: '测试' }); ok(r.status === 302 && /\/order\/\d+\/pay/.test(r.loc), '提交订单', r.loc);
+  const oid = r.loc.match(/order\/(\d+)\/pay/)[1];
+  r = await shop.get('/order/' + oid + '/pay'); ok(r.text.includes('模拟支付'), '收银台标注模拟支付');
+  r = await shop.post('/order/' + oid + '/pay', { method: 'wechat' }); ok(r.status === 302, '模拟支付');
+  r = await shop.get('/order/' + oid); ok(r.text.includes('待发货'), '订单状态:待发货');
+  const orderNo = (r.text.match(/订单号 (\d+)/) || [])[1];
+  // 后台
+  console.log('== 后台 ==');
+  r = await adm.get('/admin'); ok(r.status === 302 && r.loc === '/admin/login', '后台未登录跳转');
+  r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'bad' }); ok(r.loc === '/admin/login', '后台错误密码');
+  r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin', '后台登录'); await adm.get('/admin');
+  ok((await shop.get('/admin')).status === 302, '前台会话不能访问后台');
+  for (const p of ['/admin', '/admin/stats', '/admin/products', '/admin/products/new', '/admin/products/1/edit', '/admin/categories', '/admin/brands', '/admin/shipping', '/admin/inventory', '/admin/orders', '/admin/aftersales', '/admin/invoices', '/admin/reviews', '/admin/members', '/admin/members/1', '/admin/levels', '/admin/referral', '/admin/service', '/admin/coupons', '/admin/seckills', '/admin/groupbuys', '/admin/groups', '/admin/points-goods', '/admin/banners', '/admin/keywords', '/admin/notices', '/admin/help-articles', '/admin/pages', '/admin/settings', '/admin/admins', '/admin/roles', '/admin/logs', '/admin/coupons/new', '/admin/seckills/new', '/admin/roles/1/edit']) { r = await adm.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
+  r = await adm.get('/admin/orders?q=' + orderNo); ok(r.text.includes(orderNo), '后台看到新订单');
+  r = await adm.get('/admin/orders'); const aoid = oid;
+  r = await adm.post('/admin/orders/' + aoid + '/ship', { company: '顺丰速运', tracking_no: 'SF12345678901' }); ok(r.status === 302, '后台发货');
+  r = await shop.get('/order/' + oid); ok(r.text.includes('待收货') && r.text.includes('SF12345678901'), '前台订单变为待收货且显示运单号');
+  r = await shop.get('/order/' + oid + '/logistics'); ok(r.text.includes('已发货') || r.text.includes('商家已发货'), '物流轨迹');
+  r = await shop.post('/order/' + oid + '/confirm'); r = await shop.get('/order/' + oid); ok(r.text.includes('已完成'), '确认收货→已完成');
+  r = await shop.get('/me'); ok(/积分/.test(r.text), '确认收货后积分到账');
+  // 评价 → 审核
+  r = await shop.post('/order/' + oid + '/review', { ['content_' + 'x']: '' }); // 无内容
+  r = await shop.get('/order/' + oid + '/review'); const itemId = (r.text.match(/name="content_(\d+)"/) || [])[1];
+  r = await shop.post('/order/' + oid + '/review', { ['rating_' + itemId]: '5', ['content_' + itemId]: '非常好用,自动化测试评价' }); ok(r.status === 302, '提交评价');
+  r = await adm.get('/admin/reviews?status=pending&q=' + encodeURIComponent('自动化测试')); const rid = (r.text.match(/\/admin\/reviews\/(\d+)\/approve/) || [])[1]; ok(!!rid, '后台待审核评价');
+  await adm.post('/admin/reviews/' + rid + '/approve'); r = await shop.get('/product/3'); ok(r.text.includes('自动化测试评价'), '评价审核后前台展示');
+  // 售后:另一笔订单退款
+  r = await shop.post('/cart/add', { sku_id: sku, qty: 1 }, { accept: 'application/json' }); r = await shop.get('/cart'); const cid2 = (r.text.match(/name="cart_id" value="(\d+)"/) || [])[1];
+  r = await shop.post('/checkout', { cart_id: cid2, from_cart: '1' }); const items2 = (r.text.match(/name="items" value='([^']+)'/) || [])[1].replace(/&#34;/g, '"');
+  r = await shop.post('/order/create', { items: items2, from_cart: '1', address_id: addrId }); const oid2 = r.loc.match(/order\/(\d+)\/pay/)[1];
+  r = await shop.post('/order/' + oid2 + '/pay', { method: 'balance' }); ok(r.loc.includes('/pay'), '余额不足时支付被拒');
+  r = await shop.post('/me/recharge', { amount: '500', method: 'alipay' }); r = await shop.get('/me/balance'); ok(r.text.includes('模拟充值') && r.text.includes('550.00'), '模拟充值(含赠送)');
+  r = await shop.post('/order/' + oid2 + '/pay', { method: 'balance' }); r = await shop.get('/order/' + oid2); ok(r.text.includes('待发货'), '余额支付成功');
+  r = await shop.post('/order/' + oid2 + '/aftersale', { type: 'refund', reason: '不想要了', description: '测试' }); ok(r.status === 302, '申请退款');
+  r = await adm.get('/admin/aftersales?status=pending'); const asid = (r.text.match(/\/admin\/aftersales\/(\d+)/g) || [])[0].split('/').pop();
+  const before = (await shop.get('/me/balance')).text.match(/<b>(\d+\.\d+)<\/b>/);
+  r = await adm.post('/admin/aftersales/' + asid + '/handle', { action: 'approve', admin_note: '同意' }); ok(r.status === 302, '后台同意退款');
+  r = await shop.get('/order/' + oid2); ok(r.text.includes('已退款'), '订单已退款');
+  // 优惠券领取与使用
+  r = await shop.post('/coupons/2/claim', {}, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '领券中心领取');
+  // 秒杀
+  r = await shop.get('/seckill'); ok(r.text.includes('抢购中'), '秒杀进行中');
+  r = await shop.get('/product/8'); const sk8 = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; const skid = (r.text.match(/SK=\{"sku":\d+,"price":[\d.]+,"id":(\d+)/) || [])[1]; ok(!!skid, '秒杀商品详情');
+  r = await shop.post('/checkout', { sku_id: (r.text.match(/SK=\{"sku":(\d+)/) || [])[1], qty: 1, promo_type: 'seckill', promo_id: skid }); ok(r.status === 200 && r.text.includes('确认订单'), '秒杀结算');
+  // 积分商城
+  r = await shop.post('/points-mall/1/exchange'); r = await shop.get('/me/points'); ok(r.status === 200, '积分兑换流程');
+  // 后台商品 CRUD
+  r = await adm.get('/admin/products/new');
+  r = await adm.post('/admin/products/save', { name: '测试商品-冒烟', subtitle: 't', category_id: '3', brand_id: '1', market_price: '99', template_id: '1', status: '1', spec_names: '颜色', sku_spec: ['红', '蓝'], sku_price: ['50', '55'], sku_stock: ['10', '20'], sku_code: ['', ''], sku_id: ['', ''], description: '<p>x</p>' });
+  ok(r.status === 302, '后台新增商品(多SKU)', r.status);
+  r = await adm.get('/admin/products?q=' + encodeURIComponent('测试商品-冒烟')); const pid = (r.text.match(/\/admin\/products\/(\d+)\/edit/) || [])[1]; ok(!!pid, '商品出现在列表');
+  r = await shop.get('/product/' + pid); ok(r.text.includes('测试商品-冒烟') && r.text.includes('红'), '前台显示新商品及规格');
+  await adm.post('/admin/products/' + pid + '/toggle'); r = await shop.get('/product/' + pid); ok(r.status === 404, '下架后前台 404');
+  r = await adm.post('/admin/products/' + pid + '/delete'); r = await adm.get('/admin/products?q=' + encodeURIComponent('测试商品-冒烟')); ok(!r.text.includes('/edit') || !r.text.includes('<b>测试商品-冒烟</b>'), '后台删除商品');
+  // 会员管理
+  r = await adm.get('/admin/members?q=' + phone); const uid = (r.text.match(/\/admin\/members\/(\d+)/) || [])[1]; ok(!!uid, '后台搜索到新会员');
+  r = await adm.post('/admin/members/' + uid + '/points', { delta: '500', reason: '测试' }); ok(r.status === 302, '后台调整积分');
+  r = await adm.post('/admin/members/' + uid + '/status'); const s2 = new Client(); await s2.get('/login'); r = await s2.post('/login', { phone, password: 'abc12345' }); ok(r.text.includes('已被禁用'), '禁用会员后无法登录');
+  await adm.post('/admin/members/' + uid + '/status');
+  // 分类/品牌/券/Banner/设置/CSV
+  r = await adm.post('/admin/categories/save', { name: '测试分类', parent_id: '0', icon: '🧪', sort: '99', status: '1' }); ok(r.status === 302, '新增分类');
+  r = await adm.post('/admin/coupons/save', { name: '测试券', amount: '5', threshold: '50', total: '10', per_limit: '1', valid_days: '7', category_id: '0', status: '1' }); ok(r.status === 302, '新增优惠券');
+  r = await adm.post('/admin/seckills/save', { sku_id: '1', price: '1', stock: '5', start_at: '2030-01-01T10:00', end_at: '2030-01-01T12:00', limit_per_user: '1', status: '1' }); ok(r.status === 302, '新增秒杀');
+  r = await adm.post('/admin/settings', { shop_name: '财哥商城', slogan: '好货不贵,财源广进', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
+  for (const p of ['/admin/orders/export', '/admin/members/export', '/admin/export/products', '/admin/logs/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
+  // RBAC
+  const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin');
+  ok((await ops.get('/admin/products')).status === 200, 'RBAC: 运营可访问商品'); ok((await ops.get('/admin/orders')).status === 403, 'RBAC: 运营不可访问订单'); ok((await ops.get('/admin/admins')).status === 403, 'RBAC: 运营不可访问管理员');
+  r = await adm.get('/admin/logs'); ok(r.text.includes('订单发货'), '操作日志记录发货');
+  // 分销
+  const ref = new Client(); await ref.get('/register?ref=100001'); r = await ref.post('/register', { phone: '137' + String(Date.now()).slice(-8), password: 'abc12345', password2: 'abc12345', agree: '1', ref: '100001' }); ok(r.status === 302, '带邀请码注册');
+  // 拼团
+  r = await shop.get('/groupbuy'); ok(r.text.includes('拼团'), '拼团专区');
+  console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(2); });

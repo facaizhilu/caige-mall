@@ -1,0 +1,17 @@
+<div class="card">
+ <form class="toolbar" method="get"><input type="search" name="q" value="<%= q %>" placeholder="商品名称/ID">
+  <select name="cat"><option value="">全部分类</option><% cats.forEach(c=>{ %><option value="<%= c.v %>" <%= String(cat)===String(c.v)?'selected':'' %>><%= c.t %></option><% }) %></select>
+  <select name="status"><option value="">全部状态</option><option value="1" <%= status==='1'?'selected':'' %>>已上架</option><option value="0" <%= status==='0'?'selected':'' %>>已下架</option></select>
+  <select name="stock"><option value="">库存不限</option><option value="low" <%= stock==='low'?'selected':'' %>>库存预警</option></select>
+  <button class="btn">筛选</button><span class="sp"></span><a class="btn" href="/admin/export/products">导出库存CSV</a><a class="btn primary" href="/admin/products/new">＋ 新增商品</a></form>
+ <div class="tbl-wrap"><table class="t"><tr><th>ID</th><th>商品</th><th>分类/品牌</th><th>价格</th><th>规格数</th><th>库存</th><th>销量</th><th>标签</th><th>状态</th><th>操作</th></tr>
+ <% pg.rows.forEach(p=>{ %><tr><td><%= p.id %></td><td><div class="flex"><img class="thumb" src="<%= p.img %>"><div><b><%= p.name %></b><br><span class="muted"><%= p.subtitle %></span></div></div></td>
+  <td><%= p.cname %><br><span class="muted"><%= p.bname||'-' %></span></td><td class="price">¥<%= p.price %></td><td><%= p.skuCount %></td><td><%= p.stock %><% if(p.minStock<=10){ %> <span class="tag">预警</span><% } %></td><td><%= p.sales %></td>
+  <td><% if(p.is_hot){ %><span class="tag">热卖</span><% } %><% if(p.is_new){ %><span class="tag gold">新品</span><% } %></td>
+  <td><%- p.status?'<span class="tag green">上架</span>':'<span class="tag gray">下架</span>' %></td>
+  <td style="white-space:nowrap"><a class="btn sm" href="/admin/products/<%= p.id %>/edit">编辑</a>
+   <form method="post" action="/admin/products/<%= p.id %>/toggle" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm"><%= p.status?'下架':'上架' %></button></form>
+   <a class="btn sm" href="/product/<%= p.id %>?preview=1" target="_blank">预览</a>
+   <form method="post" action="/admin/products/<%= p.id %>/delete" style="display:inline" data-confirm="确定删除该商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">删除</button></form></td></tr><% }) %>
+ <% if(!pg.rows.length){ %><tr><td colspan="10" class="muted" style="text-align:center;padding:30px">没有符合条件的商品</td></tr><% } %></table></div>
+ <%- include('../partials/apager') %></div>

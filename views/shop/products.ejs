@@ -1,0 +1,28 @@
+<div class="crumb"><a href="/">首页</a> › <%= title %> <span class="muted">(共 <%= pg.total %> 件商品)</span></div>
+<div class="listing">
+  <aside class="filters card">
+    <h4>商品分类</h4>
+    <a href="<%= qs(req,{cat:'',page:''}) %>" class="<%= !cat?'on':'' %>">全部分类</a>
+    <% navCats.forEach(c=>{ %><a href="<%= qs(req,{cat:c.id,page:''}) %>" class="<%= String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id)?'on':'' %>"><%= c.icon %> <%= c.name %></a>
+      <% if (curCat && (curCat.id===c.id||curCat.parent_id===c.id)) { subCats.forEach(s=>{ %><a style="padding-left:30px;font-size:13px" class="<%= String(cat)===String(s.id)?'on':'' %>" href="<%= qs(req,{cat:s.id,page:''}) %>">└ <%= s.name %></a><% }) } %>
+    <% }) %>
+    <h4>品牌</h4>
+    <a href="<%= qs(req,{brand:'',page:''}) %>" class="<%= !brand?'on':'' %>">全部品牌</a>
+    <% brands.forEach(b=>{ %><a href="<%= qs(req,{brand:b.id,page:''}) %>" class="<%= String(brand)===String(b.id)?'on':'' %>"><%= b.name %></a><% }) %>
+    <h4>价格区间</h4>
+    <form method="get" class="flex"><% ['q','cat','brand','sort'].forEach(k=>{ if(req.query[k]){ %><input type="hidden" name="<%= k %>" value="<%= req.query[k] %>"><% }}) %>
+      <input type="number" name="min" value="<%= min %>" placeholder="最低" style="padding:6px"><span>-</span><input type="number" name="max" value="<%= max %>" placeholder="最高" style="padding:6px"></form>
+    <button class="btn sm block mt" onclick="this.previousElementSibling.submit()">确定</button>
+  </aside>
+  <section>
+    <div class="sortbar">
+      <a class="<%= !sort?'on':'' %>" href="<%= qs(req,{sort:'',page:''}) %>">综合</a><a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
+      <a class="<%= sort==='new'?'on':'' %>" href="<%= qs(req,{sort:'new',page:''}) %>">新品</a>
+      <a class="<%= sort==='price_asc'?'on':'' %>" href="<%= qs(req,{sort:'price_asc',page:''}) %>">价格 ↑</a><a class="<%= sort==='price_desc'?'on':'' %>" href="<%= qs(req,{sort:'price_desc',page:''}) %>">价格 ↓</a>
+    </div>
+    <% if (!pg.rows.length) { %><div class="card empty"><div class="e">🔍</div>没有找到相关商品,换个关键词试试吧<br><br><a class="btn" href="/products">查看全部商品</a></div>
+    <% } else { %><div class="grid g3" style="grid-template-columns:repeat(3,1fr)"><% pg.rows.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div><% } %>
+    <%- include('../partials/pager') %>
+  </section>
+</div>
+<style>@media(max-width:900px){.listing .grid.g3{grid-template-columns:repeat(2,1fr)!important}}</style>

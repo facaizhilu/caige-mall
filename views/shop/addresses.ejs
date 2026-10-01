@@ -1,0 +1,14 @@
+<div class="me"><%- include("_menu",{cur:"addresses"}) %><div>
+<div class="card"><h3 style="margin-top:0">收货地址(<%= addrs.length %>)</h3>
+ <div class="addrs"><% addrs.forEach(a=>{ %><div class="addr" style="cursor:default"><b><%= a.name %></b> <%= a.phone %> <% if(a.is_default){ %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span>
+   <div class="flex mt"><a class="btn sm" href="/me/addresses?edit=<%= a.id %>">编辑</a>
+   <% if(!a.is_default){ %><form method="post" action="/me/addresses/<%= a.id %>/default"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">设为默认</button></form><% } %>
+   <form method="post" action="/me/addresses/<%= a.id %>/delete" data-confirm="确定删除该地址?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">删除</button></form></div></div><% }) %></div></div>
+<div class="card mt"><h3 style="margin-top:0"><%= edit?'编辑地址':'新增地址' %></h3>
+ <form method="post" action="/me/addresses" style="max-width:560px"><input type="hidden" name="_csrf" value="<%= csrf %>"><% if(edit){ %><input type="hidden" name="id" value="<%= edit.id %>"><% } %>
+  <div class="grid g2" style="grid-template-columns:1fr 1fr"><div class="form-row"><label>收货人</label><input name="name" required maxlength="20" value="<%= edit?edit.name:'' %>"></div><div class="form-row"><label>手机号</label><input name="phone" type="tel" required maxlength="11" value="<%= edit?edit.phone:'' %>"></div></div>
+  <div class="form-row"><label>所在地区</label><div class="grid g3" data-region="<%= edit?[edit.province,edit.city,edit.district].join('|'):'' %>" style="grid-template-columns:repeat(3,1fr)"><select name="province" data-r="province" required></select><select name="city" data-r="city" required></select><select name="district" data-r="district" required></select></div></div>
+  <div class="form-row"><label>详细地址</label><input name="detail" required maxlength="100" placeholder="街道、小区、楼栋、门牌号" value="<%= edit?edit.detail:'' %>"></div>
+  <label style="display:block;margin-bottom:14px"><input type="checkbox" name="is_default" value="1" style="width:auto" <%= edit&&edit.is_default?'checked':'' %>> 设为默认地址</label>
+  <button class="btn primary">保存地址</button> <% if(edit){ %><a class="btn" href="/me/addresses">取消</a><% } %></form></div>
+</div></div>

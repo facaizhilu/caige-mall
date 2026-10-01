@@ -1,0 +1,8 @@
+<div class="crumb"><a href="/aftersales">售后</a> › 售后详情</div>
+<div class="card"><div class="flex between"><h3 style="margin:0">售后单 #<%= a.id %>(订单 <a href="/order/<%= a.order_id %>"><%= a.order_no %></a>)</h3><span class="os <%= a.status %>"><%= AFTERSALE_STATUS[a.status] %></span></div>
+<dl class="kv mt"><dt>类型</dt><dd><%= a.type==='refund'?'仅退款':'退货退款' %></dd><dt>退款金额</dt><dd class="price"><%= a.amount.toFixed(2) %></dd><dt>原因</dt><dd><%= a.reason %></dd><dt>描述</dt><dd><%= a.description||'-' %></dd><dt>商家说明</dt><dd><%= a.admin_note||'-' %></dd><dt>申请时间</dt><dd><%= a.created_at %></dd>
+<% if(a.return_tracking){ %><dt>退货物流</dt><dd><%= a.return_express %> <%= a.return_tracking %></dd><% } %></dl>
+<% if(imgs.length){ %><div class="rimgs"><% imgs.forEach(i=>{ %><img src="<%= i %>"><% }) %></div><% } %>
+<% if(a.status==='approved_return'){ %><div class="sim mt">商家已同意退货,请寄回商品并填写物流信息(演示:商家收货地址:<%= shop.address %>)</div>
+<form method="post" action="/aftersale/<%= a.id %>/return" class="flex mt wrapf"><input type="hidden" name="_csrf" value="<%= csrf %>"><select name="company" style="max-width:180px"><option>顺丰速运</option><option>中通快递</option><option>圆通速递</option><option>韵达快递</option><option>京东物流</option></select><input name="tracking" placeholder="退货运单号" required style="max-width:240px"><button class="btn primary">提交退货信息</button></form><% } %>
+<% if(['pending','approved_return'].includes(a.status)){ %><form method="post" action="/aftersale/<%= a.id %>/cancel" data-confirm="确定撤销申请?" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger sm">撤销申请</button></form><% } %></div>

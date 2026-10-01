@@ -1,0 +1,14 @@
+<div class="me"><%- include('_menu',{cur:'orders'}) %><div>
+<div class="card">
+  <div class="tabs"><% [['','全部'],['unpaid','待付款'],['paid','待发货'],['shipped','待收货'],['completed','已完成'],['cancelled','已取消'],['aftersale','退款/售后']].forEach(t=>{ %><a class="<%= st===t[0]?'on':'' %>" href="/orders<%= t[0]?'?status='+t[0]:'' %>"><%= t[1] %><% if (counts[t[0]]) { %> <span class="tag"><%= counts[t[0]] %></span><% } %></a><% }) %></div>
+  <% if (!pg.rows.length) { %><div class="empty"><div class="e">📦</div>暂无订单</div><% } %>
+  <% pg.rows.forEach(o=>{ %><div class="ocard"><div class="oh"><span><%= o.created_at %> · 订单号 <%= o.order_no %> <% if(o.type!=='normal'){ %><span class="tag gold"><%= {seckill:'秒杀',group:'拼团',points:'积分兑换'}[o.type] %></span><% } %></span><span class="os <%= o.status %>"><%= ORDER_STATUS[o.status] %></span></div>
+    <div class="ob"><div><% o.items.forEach(i=>{ %><div class="oi"><img src="<%= i.image %>"><div><a href="<%= i.product_id?'/product/'+i.product_id:'#' %>"><b><%= i.name %></b></a><br><span class="muted"><%= i.spec_text %> × <%= i.qty %></span></div></div><% }) %></div>
+      <div class="right"><div>实付 <span class="price"><big><%= o.pay_amount.toFixed(2) %></big></span></div><div class="muted" style="font-size:12px">含运费 <%= money(o.freight) %></div>
+        <div class="flex wrapf mt" style="justify-content:flex-end"><a class="btn sm" href="/order/<%= o.id %>">订单详情</a>
+        <% if (o.status==='unpaid') { %><a class="btn sm primary" href="/order/<%= o.id %>/pay">去支付</a><% } %>
+        <% if (o.status==='shipped') { %><a class="btn sm" href="/order/<%= o.id %>/logistics">查看物流</a><form method="post" action="/order/<%= o.id %>/confirm" data-confirm="确认已收到商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm primary">确认收货</button></form><% } %>
+        <% if (o.status==='completed') { %><a class="btn sm" href="/order/<%= o.id %>/review">评价</a><% } %>
+        <% if (o.status==='completed'||o.status==='cancelled') { %><form method="post" action="/order/<%= o.id %>/rebuy"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">再次购买</button></form><% } %></div></div></div></div><% }) %>
+  <%- include('../partials/pager') %>
+</div></div></div>

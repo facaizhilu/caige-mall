@@ -1,0 +1,30 @@
+<div class="crumb"><a href="/">首页</a> › 购物车</div>
+<% if (!items.length) { %><div class="card empty"><div class="e">🛒</div>购物车还是空的,去逛逛吧<br><br><a class="btn primary" href="/products">去选购</a></div>
+<% } else { %>
+<form method="post" action="/checkout" id="cartForm" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="from_cart" value="1">
+  <div class="cartrow" style="font-weight:600;color:var(--ink2);padding-top:0"><span><input type="checkbox" id="all" checked></span><span>商品信息</span><span class="hide-m">单价</span><span class="hide-m">数量</span><span class="hide-m">小计</span><span class="hide-m">操作</span></div>
+  <% items.forEach(i=>{ %>
+  <div class="cartrow" data-id="<%= i.id %>" data-price="<%= i.price %>">
+    <span><input type="checkbox" name="cart_id" value="<%= i.id %>" class="chk" <%= i.ok?'checked':'disabled' %>></span>
+    <a class="pn" href="/product/<%= i.pid %>"><img src="<%= i.img %>"><span><b><%= i.name %></b><br><span class="muted"><%= i.spec_text %></span><% if(!i.ok){ %> <span class="tag">已下架/缺货</span><% } %></span></a>
+    <span class="price hide-m"><%= i.price %></span>
+    <span><div class="qty"><button type="button" class="m">−</button><input value="<%= i.qty %>" class="q"><button type="button" class="p">+</button></div></span>
+    <span class="price sub"><%= (i.price*i.qty).toFixed(2) %></span>
+    <span class="hide-m"><button type="button" class="btn sm danger del">删除</button></span>
+  </div>
+  <% }) %>
+  <div class="sumbar"><label><input type="checkbox" id="all2" checked> 全选</label><span class="flex"><span>已选 <b id="cnt">0</b> 件,合计:<span class="price"><big id="total">0.00</big></span> <span class="muted">(不含运费/优惠)</span></span><button class="btn primary lg" id="go">去结算</button></span></div>
+</form>
+<script>
+(function(){
+  var rows=[].slice.call(document.querySelectorAll('.cartrow[data-id]'));
+  function calc(){var n=0,t=0;rows.forEach(function(r){var c=r.querySelector('.chk');var q=+r.querySelector('.q').value,p=+r.dataset.price;r.querySelector('.sub').textContent=(p*q).toFixed(2);if(c.checked){n+=q;t+=p*q}});document.getElementById('cnt').textContent=n;document.getElementById('total').textContent=t.toFixed(2);document.getElementById('go').disabled=!n}
+  function upd(r,q){postJSON('/cart/update',{id:r.dataset.id,qty:q}).then(function(x){if(x.ok){r.querySelector('.q').value=x.qty;if(x.limited)toast('已达库存上限');calc()}})}
+  rows.forEach(function(r){var q=r.querySelector('.q');r.querySelector('.m').onclick=function(){upd(r,Math.max(1,+q.value-1))};r.querySelector('.p').onclick=function(){upd(r,+q.value+1)};q.onchange=function(){upd(r,Math.max(1,parseInt(q.value)||1))};
+    r.querySelector('.del').onclick=function(){if(confirm('确定删除该商品?'))postJSON('/cart/remove',{id:r.dataset.id}).then(function(){location.reload()})};r.querySelector('.chk').onchange=calc});
+  function all(v){rows.forEach(function(r){var c=r.querySelector('.chk');if(!c.disabled)c.checked=v});document.getElementById('all').checked=document.getElementById('all2').checked=v;calc()}
+  document.getElementById('all').onchange=function(){all(this.checked)};document.getElementById('all2').onchange=function(){all(this.checked)};calc();
+})();
+</script>
+<% } %>
