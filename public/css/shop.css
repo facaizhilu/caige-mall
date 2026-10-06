@@ -266,3 +266,20 @@ main{min-height:60vh;min-height:60dvh}
 .cloud-tier .ct-name{font-weight:700;margin-bottom:6px}
 .cloud-tier .ct-fee b{color:var(--red);font-size:18px}
 @media(max-width:720px){.cloud-tiers{grid-template-columns:1fr}}
+
+.stats-4{grid-template-columns:repeat(4,1fr)!important}
+.redeem-banner{display:flex;align-items:center;gap:12px;padding:14px 16px;margin:0 0 16px;text-decoration:none;color:inherit;background:linear-gradient(90deg,#fff7f0,#fff)}
+.redeem-banner b{color:var(--red);font-size:16px;margin-right:4px}
+.redeem-banner .go{margin-left:auto;color:var(--red);font-weight:600;white-space:nowrap}
+.me-links{grid-template-columns:1fr 1fr!important}
+.me-links .card{min-height:88px}
+@media(max-width:900px){
+  .menu{display:grid!important;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px!important;overflow:visible!important}
+  .menu h5{display:none!important}
+  .menu a{display:flex!important;align-items:center;justify-content:center;text-align:center;white-space:normal!important;line-height:1.25;font-size:12px;padding:10px 4px!important;min-height:48px;border:1px solid var(--line)!important;border-radius:10px;border-left:1px solid var(--line)!important;border-bottom:1px solid var(--line)!important;background:#fff;color:var(--ink2)}
+  .menu a.on{background:var(--red-l);color:var(--red);border-color:var(--red)!important;font-weight:600}
+  .menu .show-m{grid-column:1/-1}
+  .menu .show-m button{width:100%;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#fff}
+  .stats-4{grid-template-columns:repeat(2,1fr)!important}
+  .redeem-banner{flex-wrap:wrap}
+}
