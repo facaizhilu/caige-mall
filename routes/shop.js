@@ -453,7 +453,15 @@ module.exports = function (app, { filesOf }) {
       db.exec1('INSERT INTO signins VALUES(?,?,?,?)', u.id, today, pts, streak);
       db.exec1('UPDATE users SET signin_streak=?, last_signin=? WHERE id=?', streak, today, u.id);
       svc.addPoints(u.id, pts, `每日签到(连续${streak}天)`); svc.addGrowth(u.id, 2);
-      return { ok: true, msg: `签到成功,获得 ${pts} 积分(连续签到 ${streak} 天)`, pts };
+      let extra = 0;
+      if (svc.cloud.isCardActive(u) && u.cloud_daily_day !== today) {
+        const cr = svc.cloud.dailyReturn(u.id, svc.addPoints);
+        if (cr.ok) extra = cr.pts || 0;
+      }
+      const msg = extra
+        ? `签到成功,获得 ${pts} 积分(连续${streak}天),会员每日返积分 +${extra}`
+        : `签到成功,获得 ${pts} 积分(连续签到 ${streak} 天)`;
+      return { ok: true, msg, pts: pts + extra };
     })();
     if (wantsJson(req)) return res.json(r);
     flash(req, r.ok ? 'success' : 'error', r.msg); back(req, res, '/me/points');
@@ -510,6 +518,37 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/me-invoices', { title: '我的发票', rows });
   });
   app.get('/me/levels', needLogin, (req, res) => res.page('shop/me-levels', { title: '会员等级', levels: db.all('SELECT * FROM member_levels ORDER BY min_growth') }));
+
+
+  // ---------------- 云商卡会员权益 ----------------
+  app.get('/me/cloud', needLogin, (req, res) => {
+    const cloud = svc.cloud;
+    const status = cloud.cardStatus(req.user);
+    const types = db.all('SELECT c.*, p.name pname, p.price pprice, p.images FROM cloud_card_types c LEFT JOIN products p ON p.id=c.product_id WHERE c.status=1 ORDER BY c.sort, c.id')
+      .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration, img: U.firstImg(t.images) }));
+    const dailyDone = req.user.cloud_daily_day === U.today();
+    const redeems = db.all('SELECT * FROM cloud_redeem_requests WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id);
+    const refLog = db.all('SELECT * FROM cloud_referral_log WHERE user_id=? ORDER BY id DESC LIMIT 15', req.user.id);
+    const ratio = int(svc.S('cloud_redeem_ratio'), 100);
+    const label = svc.S('cloud_redeem_label') || '权益值';
+    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, dailyDone, redeems, refLog, ratio, label, dailyPts: int(svc.S('cloud_daily_points'), 10), redeemMin: int(svc.S('cloud_redeem_min'), 100) });
+  });
+  app.post('/me/cloud/daily', needLogin, (req, res) => {
+    const r = db.transaction(() => svc.cloud.dailyReturn(req.user.id, svc.addPoints))();
+    if (wantsJson(req)) return res.json(r);
+    flash(req, r.ok ? 'success' : 'error', r.msg); res.redirect('/me/cloud');
+  });
+  app.post('/me/cloud/redeem', needLogin, (req, res) => {
+    const r = svc.cloud.submitRedeem(req.user.id, req.body.points, req.body.note);
+    flash(req, r.ok ? 'success' : 'error', r.msg); res.redirect('/me/cloud');
+  });
+  app.get('/me/cloud-fans', needLogin, (req, res) => {
+    const stats = svc.cloud.fanStats(req.user.id);
+    const status = svc.cloud.cardStatus(req.user);
+    const push3Pct = svc.S('cloud_push3_pct');
+    const push3Mode = svc.S('cloud_push3_mode');
+    res.page('shop/me-cloud-fans', { title: '我的云粉', stats, status, push3Pct, push3Mode, link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
+  });
 
   // ---------------- 积分商城 ----------------
   app.get('/points-mall', (req, res) => res.page('shop/points-mall', { title: '积分商城', goods: db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY sort,id') }));

@@ -26,7 +26,7 @@ module.exports = function (r, { filesOf }) {
   const ctx = { need, flash, log, filesOf };
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').includes('/admin') ? req.get('referer') : fb);
   const sendCSV = (res, name, header, rows) => { res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}-${U.today()}.csv`); res.send(U.toCSV(header, rows)); };
-  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n }; } next(); });
+  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n, redeems: db.get("SELECT COUNT(*) n FROM cloud_redeem_requests WHERE status='pending'").n }; } next(); });
 
   // ================= 登录 =================
   const fails = new Map();
@@ -313,6 +313,106 @@ module.exports = function (r, { filesOf }) {
     const rows = db.all("SELECT u.id, u.phone, u.nickname, u.invite_code, (SELECT COUNT(*) FROM users x WHERE x.referrer_id=u.id) invitees, COALESCE((SELECT SUM(amount) FROM commissions c WHERE c.user_id=u.id AND c.status!='revoked'),0) total, COALESCE((SELECT SUM(amount) FROM commissions c WHERE c.user_id=u.id AND c.status='available'),0) available FROM users u WHERE EXISTS(SELECT 1 FROM users x WHERE x.referrer_id=u.id) ORDER BY invitees DESC");
     const recent = db.all('SELECT c.*, o.order_no, a.nickname an, b.nickname bn FROM commissions c JOIN orders o ON o.id=c.order_id JOIN users a ON a.id=c.user_id JOIN users b ON b.id=c.from_user_id ORDER BY c.id DESC LIMIT 20');
     res.page('admin/referral', { title: '分销管理', rows, recent });
+  });
+
+
+  // ================= 云商卡(会员权益) =================
+  const productOptions = () => [{ v: 0, t: '— 请选择激活商品 —' }, ...db.all("SELECT id v, ('#' || id || ' ' || name || ' ¥' || price) t FROM products WHERE status>=0 ORDER BY id DESC")];
+  crud(r, { path: 'cloud-cards', table: 'cloud_card_types', perm: 'member', title: '云商卡类型', singular: '云商卡类型', order: 'sort,id', toggle: 'status',
+    decorate: x => { const p = x.product_id ? db.get('SELECT name,price FROM products WHERE id=?', x.product_id) : null; x.pname = p ? p.name : ''; x.pprice = p ? p.price : null; },
+    cols: [
+      { label: 'ID', f: x => x.id },
+      { label: '名称', f: x => '<b>' + esc(x.name) + '</b>' },
+      { label: '档位', f: x => (svc.cloud.TIER_LABEL[x.tier] || esc(x.tier)) },
+      { label: '时长', f: x => (svc.cloud.DURATION_LABEL[x.duration] || esc(x.duration)) },
+      { label: '激活费', f: x => '¥' + Number(x.activation_fee).toFixed(2) },
+      { label: '激活商品', f: x => x.product_id ? ('#' + x.product_id + ' ' + esc(x.pname) + (x.pprice != null ? ' ¥' + x.pprice : '')) : '<span class="muted">未配置</span>' },
+      { label: '排序', f: x => x.sort },
+      { label: '状态', f: x => x.status ? '<span class="tag green">启用</span>' : '<span class="tag gray">停用</span>' }
+    ],
+    fields: [
+      { name: 'name', label: '展示名称', required: true, help: '如:白银月卡会员权益' },
+      { name: 'tier', label: '档位', type: 'select', options: [{ v: 'silver', t: '白银' }, { v: 'gold', t: '黄金' }], required: true },
+      { name: 'duration', label: '时长', type: 'select', options: [{ v: 'month', t: '月卡(30天)' }, { v: 'quarter', t: '季卡(90天)' }, { v: 'year', t: '年卡(365天)' }], required: true },
+      { name: 'activation_fee', label: '激活费(元,展示用)', type: 'number', min: 0 },
+      { name: 'product_id', label: '指定激活商品', type: 'select', numeric: true, options: productOptions, required: true, help: '用户购买并支付该商品后开通/续费对应权益' },
+      { name: 'sort', label: '排序', type: 'number', int: true },
+      { name: 'remark', label: '备注' },
+      { name: 'status', label: '启用', type: 'checkbox', def: 1 }
+    ],
+    validate: row => {
+      if (!['silver', 'gold'].includes(row.tier)) return '档位无效';
+      if (!['month', 'quarter', 'year'].includes(row.duration)) return '时长无效';
+      if (!row.product_id || !db.get('SELECT 1 FROM products WHERE id=?', row.product_id)) return '请选择有效的激活商品';
+      return null;
+    }
+  }, ctx);
+
+  r.get('/cloud-settings', need('member'), (req, res) => {
+    svc.cloud.ensureDefaults();
+    res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings() });
+  });
+  r.post('/cloud-settings', need('member'), (req, res) => {
+    const keys = ['cloud_daily_points', 'cloud_referral_pct_silver', 'cloud_referral_pct_gold', 'cloud_referral_enable_silver', 'cloud_referral_enable_gold', 'cloud_push3_pct', 'cloud_push3_mode', 'cloud_redeem_label', 'cloud_redeem_ratio', 'cloud_redeem_min'];
+    const b = req.body;
+    if (!(num(b.cloud_daily_points, -1) >= 0)) { flash(req, 'error', '每日返积分需为非负整数'); return res.redirect('/admin/cloud-settings'); }
+    if (!(num(b.cloud_referral_pct_silver, -1) >= 0) || !(num(b.cloud_referral_pct_gold, -1) >= 0) || !(num(b.cloud_push3_pct, -1) >= 0)) { flash(req, 'error', '比例需为非负数'); return res.redirect('/admin/cloud-settings'); }
+    if (!['once', 'per_third'].includes(String(b.cloud_push3_mode))) { flash(req, 'error', '推三返一模式无效'); return res.redirect('/admin/cloud-settings'); }
+    if (!(int(b.cloud_redeem_ratio, 0) >= 1) || !(int(b.cloud_redeem_min, 0) >= 1)) { flash(req, 'error', '兑换比例与最低积分需≥1'); return res.redirect('/admin/cloud-settings'); }
+    if (!String(b.cloud_redeem_label || '').trim()) { flash(req, 'error', '请填写兑换展示名称'); return res.redirect('/admin/cloud-settings'); }
+    for (const k of keys) {
+      if (k.startsWith('cloud_referral_enable')) svc.setSetting(k, b[k] ? '1' : '0');
+      else svc.setSetting(k, String(b[k] == null ? '' : b[k]).trim().slice(0, 100));
+    }
+    log(req, '修改云商卡配置', '');
+    flash(req, 'success', '云商卡配置已保存');
+    res.redirect('/admin/cloud-settings');
+  });
+
+  r.get('/cloud-members', need('member'), (req, res) => {
+    const { q = '', tier = '', active = '' } = req.query;
+    const where = ["u.cloud_tier IS NOT NULL AND u.cloud_tier!=''"], params = [];
+    if (q.trim()) { where.push('(u.phone LIKE ? OR u.nickname LIKE ?)'); params.push('%' + q.trim() + '%', '%' + q.trim() + '%'); }
+    if (tier) { where.push('u.cloud_tier=?'); params.push(tier); }
+    if (active === '1') { where.push('u.cloud_end>=?'); params.push(now()); }
+    if (active === '0') { where.push('(u.cloud_end IS NULL OR u.cloud_end<?)'); params.push(now()); }
+    const pg = U.paginate(`SELECT u.*, c.name card_name FROM users u LEFT JOIN cloud_card_types c ON c.id=u.cloud_card_type_id WHERE ${where.join(' AND ')} ORDER BY u.cloud_end DESC, u.id DESC`, params, req.query.page, 20);
+    pg.rows.forEach(u => { u.active = svc.cloud.isCardActive(u); u.tierLabel = svc.cloud.TIER_LABEL[u.cloud_tier] || u.cloud_tier; });
+    res.page('admin/cloud-members', { title: '云商卡会员', pg, q, tier, active });
+  });
+
+  r.get('/cloud-redeems', need('member'), (req, res) => {
+    const st = req.query.status || 'pending';
+    const where = st ? 'WHERE r.status=?' : '';
+    const params = st ? [st] : [];
+    const pg = U.paginate(`SELECT r.*, u.nickname, u.phone, u.points upoints FROM cloud_redeem_requests r JOIN users u ON u.id=r.user_id ${where} ORDER BY r.id DESC`, params, req.query.page, 20);
+    const label = svc.S('cloud_redeem_label') || '权益值';
+    const ratio = int(svc.S('cloud_redeem_ratio'), 100);
+    res.page('admin/cloud-redeems', { title: '积分兑换审核', pg, st, label, ratio });
+  });
+  r.post('/cloud-redeems/:id/handle', need('member'), (req, res) => {
+    const id = int(req.params.id);
+    const act = req.body.action;
+    const note = String(req.body.admin_note || '').slice(0, 200);
+    const x = db.transaction(() => svc.cloud.handleRedeem(id, act, note, req.session.admin.id, svc.addPoints))();
+    if (x.ok) log(req, act === 'approve' ? '通过积分兑换' : '拒绝积分兑换', '#' + id);
+    flash(req, x.ok ? 'success' : 'error', x.msg);
+    res.redirect('/admin/cloud-redeems?status=' + (req.body.back || 'pending'));
+  });
+
+  r.get('/cloud-fans', need('member'), (req, res) => {
+    const rows = db.all(`
+      SELECT u.id, u.nickname, u.phone, u.cloud_tier, u.cloud_end, u.invite_code,
+        (SELECT COUNT(*) FROM users x WHERE x.referrer_id=u.id) fans,
+        COALESCE((SELECT SUM(points) FROM cloud_referral_log l WHERE l.user_id=u.id),0) pts,
+        COALESCE((SELECT SUM(l.amount) FROM cloud_referral_log l WHERE l.user_id=u.id AND l.type='direct'),0) direct_amt
+      FROM users u
+      WHERE u.cloud_tier IS NOT NULL AND u.cloud_tier!=''
+      ORDER BY fans DESC, pts DESC LIMIT 200
+    `);
+    rows.forEach(u => { u.active = svc.cloud.isCardActive(u); u.tierLabel = svc.cloud.TIER_LABEL[u.cloud_tier] || u.cloud_tier; const q = svc.cloud.countQualifiedFans(u.id); u.qualified = q.count; });
+    const recent = db.all(`SELECT l.*, a.nickname an, b.nickname bn, o.order_no FROM cloud_referral_log l LEFT JOIN users a ON a.id=l.user_id LEFT JOIN users b ON b.id=l.from_user_id LEFT JOIN orders o ON o.id=l.order_id ORDER BY l.id DESC LIMIT 30`);
+    res.page('admin/cloud-fans', { title: '云粉业绩', rows, recent });
   });
 
   // ================= 营销 =================

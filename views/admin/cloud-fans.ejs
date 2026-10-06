@@ -1,0 +1,25 @@
+<div class="card"><h3>云商卡会员 · 云粉业绩总览</h3>
+<p class="muted">直推人数含全部一级好友;合格云粉指已购买激活商品的直推。积分来自直推返还与推三返一(一级里程碑)。</p>
+<div class="tbl-wrap"><table class="t"><tr><th>会员</th><th>档位</th><th>状态</th><th>直推人数</th><th>合格云粉</th><th>权益积分累计</th><th>直推商品额累计</th><th>邀请码</th></tr>
+<% rows.forEach(u=>{ %><tr>
+  <td><a href="/admin/members/<%= u.id %>"><%= u.nickname %></a><br><span class="muted"><%= u.phone %></span></td>
+  <td><%= u.tierLabel %></td>
+  <td><%- u.active?'<span class="tag green">生效中</span>':'<span class="tag gray">已到期</span>' %></td>
+  <td><%= u.fans %></td>
+  <td><%= u.qualified %></td>
+  <td><%= u.pts %></td>
+  <td>¥<%= Number(u.direct_amt).toFixed(2) %></td>
+  <td><%= u.invite_code %></td>
+</tr><% }) %></table></div></div>
+<div class="card"><h3>最近会员权益积分流水</h3>
+<table class="t"><tr><th>时间</th><th>受益人</th><th>来源</th><th>类型</th><th>订单</th><th>金额基数</th><th>积分</th><th>说明</th></tr>
+<% recent.forEach(l=>{ %><tr>
+  <td class="muted"><%= l.created_at %></td>
+  <td><%= l.an || '-' %></td>
+  <td><%= l.bn || '-' %></td>
+  <td><%= l.type==='push3'?'推三返一':'直推' %></td>
+  <td><% if(l.order_id){ %><a href="/admin/orders/<%= l.order_id %>"><%= l.order_no || ('#'+l.order_id) %></a><% } else { %>—<% } %></td>
+  <td>¥<%= Number(l.amount).toFixed(2) %></td>
+  <td>+<%= l.points %></td>
+  <td><%= l.note %></td>
+</tr><% }) %></table></div>

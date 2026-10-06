@@ -1,0 +1,70 @@
+<div class="me"><%- include("_menu",{cur:"cloud"}) %><div>
+<div class="card cloud-hero <%= status.active ? (status.tier==='gold'?'gold':'silver') : '' %>">
+  <div class="flex between wrapf" style="gap:12px;align-items:flex-start">
+    <div>
+      <div class="muted" style="opacity:.9">云商卡 · 会员权益</div>
+      <div style="font-size:22px;font-weight:700;margin:4px 0"><%= status.active ? ('💎 ' + status.tierLabel + '会员') : (status.tier ? '⏳ 会员权益已到期' : '尚未开通会员权益') %></div>
+      <% if (status.tier) { %>
+        <div style="font-size:13px;opacity:.95">有效期 <%= status.start ? status.start.slice(0,10) : '-' %> ~ <%= status.end ? status.end.slice(0,10) : '-' %></div>
+      <% } else { %>
+        <div style="font-size:13px;opacity:.95">购买指定激活商品即可开通,享每日返积分与直推会员权益</div>
+      <% } %>
+    </div>
+    <div class="flex" style="gap:8px;flex-wrap:wrap">
+      <% if (status.active) { %>
+        <form method="post" action="/me/cloud/daily"><input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn <%= dailyDone?'':'gold' %>" <%= dailyDone?'disabled':'' %>><%= dailyDone ? '✔ 今日已领返积分' : ('📅 领取每日返积分 +'+dailyPts) %></button>
+        </form>
+        <a class="btn" href="/me/cloud-fans">👥 我的云粉</a>
+      <% } %>
+      <a class="btn" href="/me/points">积分明细</a>
+    </div>
+  </div>
+  <p class="muted" style="margin:12px 0 0;font-size:12px;opacity:.9">说明:每日返积分为会员消费权益回馈,计入「台子」积分余额;直推仅一级,无多级返利。本页内容仅为会员权益与消费返积分说明。</p>
+</div>
+
+<div class="card mt"><h3 style="margin-top:0">开通 / 续费(购买激活商品)</h3>
+  <p class="muted" style="margin-top:0">选择档位后跳转商品页下单支付,支付成功即开通或顺延会员权益。</p>
+  <div class="cloud-tiers">
+    <% types.forEach(t=>{ %>
+      <div class="cloud-tier <%= t.tier %>">
+        <div class="ct-badge"><%= t.tierLabel %> · <%= t.durationLabel %></div>
+        <div class="ct-name"><%= t.name %></div>
+        <div class="ct-fee">激活费 <b>¥<%= Number(t.activation_fee).toFixed(2) %></b></div>
+        <% if (t.product_id && t.pname) { %>
+          <div class="muted" style="font-size:12px;margin:6px 0">指定商品: <%= t.pname %><% if (t.pprice!=null){ %> (¥<%= Number(t.pprice).toFixed(2) %>)<% } %></div>
+          <a class="btn primary sm" href="/product/<%= t.product_id %>">去激活</a>
+        <% } else { %>
+          <span class="muted">暂未配置激活商品</span>
+        <% } %>
+      </div>
+    <% }) %>
+    <% if (!types.length) { %><p class="muted">暂无可开通档位,请稍后再试。</p><% } %>
+  </div>
+</div>
+
+<% if (status.active) { %>
+<div class="card mt"><h3 style="margin-top:0">积分兑换申请</h3>
+  <p class="muted">兑换比例仅作展示: <b><%= ratio %></b> 积分 ≈ 1 <%= label %>。提交后由管理员审核,通过后扣减积分并登记权益,<b>不会自动打款或提现</b>。</p>
+  <form method="post" action="/me/cloud/redeem" class="form-row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div style="flex:1;min-width:140px"><label>兑换积分(≥<%= redeemMin %>)</label><input type="number" name="points" min="<%= redeemMin %>" step="1" required placeholder="当前可用 <%= user.points %>"></div>
+    <div style="flex:2;min-width:180px"><label>备注(可选)</label><input name="note" maxlength="200" placeholder="如:线下权益登记"></div>
+    <button class="btn primary">提交兑换</button>
+  </form>
+  <% if (redeems.length) { %>
+  <table class="tbl mt"><tr><th>时间</th><th>积分</th><th>备注</th><th>状态</th></tr>
+  <% redeems.forEach(r=>{ %><tr><td><%= r.created_at %></td><td><%= r.points %></td><td><%= r.note || '-' %></td><td><%= {pending:'待审核',approved:'已通过',rejected:'已拒绝'}[r.status] || r.status %><% if(r.admin_note){ %><div class="muted" style="font-size:12px"><%= r.admin_note %></div><% } %></td></tr><% }) %>
+  </table>
+  <% } %>
+</div>
+<% } %>
+
+<% if (refLog.length) { %>
+<div class="card mt"><h3 style="margin-top:0">会员权益积分明细(直推/推三返一)</h3>
+  <table class="tbl"><tr><th>时间</th><th>类型</th><th>说明</th><th class="right">积分</th></tr>
+  <% refLog.forEach(r=>{ %><tr><td><%= r.created_at %></td><td><%= r.type==='push3'?'推三返一':'直推返还' %></td><td><%= r.note %></td><td class="right"><b style="color:var(--ok)">+<%= r.points %></b></td></tr><% }) %>
+  </table>
+</div>
+<% } %>
+</div></div>

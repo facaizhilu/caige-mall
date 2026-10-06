@@ -1,0 +1,18 @@
+<div class="card"><form class="toolbar" method="get">
+  <input type="search" name="q" value="<%= q %>" placeholder="手机号/昵称" style="min-width:180px">
+  <select name="tier"><option value="">全部档位</option><option value="silver" <%= tier==='silver'?'selected':'' %>>白银</option><option value="gold" <%= tier==='gold'?'selected':'' %>>黄金</option></select>
+  <select name="active"><option value="">全部状态</option><option value="1" <%= active==='1'?'selected':'' %>>权益生效中</option><option value="0" <%= active==='0'?'selected':'' %>>已到期</option></select>
+  <button class="btn">查询</button>
+</form>
+<div class="tbl-wrap"><table class="t"><tr><th>会员</th><th>档位</th><th>卡类型</th><th>开始</th><th>到期</th><th>状态</th><th>积分</th><th>推三已发</th><th></th></tr>
+<% pg.rows.forEach(u=>{ %><tr>
+  <td><b><%= u.nickname %></b><br><span class="muted"><%= u.phone %></span></td>
+  <td><%= u.tierLabel %></td>
+  <td><%= u.card_name || '-' %></td>
+  <td class="muted"><%= u.cloud_start ? u.cloud_start.slice(0,10) : '-' %></td>
+  <td class="muted"><%= u.cloud_end ? u.cloud_end.slice(0,10) : '-' %></td>
+  <td><%- u.active ? '<span class="tag green">生效中</span>' : '<span class="tag gray">已到期</span>' %></td>
+  <td><%= u.points %></td>
+  <td><%= u.cloud_push3_granted || 0 %></td>
+  <td><a class="btn sm" href="/admin/members/<%= u.id %>">详情</a></td>
+</tr><% }) %></table></div><%- include('../partials/apager') %></div>

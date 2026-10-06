@@ -1,0 +1,34 @@
+<div class="me"><%- include("_menu",{cur:"cloud-fans"}) %><div>
+<div class="card"><h3 style="margin-top:0">👥 我的云粉</h3>
+  <p class="muted">仅统计一级直推好友。好友购买指定激活商品后计入业绩与推三返一进度。推三返一:每满 3 位合格直推可获商品金额 <%= push3Pct %>% 的积分返还(模式:<%= push3Mode==='once'?'仅首次':'每满三人' %>)。</p>
+  <% if (!status.active) { %><div class="flash error" style="margin-bottom:12px">会员权益未生效时仍可查看云粉,但直推返积分与推三返一仅在权益生效期间发放。</div><% } %>
+  <div class="form-row"><label>邀请链接</label><input value="<%= link %>" readonly onclick="this.select()"></div>
+</div>
+<div class="stats" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stat"><b><%= stats.directCount %></b><span>直推人数</span></div>
+  <div class="stat"><b><%= stats.qualifiedCount %></b><span>合格云粉(已购激活品)</span></div>
+  <div class="stat"><b><%= stats.pointsEarned %></b><span>已获会员权益积分</span></div>
+  <div class="stat"><b><%= Math.floor(stats.qualifiedCount/3) %></b><span>推三返一已达成次数</span></div>
+</div>
+<div class="stats" style="grid-template-columns:repeat(3,1fr)">
+  <div class="stat"><b>¥<%= stats.perf.today.amount.toFixed(2) %></b><span>当日业绩(<%= stats.perf.today.count %>笔)</span></div>
+  <div class="stat"><b>¥<%= stats.perf.month.amount.toFixed(2) %></b><span>当月业绩(<%= stats.perf.month.count %>笔)</span></div>
+  <div class="stat"><b>¥<%= stats.perf.total.amount.toFixed(2) %></b><span>总计业绩(<%= stats.perf.total.count %>笔)</span></div>
+</div>
+<div class="card"><h3 style="margin-top:0">云粉列表</h3>
+  <table class="tbl"><tr><th>昵称</th><th>手机</th><th>注册</th><th>云商卡</th><th class="right">激活品消费</th><th>明细</th></tr>
+  <% if (!stats.fans.length) { %><tr><td colspan="6" class="muted">暂无直推好友,分享邀请链接开始吧</td></tr><% } %>
+  <% stats.fans.forEach(f=>{ %>
+    <tr>
+      <td><%= f.nickname %></td>
+      <td><%= U.maskPhone(f.phone) %></td>
+      <td><%= f.created_at.slice(0,10) %></td>
+      <td><%= f.cloud_tier ? (({silver:'白银',gold:'黄金'})[f.cloud_tier]||f.cloud_tier) : '—' %></td>
+      <td class="right"><%= money(f.buyAmount) %></td>
+      <td style="font-size:12px" class="muted"><% if(f.bought.length){ f.bought.slice(0,3).forEach(b=>{ %><div><%= b.name %> ×<%= b.qty %> · <%= b.paid_at?b.paid_at.slice(0,10):'' %></div><% }) ; if(f.bought.length>3){ %><div>…共 <%= f.bought.length %> 笔</div><% } } else { %>—<% } %></td>
+    </tr>
+  <% }) %>
+  </table>
+</div>
+<p class="mt"><a class="btn" href="/me/cloud">← 返回云商卡</a></p>
+</div></div>

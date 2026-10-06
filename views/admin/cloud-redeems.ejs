@@ -1,0 +1,35 @@
+<div class="card">
+  <div class="toolbar" style="margin-bottom:12px">
+    <a class="btn sm <%= st==='pending'?'primary':'' %>" href="/admin/cloud-redeems?status=pending">待审核</a>
+    <a class="btn sm <%= st==='approved'?'primary':'' %>" href="/admin/cloud-redeems?status=approved">已通过</a>
+    <a class="btn sm <%= st==='rejected'?'primary':'' %>" href="/admin/cloud-redeems?status=rejected">已拒绝</a>
+    <a class="btn sm <%= !st?'primary':'' %>" href="/admin/cloud-redeems?status=">全部</a>
+    <span class="muted" style="margin-left:8px">展示换算: <%= ratio %> 积分 ≈ 1 <%= label %> · 通过后扣积分登记权益,拒绝不扣积分</span>
+  </div>
+  <div class="tbl-wrap"><table class="t"><tr><th>ID</th><th>会员</th><th>申请积分</th><th>约合</th><th>当前积分</th><th>备注</th><th>时间</th><th>状态</th><th>操作</th></tr>
+  <% pg.rows.forEach(r=>{ %>
+    <tr>
+      <td><%= r.id %></td>
+      <td><a href="/admin/members/<%= r.user_id %>"><%= r.nickname %></a><br><span class="muted"><%= r.phone %></span></td>
+      <td><b><%= r.points %></b></td>
+      <td><%= (r.points / ratio).toFixed(2) %> <%= label %></td>
+      <td><%= r.upoints %></td>
+      <td><%= r.note || '-' %><% if(r.admin_note){ %><div class="muted" style="font-size:12px">管理员: <%= r.admin_note %></div><% } %></td>
+      <td class="muted"><%= r.created_at %></td>
+      <td><%= {pending:'待审核',approved:'已通过',rejected:'已拒绝'}[r.status] %></td>
+      <td style="white-space:nowrap">
+        <% if (r.status==='pending') { %>
+          <form method="post" action="/admin/cloud-redeems/<%= r.id %>/handle" style="display:inline" data-confirm="确认通过?将扣减用户积分且不会自动打款">
+            <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="approve"><input type="hidden" name="back" value="pending">
+            <input name="admin_note" placeholder="备注" style="width:100px"> <button class="btn sm primary">通过</button>
+          </form>
+          <form method="post" action="/admin/cloud-redeems/<%= r.id %>/handle" style="display:inline" data-confirm="确认拒绝?申请阶段未扣积分,拒绝无需回补">
+            <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="reject"><input type="hidden" name="back" value="pending">
+            <input name="admin_note" placeholder="拒绝原因" style="width:100px"> <button class="btn sm danger">拒绝</button>
+          </form>
+        <% } else { %>—<% } %>
+      </td>
+    </tr>
+  <% }) %>
+  </table></div><%- include('../partials/apager') %>
+</div>

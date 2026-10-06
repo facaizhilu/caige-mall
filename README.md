@@ -139,3 +139,13 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 站点已设置 `trust proxy`,经 Nginx 的 `X-Forwarded-*` 头可正确识别客户端 IP。上 HTTPS 后建议在 `server.js` 的 `cookieBase` 中加上 `secure: true`。
 
 **7. 防火墙与运维**:只开放 80/443(`ufw allow 'Nginx Full'`);定期备份 `DATA_DIR/mall.db`(SQLite 为 WAL 模式,备份用 `sqlite3 mall.db ".backup backup.db"`)和 `public/uploads/`;更新代码后 `npm install --omit=dev && pm2 restart caige-mall`。
+
+## 云商卡 · 会员权益(合规子集)
+
+已实现:白银/黄金 × 月/季/年卡、指定商品激活、每日返积分、一级直推消费返积分、推三返一(一级里程碑)、我的云粉、积分兑换申请(审核扣积分,不自动打款)。
+
+**刻意未实现:** 多级分销/MLM、商务专区/千城万店商家入驻、现金提现、投资/收益类文案。
+
+- 前台: `/me/cloud`、`/me/cloud-fans`
+- 后台(需「会员」权限): `/admin/cloud-cards`、`/admin/cloud-settings`、`/admin/cloud-members`、`/admin/cloud-redeems`、`/admin/cloud-fans`
+

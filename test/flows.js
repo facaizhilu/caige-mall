@@ -75,5 +75,20 @@ class C { constructor() { this.k = {}; this.t = ''; }
   Object.entries({ name: '上传图测试商品', category_id: '3', brand_id: '1', template_id: '1', status: '1', spec_names: '规格', market_price: '10', description: 'd' }).forEach(([k, v]) => fd2.append(k, v)); fd2.append('sku_spec', '默认'); fd2.append('sku_price', '9.9'); fd2.append('sku_stock', '5'); fd2.append('sku_code', ''); fd2.append('sku_id', ''); fd2.append('image_files', new Blob([png], { type: 'image/png' }), 'p.png');
   await adm.get('/admin/products/new'); r = await adm.req('POST', '/admin/products/save', fd2, { form: true }); const np = db.get("SELECT * FROM products WHERE name='上传图测试商品'"); ok(np && /\/uploads\//.test(np.images), '后台商品图片上传', r.status);
   if (np) { const up = JSON.parse(np.images)[0]; const g = await fetch(base + up); ok(g.status === 200 && g.headers.get('content-type').includes('image'), '上传图片可访问'); await adm.post('/admin/products/' + np.id + '/delete'); }
+
+  console.log('== 云商卡兑换审核通过 ==');
+  const cg = new C(); await cg.login('13800000001', '123456');
+  const ptsBefore = db.get('SELECT points FROM users WHERE phone=?', '13800000001').points;
+  await cg.get('/me/cloud');
+  r = await cg.post('/me/cloud/redeem', { points: '150', note: 'flows兑换' });
+  const pending = db.get("SELECT * FROM cloud_redeem_requests WHERE user_id=1 AND status='pending' ORDER BY id DESC LIMIT 1");
+  ok(!!pending && pending.points === 150, '兑换申请入库');
+  ok(db.get('SELECT points FROM users WHERE id=1').points === ptsBefore, '申请阶段未扣积分');
+  r = await adm.post('/admin/cloud-redeems/' + pending.id + '/handle', { action: 'approve', admin_note: 'flows通过', back: 'pending' });
+  ok(db.get('SELECT status FROM cloud_redeem_requests WHERE id=?', pending.id).status === 'approved', '后台通过兑换');
+  ok(db.get('SELECT points FROM users WHERE id=1').points === ptsBefore - 150, '通过后扣减积分');
+  const expired = require('../lib/cloud').dailyReturn(3, require('../lib/svc').addPoints);
+  ok(!expired.ok, '过期/未生效卡不可领取每日返积分', expired.msg);
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
