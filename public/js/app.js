@@ -41,4 +41,11 @@
   document.addEventListener('submit',function(e){var m=e.target.dataset.confirm;if(m&&!confirm(m))e.preventDefault()});
   // 单选卡片样式
   document.querySelectorAll('.addr input,.pm input').forEach(function(inp){inp.addEventListener('change',function(){document.querySelectorAll('input[name="'+inp.name+'"]').forEach(function(o){o.closest('.addr,.pm').classList.toggle('on',o.checked)})})});
+  // 窄屏表格:按表头为单元格补 data-label,配合 CSS 在手机上以卡片形式展示
+  document.querySelectorAll('table.tbl').forEach(function(t){
+    var rows=t.querySelectorAll('tr');if(!rows.length)return;
+    var hs=[].map.call(rows[0].querySelectorAll('th'),function(th){return th.textContent.trim()});if(!hs.length)return;
+    t.classList.add('stack');rows[0].classList.add('th-row');
+    [].slice.call(rows,1).forEach(function(r){[].forEach.call(r.children,function(c,k){if(c.colSpan>1||!hs[k]||c.hasAttribute('data-label'))return;c.setAttribute('data-label',hs[k])})});
+  });
 })();

@@ -30,7 +30,7 @@
       <div class="flex"><input type="number" name="use_points" id="pts" min="0" value="0" step="<%= q.rate %>" style="max-width:200px"><button type="button" class="btn sm" id="useMax">全部使用</button></div></div>
   </div>
   <% } %>
-  <div class="card ck-sec"><h3>💳 支付方式 <span class="tag gold">模拟支付 · 不产生真实扣款</span></h3><p class="muted" style="margin:0">下一步在收银台选择微信 / 支付宝 / 余额(<%= user.balance.toFixed(2) %> 元)进行模拟支付。</p></div>
+  <div class="card ck-sec"><h3>💳 支付方式 <span class="tag gold">模拟支付 · 不产生真实扣款</span></h3><p class="muted" style="margin:0">下一步在收银台选择微信支付或支付宝进行模拟支付。</p></div>
   <div class="card">
     <dl class="kv" style="grid-template-columns:1fr auto;max-width:420px;margin-left:auto">
       <dt>商品金额</dt><dd class="right" id="rGoods"><%= money(q.goods) %></dd>
@@ -39,7 +39,7 @@
       <dt>优惠券</dt><dd class="right" id="rCoupon">-<%= money(q.couponDiscount) %></dd>
       <dt>积分抵扣</dt><dd class="right" id="rPts">-<%= money(q.pointsDiscount) %></dd>
     </dl>
-    <div class="flex between mt"><span class="muted">提交订单后需在 <%= shop.unpaid_cancel_minutes %> 分钟内支付,超时自动取消</span><span class="flex">应付:<span class="price"><big id="rPay"><%= q.pay.toFixed(2) %></big></span><button class="btn primary lg">提交订单</button></span></div>
+    <div class="flex between mt ck-submit"><span class="muted">提交订单后需在 <%= shop.unpaid_cancel_minutes %> 分钟内支付,超时自动取消</span><span class="flex">应付:<span class="price"><big id="rPay"><%= q.pay.toFixed(2) %></big></span><button class="btn primary lg">提交订单</button></span></div>
   </div>
 </form>
 <script>

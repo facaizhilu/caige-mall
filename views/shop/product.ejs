@@ -12,7 +12,7 @@
       <% if (seckill) { %><span class="muted"> 秒杀价,每人限购 <%= seckill.limit_per_user %> 件,剩余 <%= seckill.stock-seckill.sold %> 件</span><% } %>
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
-    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货 · <%= tpl? (tpl.free_over>0?`满 ¥${tpl.free_over} 包邮`:'全场包邮'):'' %> · <a class="muted" href="/help">运费规则</a></dd>
+    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货 · <%= tpl? (tpl.free_over>0.01?`满 ¥${tpl.free_over} 包邮`:'包邮'):'' %> · <a class="muted" href="/help">运费规则</a></dd>
       <dt>服务</dt><dd><span class="tag green">正品保证</span><span class="tag green">7天退换</span><span class="tag green">极速发货</span></dd>
       <dt>销量</dt><dd>已售 <%= p.sales %> 件 · 好评率 <%= rs.n? Math.round((rs.good||0)/rs.n*100):100 %>%</dd></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>

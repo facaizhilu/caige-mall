@@ -1,14 +1,13 @@
 <div class="card auth" style="max-width:640px">
   <h2>收银台</h2>
   <div class="sim mb">⚠️ 这是模拟支付页面,不会产生真实扣款,也未接入任何真实支付渠道。点击「确认支付」即视为支付成功。</div>
-  <div class="flex between mb"><span>订单号:<%= o.order_no %></span><span>应付金额 <span class="price"><big><%= o.pay_amount.toFixed(2) %></big></span></span></div>
+  <div class="flex between mb payhd"><span class="ono">订单号:<%= o.order_no %></span><span>应付金额 <span class="price"><big><%= o.pay_amount.toFixed(2) %></big></span></span></div>
   <p class="muted">请在 <b><%= shop.unpaid_cancel_minutes %></b> 分钟内完成支付(创建于 <%= o.created_at %>)</p>
   <form method="post" action="/order/<%= o.id %>/pay">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="paymethod" style="flex-direction:column">
       <label class="pm on"><input type="radio" name="method" value="wechat" checked><span class="ic" style="background:#07c160">微</span>微信支付(模拟)</label>
       <label class="pm"><input type="radio" name="method" value="alipay"><span class="ic" style="background:#1677ff">支</span>支付宝(模拟)</label>
-      <label class="pm"><input type="radio" name="method" value="balance"><span class="ic" style="background:var(--gold-d)">¥</span>账户余额(当前 ¥<%= user.balance.toFixed(2) %>)</label>
     </div>
     <button class="btn primary lg block mt">确认支付 ¥<%= o.pay_amount.toFixed(2) %></button>
   </form>

@@ -81,12 +81,12 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/cart/add', { sku_id: sku, qty: 1 }, { accept: 'application/json' }); r = await shop.get('/cart'); const cid2 = (r.text.match(/name="cart_id" value="(\d+)"/) || [])[1];
   r = await shop.post('/checkout', { cart_id: cid2, from_cart: '1' }); const items2 = (r.text.match(/name="items" value='([^']+)'/) || [])[1].replace(/&#34;/g, '"');
   r = await shop.post('/order/create', { items: items2, from_cart: '1', address_id: addrId }); const oid2 = r.loc.match(/order\/(\d+)\/pay/)[1];
-  r = await shop.post('/order/' + oid2 + '/pay', { method: 'balance' }); ok(r.loc.includes('/pay'), '余额不足时支付被拒');
-  r = await shop.post('/me/recharge', { amount: '500', method: 'alipay' }); r = await shop.get('/me/balance'); ok(r.text.includes('模拟充值') && r.text.includes('550.00'), '模拟充值(含赠送)');
-  r = await shop.post('/order/' + oid2 + '/pay', { method: 'balance' }); r = await shop.get('/order/' + oid2); ok(r.text.includes('待发货'), '余额支付成功');
+  r = await shop.post('/order/' + oid2 + '/pay', { method: 'balance' }); ok(r.loc.includes('/pay'), '余额支付已停用,提交被拒');
+  r = await shop.get('/me/balance'); ok(r.status === 302 && r.loc === '/me', '余额页已下线(重定向到会员中心)');
+  r = await shop.get('/order/' + oid2 + '/pay'); ok(!r.text.includes('账户余额') && !r.text.includes('value="balance"'), '收银台不再提供余额支付');
+  r = await shop.post('/order/' + oid2 + '/pay', { method: 'wechat' }); r = await shop.get('/order/' + oid2); ok(r.text.includes('待发货'), '模拟微信支付成功');
   r = await shop.post('/order/' + oid2 + '/aftersale', { type: 'refund', reason: '不想要了', description: '测试' }); ok(r.status === 302, '申请退款');
   r = await adm.get('/admin/aftersales?status=pending'); const asid = (r.text.match(/\/admin\/aftersales\/(\d+)/g) || [])[0].split('/').pop();
-  const before = (await shop.get('/me/balance')).text.match(/<b>(\d+\.\d+)<\/b>/);
   r = await adm.post('/admin/aftersales/' + asid + '/handle', { action: 'approve', admin_note: '同意' }); ok(r.status === 302, '后台同意退款');
   r = await shop.get('/order/' + oid2); ok(r.text.includes('已退款'), '订单已退款');
   // 优惠券领取与使用

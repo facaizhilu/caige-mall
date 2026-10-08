@@ -11,6 +11,9 @@ const svc = require('./lib/svc');
 const SqliteStore = require('./lib/session-store');
 
 if (db.get('SELECT COUNT(*) n FROM admins').n === 0) require('./lib/seed')(false);
+// 前台已下线账户余额:旧库中的相关帮助文案同步更新(幂等)
+db.exec1("UPDATE articles SET title='支付方式说明', content='<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。</p>' WHERE category='help' AND title='余额充值说明'");
+db.exec1("UPDATE articles SET content=REPLACE(content, '款项原路退回账户余额。', '款项原路退回(演示环境为模拟退款)。') WHERE category='help' AND content LIKE '%原路退回账户余额%'");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -112,6 +115,7 @@ app.use((req, res, next) => {
   res.locals.shop = svc.settings();
   res.locals.flash = req.session.flash; delete req.session.flash;
   res.locals.user = null; res.locals.cartCount = 0;
+  res.locals.PAY_METHOD = { ...U.PAY_METHOD, balance: '模拟支付' }; // 前台不再展示「账户余额」
   if (req.session.uid) {
     const u = db.get('SELECT u.*, l.name level_name, l.color level_color, l.discount level_discount FROM users u LEFT JOIN member_levels l ON l.id=u.level_id WHERE u.id=?', req.session.uid);
     if (!u || !u.status) { req.session.uid = null; } else {

@@ -4,7 +4,7 @@
 <meta name="csrf" content="<%= csrf %>">
 <title><%= title %> - <%= shop.shop_name %></title>
 <link rel="icon" href="/favicon.ico">
-<link rel="stylesheet" href="/static/css/shop.css?v=8">
+<link rel="stylesheet" href="/static/css/shop.css?v=9">
 </head><body>
 <div class="topbar"><div class="wrap">
   <div>欢迎来到<%= shop.shop_name %>!<span style="margin-left:12px">客服热线 <%= shop.service_phone %></span></div>
@@ -51,5 +51,5 @@
   <a href="<%= user?'/me':'/login' %>" class="<%= req.path.startsWith('/me')?'on':'' %>"><span>👤</span>我的</a>
 </nav>
 <script>window.REGIONS=<%- JSON.stringify(regions) %>;</script>
-<script src="/static/js/app.js?v=4"></script>
+<script src="/static/js/app.js?v=5"></script>
 </body></html>

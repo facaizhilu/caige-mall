@@ -283,3 +283,67 @@ main{min-height:60vh;min-height:60dvh}
   .stats-4{grid-template-columns:repeat(2,1fr)!important}
   .redeem-banner{flex-wrap:wrap}
 }
+
+/* ===== v9:可读性 / 防横向溢出 / 移动端筛选 / 表格卡片化 ===== */
+/* 按钮默认深色文字,避免在彩色卡片里继承白字导致「白底白字」 */
+.btn{color:var(--ink)}
+.mehead .btn{background:#fff;color:var(--red);border-color:transparent;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.mehead .btn:hover{color:var(--red-d)}
+.mehead .btn[disabled]{opacity:1;background:rgba(255,255,255,.9);color:var(--ok)}
+.cloud-hero .btn:not(.gold):not(.primary){background:#fff;color:#6d28d9;border-color:transparent;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.cloud-hero.silver .btn:not(.gold):not(.primary){color:#334155}
+.cloud-hero.gold .btn:not(.gold):not(.primary){color:#92400e}
+.cloud-hero .btn[disabled]{opacity:.85}
+/* 无 type 的输入框与其它输入框统一样式(零优先级,不影响 .qty 等) */
+:where(input:not([type])){border:1px solid #dcdfe6;border-radius:8px;padding:9px 12px;background:#fff;outline:0;width:100%}
+/* 全局防横向溢出 */
+img,video,iframe,canvas,textarea,input,select{max-width:100%}
+textarea{resize:vertical}
+.kv dd,.tbl td{min-width:0;overflow-wrap:anywhere}
+/* 评价页 */
+.review .rv-body{flex:1;min-width:0}
+.rating-sel{width:100%;max-width:280px}
+/* 收银台订单号 */
+.payhd{flex-wrap:wrap;gap:6px 12px}.payhd .ono{overflow-wrap:anywhere}
+/* 商品列表移动端筛选(桌面端隐藏) */
+.mfilter{display:none}
+@media(max-width:900px){
+  body{overflow-x:hidden}
+  @supports(overflow:clip){body{overflow-x:clip}}
+  .listing .filters{display:none}
+  .mfilter{display:block;margin-bottom:6px}
+  .chiprow{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:2px 14px 8px}
+  .chiprow::-webkit-scrollbar{display:none}
+  .mchip{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink2);white-space:nowrap;font-size:13px}
+  .mchip.on{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+  .mchip.sm{min-height:36px;font-size:12px;padding:0 12px}
+  .chiprow.sub .mchip.on,.chipwrap .mchip.on{background:var(--red-l);color:var(--red);border-color:var(--red)}
+  .mfold{background:#fff;border-radius:12px;box-shadow:var(--sh);margin-bottom:8px}
+  .mfold summary{list-style:none;display:flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;font-weight:600;cursor:pointer}
+  .mfold summary::-webkit-details-marker{display:none}
+  .mfold summary .muted{margin-left:auto;font-weight:400;font-size:12px}
+  .mfold summary:after{content:"▾";color:var(--ink3)}
+  .mfold[open] summary:after{content:"▴"}
+  .mfold .hl{color:var(--red);font-weight:500;font-size:13px}
+  .mfold .fbody{padding:0 14px 12px}
+  .flabel{font-size:12px;color:var(--ink3);margin:6px 0}
+  .chipwrap{display:flex;flex-wrap:wrap;gap:8px}
+  .pricef{display:flex;gap:8px;align-items:center}.pricef input{flex:1;min-width:0}.pricef .btn{flex:none}
+  .listing .sortbar{margin-bottom:10px}
+}
+/* 窄屏表格卡片化(app.js 自动为单元格补 data-label) */
+@media(max-width:600px){
+  table.tbl.stack{min-width:0!important}
+  .card:has(>table.tbl.stack){overflow-x:visible}
+  .tbl.stack,.tbl.stack tbody,.tbl.stack tr,.tbl.stack td{display:block;width:100%}
+  .tbl.stack tr.th-row{display:none}
+  .tbl.stack tr{padding:8px 0;border-bottom:1px solid var(--line)}
+  .tbl.stack tr:last-child{border-bottom:0}
+  .tbl.stack td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 2px;border:0;text-align:right}
+  .tbl.stack td[data-label]:before{content:attr(data-label);color:var(--ink3);text-align:left;flex:none;white-space:nowrap;font-size:13px}
+  .tbl.stack td:not([data-label]){justify-content:center;text-align:center}
+}
+/* 会员中心订单状态数量角标(之前误用 .price 显示成「¥1」) */
+.qbadge{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:600;text-align:center;margin-left:2px;vertical-align:middle}
+/* 确认订单提交栏:窄屏下提示单独一行,「应付」不再被挤成两行 */
+@media(max-width:600px){.ck-submit{flex-wrap:wrap;gap:8px}.ck-submit>.muted{flex-basis:100%;font-size:12px}.ck-submit>.flex{margin-left:auto;white-space:nowrap}}

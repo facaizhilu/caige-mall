@@ -1,6 +1,6 @@
 <form method="post" action="/admin/cloud-settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
 <div class="card"><h3>每日会员权益返积分</h3>
-  <p class="muted">会员权益生效期间,用户可通过签到或「领取每日返积分」获得积分,计入台子积分余额。过期后不可领取。</p>
+  <p class="muted">会员权益生效期间,用户可通过签到或「领取每日返积分」获得积分,计入用户积分余额。过期后不可领取。</p>
   <div class="form-grid">
     <div class="form-row"><label>每日返积分数量</label><input type="number" name="cloud_daily_points" value="<%= s.cloud_daily_points %>" min="0" required></div>
   </div>

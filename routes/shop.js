@@ -208,6 +208,8 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/pay', { title: '收银台(模拟)', o });
   });
   app.post('/order/:id/pay', needLogin, (req, res) => {
+    // 前台仅支持模拟微信/支付宝支付,余额支付已下线
+    if (!['wechat', 'alipay'].includes(req.body.method)) { flash(req, 'error', '请选择微信支付或支付宝(模拟)'); return res.redirect('/order/' + int(req.params.id) + '/pay'); }
     const r = svc.payOrder(int(req.params.id), req.user.id, req.body.method);
     if (!r.ok) { flash(req, 'error', r.msg); return res.redirect('/order/' + int(req.params.id) + '/pay'); }
     flash(req, 'success', '支付成功(模拟支付,未产生真实扣款)'); res.redirect('/order/' + int(req.params.id) + '?paid=1');
@@ -480,23 +482,9 @@ module.exports = function (app, { filesOf }) {
     if (wantsJson(req)) return res.json(r);
     flash(req, r.ok ? 'success' : 'error', r.msg); back(req, res, '/coupons');
   });
-  // 余额 / 充值
-  const RECHARGE = [[50, 0], [100, 5], [200, 15], [500, 50], [1000, 120]];
-  app.get('/me/balance', needLogin, (req, res) => {
-    const pg = U.paginate('SELECT * FROM balance_log WHERE user_id=? ORDER BY id DESC', [req.user.id], req.query.page, 15);
-    res.page('shop/me-balance', { title: '我的余额', pg, RECHARGE });
-  });
-  app.post('/me/recharge', needLogin, (req, res) => {
-    const amt = round2(num(req.body.amount));
-    const preset = RECHARGE.find(r => r[0] === amt);
-    if (!(amt >= 1 && amt <= 10000) || !['wechat', 'alipay'].includes(req.body.method)) { flash(req, 'error', '请输入 1-10000 元的充值金额并选择支付方式'); return res.redirect('/me/balance'); }
-    const bonus = preset ? preset[1] : 0;
-    db.transaction(() => {
-      db.exec1('INSERT INTO recharges(user_id,amount,bonus,method,created_at) VALUES(?,?,?,?,?)', req.user.id, amt, bonus, req.body.method, now());
-      svc.addBalance(req.user.id, amt + bonus, 'recharge', `充值 ¥${amt}${bonus ? ' 赠送 ¥' + bonus : ''}(模拟${req.body.method === 'wechat' ? '微信' : '支付宝'})`);
-    })();
-    flash(req, 'success', `模拟充值成功,到账 ¥${amt + bonus}(未产生真实扣款)`); res.redirect('/me/balance');
-  });
+  // 余额 / 充值:前台已下线账户余额,旧链接统一回到会员中心
+  app.get('/me/balance', needLogin, (req, res) => res.redirect('/me'));
+  app.post('/me/recharge', needLogin, (req, res) => res.redirect('/me'));
   // 分销
   app.get('/me/referral', needLogin, (req, res) => {
     const invitees = db.all('SELECT id, nickname, phone, created_at, total_spent FROM users WHERE referrer_id=? ORDER BY id DESC', req.user.id);
@@ -509,9 +497,9 @@ module.exports = function (app, { filesOf }) {
       const amt = db.get("SELECT COALESCE(SUM(amount),0) a FROM commissions WHERE user_id=? AND status='available'", req.user.id).a;
       if (amt <= 0) return null;
       db.exec1("UPDATE commissions SET status='settled', settled_at=? WHERE user_id=? AND status='available'", now(), req.user.id);
-      svc.addBalance(req.user.id, amt, 'commission', '分销佣金转入余额'); return amt;
+      return amt;
     })();
-    flash(req, r ? 'success' : 'error', r ? `已将 ¥${r.toFixed(2)} 佣金转入账户余额` : '暂无可提现佣金'); res.redirect('/me/referral');
+    flash(req, r ? 'success' : 'error', r ? `已申请结算佣金 ¥${r.toFixed(2)},将由平台线下发放(演示)` : '暂无可结算佣金'); res.redirect('/me/referral');
   });
   app.get('/me/invoices', needLogin, (req, res) => {
     const rows = db.all('SELECT i.*, o.order_no FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.user_id=? ORDER BY i.id DESC', req.user.id);

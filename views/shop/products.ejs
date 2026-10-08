@@ -15,6 +15,29 @@
     <button class="btn sm block mt" onclick="this.previousElementSibling.submit()">确定</button>
   </aside>
   <section>
+    <div class="mfilter">
+      <div class="chiprow">
+        <a class="mchip <%= !cat?'on':'' %>" href="<%= qs(req,{cat:'',page:''}) %>">全部</a>
+        <% navCats.forEach(c=>{ const con = String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id); %><a class="mchip <%= con?'on':'' %>" href="<%= qs(req,{cat:c.id,page:''}) %>"><%= c.icon %> <%= c.name %></a><% }) %>
+      </div>
+      <% if (curCat && subCats.length) { const pcid = curCat.parent_id || curCat.id; %>
+      <div class="chiprow sub">
+        <a class="mchip sm <%= String(cat)===String(pcid)?'on':'' %>" href="<%= qs(req,{cat:pcid,page:''}) %>">全部</a>
+        <% subCats.forEach(s=>{ %><a class="mchip sm <%= String(cat)===String(s.id)?'on':'' %>" href="<%= qs(req,{cat:s.id,page:''}) %>"><%= s.name %></a><% }) %>
+      </div>
+      <% } %>
+      <% const curBrand = brands.find(b=>String(b.id)===String(brand)); const priceTxt = (min!==''||max!=='') ? ('¥' + (min||0) + '-' + (max||'不限')) : ''; const fsum = [curBrand&&curBrand.name, priceTxt].filter(Boolean).join(' / '); %>
+      <details class="mfold">
+        <summary>筛选<% if (fsum) { %><span class="hl">· <%= fsum %></span><% } %><span class="muted">品牌 / 价格</span></summary>
+        <div class="fbody">
+          <div class="flabel">品牌</div>
+          <div class="chipwrap"><a class="mchip sm <%= !brand?'on':'' %>" href="<%= qs(req,{brand:'',page:''}) %>">全部品牌</a><% brands.forEach(b=>{ %><a class="mchip sm <%= String(brand)===String(b.id)?'on':'' %>" href="<%= qs(req,{brand:b.id,page:''}) %>"><%= b.name %></a><% }) %></div>
+          <div class="flabel">价格区间</div>
+          <form method="get" class="pricef"><% ['q','cat','brand','sort'].forEach(k=>{ if(req.query[k]){ %><input type="hidden" name="<%= k %>" value="<%= req.query[k] %>"><% }}) %>
+            <input type="number" name="min" value="<%= min %>" placeholder="最低价" inputmode="decimal"><span>-</span><input type="number" name="max" value="<%= max %>" placeholder="最高价" inputmode="decimal"><button class="btn sm primary">确定</button></form>
+        </div>
+      </details>
+    </div>
     <div class="sortbar">
       <a class="<%= !sort?'on':'' %>" href="<%= qs(req,{sort:'',page:''}) %>">综合</a><a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
       <a class="<%= sort==='new'?'on':'' %>" href="<%= qs(req,{sort:'new',page:''}) %>">新品</a>

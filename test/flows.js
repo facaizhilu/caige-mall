@@ -29,9 +29,9 @@ class C { constructor() { this.k = {}; this.t = ''; }
   r = await adm.post('/admin/orders/' + oid + '/ship', { company: '中通快递', tracking_no: 'ZT0000000001' }); ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped', '成团后可发货');
   // 失败团:创建一个新团后强制过期
   r = await b.post('/checkout', { sku_id: gb.sku_id, qty: 1, promo_type: 'group', promo_id: gb.id }); r = await b.post('/order/create', { items: itemsRaw(r.text), promo_type: 'group', promo_id: gb.id, address_id: (r.text.match(/name="address_id" value="(\d+)"/) || [])[1] || db.get('SELECT id FROM addresses WHERE user_id=3').id });
-  const goid = r.loc.match(/order\/(\d+)/)[1]; await b.post('/order/' + goid + '/pay', { method: 'balance' });
+  const goid = r.loc.match(/order\/(\d+)/)[1]; await b.post('/order/' + goid + '/pay', { method: 'wechat' });
   let bal = db.get('SELECT balance FROM users WHERE id=3').balance;
-  const g2 = db.get('SELECT * FROM orders WHERE id=?', goid); ok(g2.status === 'paid' || g2.status === 'unpaid', '开团订单创建(余额不足则未支付)');
+  const g2 = db.get('SELECT * FROM orders WHERE id=?', goid); ok(g2.status === 'paid' || g2.status === 'unpaid', '开团订单创建并支付');
   if (g2.status === 'unpaid') { await b.post('/order/' + goid + '/pay', { method: 'wechat' }); }
   const gg = db.get('SELECT group_id FROM orders WHERE id=?', goid).group_id; db.prepare("UPDATE groups SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(gg);
   require('../lib/svc').expireGroups();

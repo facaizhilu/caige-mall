@@ -14,8 +14,7 @@
   <div class="userbox">
     <% if (user) { %>
       <div class="flex"><div class="avatar"><%= user.nickname.slice(0,1) %></div><div><b><%= user.nickname %></b><br><span class="tag gold" style="margin:0"><%= user.level_name %></span></div></div>
-      <div class="flex between"><span class="muted">积分</span><b class="price" style="color:var(--gold-d)"><%= user.points %></b></div>
-      <div class="flex between"><span class="muted">余额</span><b class="price"><%= user.balance.toFixed(2) %></b></div>
+      <div class="flex between"><span class="muted">积分</span><b class="pts" style="color:var(--gold-d)"><%= user.points %></b></div>
       <a class="btn primary block" href="/me">进入会员中心</a>
     <% } else { %>
       <div class="flex"><div class="avatar">?</div><div><b>Hi,欢迎光临</b><br><span class="muted">登录享更多优惠</span></div></div>
