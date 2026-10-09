@@ -105,6 +105,8 @@ function pageRenderer(layout) {
   };
 }
 app.locals.U = U; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
+// 划线原价:仅在填写且高于售价时展示(《明码标价和禁止价格欺诈规定》)
+app.locals.showMkt = (mkt, price) => mkt != null && +mkt > 0 && +mkt > +price;
 app.locals.AFTERSALE_STATUS = U.AFTERSALE_STATUS; app.locals.AFTERSALE_TYPE = U.AFTERSALE_TYPE; app.locals.PERMS = U.PERMS; app.locals.regions = require('./lib/regions');
 app.locals.qs = (req, over) => { const q = { ...req.query, ...over }; return '?' + Object.entries(q).filter(([, v]) => v !== '' && v != null).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); };
 

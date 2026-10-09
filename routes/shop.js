@@ -75,13 +75,21 @@ module.exports = function (app, { filesOf }) {
     const related = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.category_id=? AND p.id!=? LIMIT 4`, p.category_id, p.id));
     const brand = db.get('SELECT * FROM brands WHERE id=?', p.brand_id);
     const category = db.get('SELECT c.*, pc.name parent_name, pc.id parent_cid FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.id=?', p.category_id);
-    const tpl = db.get('SELECT * FROM shipping_templates WHERE id=?', p.template_id);
+    const tpl = db.get('SELECT * FROM shipping_templates WHERE id=?', p.template_id) || db.get('SELECT * FROM shipping_templates ORDER BY id LIMIT 1');
+    // 运费说明:按运费模板清楚展示(基础运费 / 包邮门槛 / 偏远地区)
+    let freight = null;
+    if (tpl) {
+      const r = svc.parseRules(tpl.rules), base = +r.base || 0;
+      const remote = r.remote_provinces ? String(r.remote_provinces).split(/[,,、\s]+/).filter(Boolean).map(x => x.replace(/(维吾尔|壮族|回族)?自治区|省|市$/g, '')).join('、') : '';
+      if (base <= 0 || (tpl.free_over > 0 && tpl.free_over <= 0.01)) freight = { free: true, text: '包邮' + (remote && +r.remote_fee > 0 ? `(${remote}运费 ¥${+r.remote_fee})` : '') };
+      else freight = { free: false, base, text: `运费 ¥${base}` + (tpl.free_over > 0 ? `,单笔满 ¥${tpl.free_over} 包邮` : '') + (remote && +r.remote_fee > 0 ? `;${remote}运费 ¥${+r.remote_fee}` : '') };
+    }
     let faved = false;
     if (req.user) {
       faved = !!db.get('SELECT 1 FROM favorites WHERE user_id=? AND product_id=?', req.user.id, p.id);
       db.exec1('INSERT OR REPLACE INTO history(user_id,product_id,viewed_at) VALUES(?,?,?)', req.user.id, p.id, now());
     }
-    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, faved, noReason: svc.noReasonOf(p.id) });
+    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, freight, faved, noReason: svc.noReasonOf(p.id) });
   });
 
   app.post('/favorite/:id', needLogin, (req, res) => {

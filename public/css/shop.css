@@ -367,3 +367,4 @@ textarea{resize:vertical}
 .no7-ack{background:#fff8ec;border:1px solid #fcd9a8;border-radius:8px;padding:8px 10px;margin-top:10px;color:#92400e}
 @media (max-width:768px){.hist-grid{grid-template-columns:repeat(2,1fr)!important}}
 @media (max-width:768px){.policy .rich .tbl.stack td[data-label]{text-align:left;justify-content:flex-start;gap:12px}.policy .rich .tbl.stack td[data-label]:before{min-width:4.5em}}
+.freight b{color:var(--ink);font-weight:600}.freight b.free{color:#136c36}

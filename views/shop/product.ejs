@@ -8,11 +8,12 @@
     <div class="pricebox">
       <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 限时秒杀</span><span><%= seckill.live?'距结束':'距开始' %> <span class="cd" data-countdown="<%= seckill.live?seckill.end_at:seckill.start_at %>" data-reload="1"></span></span></div><% } %>
       <span class="price"><big id="price"><%= (seckill&&seckill.live?seckill.price:p.price) %></big></span>
-      <span class="mkt"><%= p.market_price %></span>
+      <% if (showMkt(p.market_price, p.price)) { %><span class="mkt"><%= p.market_price %></span><% } %>
       <% if (seckill) { %><span class="muted"> 秒杀价,每人限购 <%= seckill.limit_per_user %> 件,剩余 <%= seckill.stock-seckill.sold %> 件</span><% } %>
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
-    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货 · <%= tpl? (tpl.free_over>0.01?`满 ¥${tpl.free_over} 包邮`:'包邮'):'' %> · <a class="muted" href="/help">运费规则</a></dd>
+    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货</dd>
+      <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
       <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><span class="tag green">极速发货</span><% if (!noReason) { %><div class="no7-note">鲜活易腐等商品签收后不支持七天无理由退货;如有质量问题,仍可联系客服退换。</div><% } %></dd>
       <dt>销量</dt><dd>已售 <%= p.sales %> 件 · 好评率 <%= rs.n? Math.round((rs.good||0)/rs.n*100):100 %>%</dd></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>

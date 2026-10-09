@@ -36,7 +36,7 @@
     <a class="more" href="/seckill">更多秒杀 ›</a></div>
   <div class="grid hs"><% seckills.forEach(s=>{ %>
     <a class="pcard" href="/product/<%= s.product_id %>"><span class="ribbon"><%= s.live?'抢购中':'即将开始' %></span><div class="pic"><img loading="lazy" decoding="async" src="<%= s.img %>" alt=""></div>
-      <div class="info"><div class="name"><%= s.name %></div><div class="meta"><span class="price"><big><%= s.price %></big><span class="mkt"><%= s.market_price %></span></span></div>
+      <div class="info"><div class="name"><%= s.name %></div><div class="meta"><span class="price"><big><%= s.price %></big><% if (showMkt(s.market_price, s.price)) { %><span class="mkt"><%= s.market_price %></span><% } %></span></div>
       <div class="bar"><i style="width:<%= Math.round(s.sold/s.stock*100) %>%"></i></div><div class="sales">已抢 <%= Math.round(s.sold/s.stock*100) %>%</div></div></a>
   <% }) %></div>
 </div></div>
@@ -45,7 +45,7 @@
   <div class="grid"><% hot.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div>
 <% if (groups.length) { %>
 <div class="sec"><div class="sec-h"><h2>👥 拼团特惠</h2><a href="/groupbuy">更多拼团 ›</a></div>
-  <div class="grid"><% groups.forEach(g=>{ %><a class="pcard" href="/product/<%= g.product_id %>"><span class="ribbon"><%= g.size %>人团</span><div class="pic"><img loading="lazy" decoding="async" src="<%= g.img %>" alt=""></div><div class="info"><div class="name"><%= g.name %></div><div class="meta"><span class="price"><big><%= g.price %></big><span class="mkt"><%= g.market_price %></span></span><span class="tag">拼团价</span></div></div></a><% }) %></div></div>
+  <div class="grid"><% groups.forEach(g=>{ %><a class="pcard" href="/product/<%= g.product_id %>"><span class="ribbon"><%= g.size %>人团</span><div class="pic"><img loading="lazy" decoding="async" src="<%= g.img %>" alt=""></div><div class="info"><div class="name"><%= g.name %></div><div class="meta"><span class="price"><big><%= g.price %></big><% if (showMkt(g.market_price, g.price)) { %><span class="mkt"><%= g.market_price %></span><% } %></span><span class="tag">拼团价</span></div></div></a><% }) %></div></div>
 <% } %>
 <div class="sec"><div class="sec-h"><h2>🆕 新品上市</h2><a href="/products?sort=new">查看更多 ›</a></div>
   <div class="grid"><% fresh.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div>

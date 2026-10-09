@@ -83,7 +83,7 @@ module.exports = function (r, { filesOf }) {
     res.page('admin/products', { title: '商品管理', pg, q, cat, status, stock, cats: catOptions() });
   });
   const productForm = (req, res, p, skus, flashMsg) => res.page('admin/product-form', { title: p && p.id ? '编辑商品' : '新增商品', p, skus, cats: catOptions(), brands: db.all('SELECT * FROM brands ORDER BY sort'), tpls: db.all('SELECT * FROM shipping_templates'), flash: flashMsg || res.locals.flash });
-  r.get('/products/new', need('product'), (req, res) => productForm(req, res, { name: '', subtitle: '', category_id: 0, brand_id: 0, price: 0, market_price: 0, description: '', images: '[]', status: 1, is_hot: 0, is_new: 0, template_id: 1, weight: 0.5, spec_names: '规格', sort: 0 }, [{ attrs: '{"规格":"默认"}', spec_text: '默认', price: 0, stock: 100, code: '' }]));
+  r.get('/products/new', need('product'), (req, res) => productForm(req, res, { name: '', subtitle: '', category_id: 0, brand_id: 0, price: 0, market_price: null, description: '', images: '[]', status: 1, is_hot: 0, is_new: 0, template_id: 0, weight: 0.5, spec_names: '规格', sort: 0 }, [{ attrs: '{"规格":"默认"}', spec_text: '默认', price: 0, stock: 100, code: '' }]));
   r.get('/products/:id/edit', need('product'), (req, res) => {
     const p = db.get('SELECT * FROM products WHERE id=?', int(req.params.id));
     if (!p) { flash(req, 'error', '商品不存在'); return res.redirect('/admin/products'); }
@@ -102,10 +102,13 @@ module.exports = function (r, { filesOf }) {
       const vals = String(spec).split(/[\/|,,]/).map(s => s.trim()).filter(Boolean); const attrs = {}; specNames.forEach((n, k) => attrs[n] = vals[k] || '默认');
       return { id: int(sid[i]), attrs: JSON.stringify(attrs), spec_text: Object.values(attrs).join(' / '), price: round2(num(sprice[i])), stock: Math.max(0, int(sstock[i])), code: String(scode[i] || '').trim() };
     }).filter((s, i) => String(sp[i]).trim() !== '');
-    const row = { name: String(b.name || '').trim(), subtitle: String(b.subtitle || '').trim(), category_id: int(b.category_id), brand_id: int(b.brand_id), market_price: num(b.market_price), description: String(b.description || ''), status: b.status ? 1 : 0, is_hot: b.is_hot ? 1 : 0, is_new: b.is_new ? 1 : 0, template_id: int(b.template_id, 1), weight: num(b.weight, 0.5), spec_names: specNames.join(','), sort: int(b.sort), images: JSON.stringify(images), no_reason_return: b.no_reason_return === '1' ? 1 : b.no_reason_return === '0' ? 0 : null };
+    const row = { name: String(b.name || '').trim(), subtitle: String(b.subtitle || '').trim(), category_id: int(b.category_id), brand_id: int(b.brand_id), market_price: String(b.market_price || '').trim() === '' ? null : round2(num(b.market_price)), description: String(b.description || ''), status: b.status ? 1 : 0, is_hot: b.is_hot ? 1 : 0, is_new: b.is_new ? 1 : 0, template_id: int(b.template_id), weight: num(b.weight, 0.5), spec_names: specNames.join(','), sort: int(b.sort), images: JSON.stringify(images), no_reason_return: b.no_reason_return === '1' ? 1 : b.no_reason_return === '0' ? 0 : null };
     const fail = m => { flash(req, 'error', m); const pp = { ...row, id: id || undefined, price: 0 }; productForm(req, res, pp, skus.length ? skus : [{ attrs: '{}', spec_text: '默认', price: 0, stock: 0, code: '' }], { type: 'error', msg: m }); };
     if (!row.name) return fail('请填写商品名称');
     if (!row.category_id) return fail('请选择商品分类');
+    if (!row.template_id || !db.get('SELECT 1 FROM shipping_templates WHERE id=?', row.template_id)) return fail('请选择运费模板');
+    if (row.market_price != null && row.market_price <= 0) row.market_price = null;
+    if (row.market_price != null && skus.length && row.market_price <= Math.min(...skus.map(s => s.price))) return fail('划线原价需高于售价;如不确定曾真实销售的价格,请留空');
     if (!skus.length) return fail('至少需要一个规格(SKU)');
     if (skus.some(s => s.price <= 0)) return fail('每个规格的价格需大于 0');
     if (!specNames.length) return fail('请填写规格名称,如:颜色,尺码');

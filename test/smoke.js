@@ -121,6 +121,11 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.get('/admin/products/new');
   r = await adm.post('/admin/products/save', { name: '测试商品-冒烟', subtitle: 't', category_id: '3', brand_id: '1', market_price: '99', template_id: '1', status: '1', spec_names: '颜色', sku_spec: ['红', '蓝'], sku_price: ['50', '55'], sku_stock: ['10', '20'], sku_code: ['', ''], sku_id: ['', ''], description: '<p>x</p>' });
   ok(r.status === 302, '后台新增商品(多SKU)', r.status);
+  r = await adm.get('/admin/products/new'); ok(r.text.includes('仅可填写本商品曾真实销售过的价格') && r.text.includes('请选择运费模板') && !/name="market_price"[^>]*value="0"/.test(r.text), '新增商品:划线原价默认空并有提示,运费模板必选');
+  r = await adm.post('/admin/products/save', { name: '测试-无模板', category_id: '3', brand_id: '1', status: '1', spec_names: '规格', sku_spec: '默认', sku_price: '10', sku_stock: '1', sku_code: '', sku_id: '', template_id: '' }); ok(r.status === 200 && r.text.includes('请选择运费模板'), '未选运费模板被拒');
+  r = await adm.post('/admin/products/save', { name: '测试-划线过低', category_id: '3', brand_id: '1', status: '1', spec_names: '规格', sku_spec: '默认', sku_price: '10', sku_stock: '1', sku_code: '', sku_id: '', template_id: '1', market_price: '8' }); ok(r.status === 200 && r.text.includes('划线原价需高于售价'), '划线原价不高于售价被拒');
+  r = await adm.post('/admin/products/save', { name: '测试-无划线价', category_id: '3', brand_id: '1', status: '1', spec_names: '规格', sku_spec: '默认', sku_price: '10', sku_stock: '1', sku_code: '', sku_id: '', template_id: '1', market_price: '' }); ok(r.status === 302, '划线原价留空可保存');
+  { const np = (await adm.get('/admin/products?q=' + encodeURIComponent('测试-无划线价'))).text.match(/\/admin\/products\/(\d+)\/edit/)[1]; r = await shop.get('/product/' + np); ok(!r.text.includes('class="mkt"') && r.text.includes('运费 ¥8,单笔满 ¥99 包邮'), '前台:无划线价不显示删除线,运费清楚展示'); }
   r = await adm.get('/admin/products?q=' + encodeURIComponent('测试商品-冒烟')); const pid = (r.text.match(/\/admin\/products\/(\d+)\/edit/) || [])[1]; ok(!!pid, '商品出现在列表');
   r = await shop.get('/product/' + pid); ok(r.text.includes('测试商品-冒烟') && r.text.includes('红'), '前台显示新商品及规格');
   await adm.post('/admin/products/' + pid + '/toggle'); r = await shop.get('/product/' + pid); ok(r.status === 404, '下架后前台 404');
