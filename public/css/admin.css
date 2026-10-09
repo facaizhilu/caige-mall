@@ -65,3 +65,9 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 .grid>*{min-width:0}
 .as-form input,.as-form select,.as-form textarea{width:100%;box-sizing:border-box}
 form.flex>input[name=content]{flex:1;min-width:0}
+/* v6 后台完善:窄屏(≤360px)防溢出、批量操作 */
+input[type=file]{max-width:100%}
+@media(max-width:800px){
+ .card form.flex{flex-wrap:wrap}.card form.flex>input,.card form.flex>textarea,.card form.flex>select{min-width:0;flex:1 1 160px}
+ #batchForm select{flex:1 1 120px}
+}

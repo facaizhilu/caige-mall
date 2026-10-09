@@ -10,7 +10,7 @@
 </div>
 <div class="card"><h3>概览</h3><dl class="kv"><dt>通过邀请注册</dt><dd><%= invited %> 人</dd><dt>奖励记录</dt><dd><%= sum.n %> 条</dd><dt>观察期中</dt><dd><%= sum.pending %> 条</dd><dt>已发放积分</dt><dd><%= sum.granted %></dd></dl></div>
 </div><div>
-<div class="card"><form class="toolbar" method="get"><select name="status" onchange="this.form.submit()"><option value="">全部状态</option><% [['pending','观察期中'],['granted','已发放'],['cancelled','已取消']].forEach(([v,t])=>{ %><option value="<%= v %>" <%= st===v?'selected':'' %>><%= t %></option><% }) %></select></form>
+<div class="card"><form class="toolbar" method="get"><input type="search" name="q" value="<%= q %>" placeholder="邀请人/被邀请人手机号、昵称或订单号"><select name="status" onchange="this.form.submit()"><option value="">全部状态</option><% [['pending','观察期中'],['granted','已发放'],['cancelled','已取消']].forEach(([v,t])=>{ %><option value="<%= v %>" <%= st===v?'selected':'' %>><%= t %></option><% }) %></select><button class="btn">搜索</button></form>
 <div class="tbl-wrap"><table class="t"><tr><th>邀请人</th><th>被邀请人</th><th>首单</th><th>积分</th><th>状态</th><th>观察期至 / 发放时间</th></tr>
 <% if (!pg.rows.length) { %><tr><td colspan="6" class="muted">暂无记录(被邀请人首单确认收货后生成)</td></tr><% } %>
 <% pg.rows.forEach(x=>{ %><tr>

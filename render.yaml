@@ -10,3 +10,6 @@ services:
         value: 20
       - key: SESSION_SECRET
         generateValue: true
+      # 演示环境:允许默认管理员账号跳过首次登录强制改密。正式运营请删除此变量或改为 0
+      - key: DEMO_MODE
+        value: "1"

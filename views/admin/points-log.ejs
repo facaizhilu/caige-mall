@@ -1,0 +1,13 @@
+<div class="card">
+ <p class="muted" style="margin-top:0">积分只能通过购物、签到、评价、邀请等规则获得,用于下单抵扣;不可购买、提现或转赠。退款时订单使用的积分按比例退回。人工调整请在会员详情页操作(必须填写原因)。<a href="/admin/settings">积分规则设置 ›</a></p>
+ <% if(member){ %><p><b><a href="/admin/members/<%= member.id %>"><%= member.nickname||'会员' %></a></b> <span class="muted"><%= member.phone %></span> · 当前积分 <b><%= member.points %></b> <a class="btn sm" href="/admin/points-log">查看全站</a></p><% } %>
+ <form class="toolbar" method="get"><% if(uid){ %><input type="hidden" name="uid" value="<%= uid %>"><% } %>
+  <input type="search" name="q" value="<%= q %>" placeholder="手机号/昵称/原因">
+  <select name="dir"><option value="">全部变动</option><option value="in" <%= dir==='in'?'selected':'' %>>增加</option><option value="out" <%= dir==='out'?'selected':'' %>>扣减</option><option value="admin" <%= dir==='admin'?'selected':'' %>>人工调整</option></select>
+  <input type="date" name="from" value="<%= from %>"><input type="date" name="to" value="<%= to %>"><button class="btn">查询</button><span class="sp"></span>
+  <% if(can('stats')){ %><a class="btn" href="/admin/points-log/export<%= qs(req,{page:''}) %>">导出CSV</a><% } %></form>
+ <p class="muted">筛选结果:增加 <b style="color:var(--ok)">+<%= sum.inc %></b> · 扣减 <b class="price"><%= sum.outv %></b></p>
+ <table class="t"><tr><th>时间</th><th>会员</th><th>原因</th><th class="right">变动</th><th class="right">变动后</th></tr>
+ <% pg.rows.forEach(l=>{ %><tr><td class="muted"><%= l.created_at.slice(0,16) %></td><td><a href="/admin/members/<%= l.user_id %>"><%= l.nickname||('#'+l.user_id) %></a><br><span class="muted"><%= l.phone %></span></td><td><%= l.reason %></td><td class="right"><b style="color:<%= l.delta>0?'var(--ok)':'var(--red)' %>"><%= l.delta>0?'+':'' %><%= l.delta %></b></td><td class="right"><%= l.balance %></td></tr><% }) %>
+ <% if(!pg.rows.length){ %><tr><td colspan="5" class="muted" style="text-align:center;padding:30px">暂无记录</td></tr><% } %></table>
+ <%- include('../partials/apager') %></div>

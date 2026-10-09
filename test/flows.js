@@ -3,9 +3,9 @@ const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000)
 const db = require('../lib/db');
 let pass = 0, fail = 0;
 const ok = (c, n, x) => { c ? (pass++, console.log('  ✔', n)) : (fail++, console.log('  ✘', n, x || '')); };
-class C { constructor() { this.k = {}; this.t = ''; }
+class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   async req(m, p, body, o = {}) { const h = { Cookie: Object.entries(this.k).map(([a, b]) => a + '=' + b).join('; ') }; let b; if (body && !o.form) { b = new URLSearchParams({ _csrf: this.t, ...body }).toString(); h['Content-Type'] = 'application/x-www-form-urlencoded'; } if (o.form) { body.append('_csrf', this.t); b = body; } if (o.json) h.Accept = 'application/json';
-    const r = await fetch(base + p, { method: m, headers: h, body: b, redirect: 'manual' }); for (const c of r.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); this.k[kv.slice(0, i)] = kv.slice(i + 1); }
+    const r = await fetch(this.b + p, { method: m, headers: h, body: b, redirect: 'manual' }); for (const c of r.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); this.k[kv.slice(0, i)] = kv.slice(i + 1); }
     const text = await r.text(); const mm = text.match(/name="csrf" content="([0-9a-f]+)"/) || text.match(/name="_csrf" value="([0-9a-f]+)"/); if (mm) this.t = mm[1]; return { status: r.status, loc: r.headers.get('location'), text }; }
   get(p) { return this.req('GET', p); } post(p, b, o) { return this.req('POST', p, b || {}, o); }
   async login(phone, pw) { await this.get('/login'); const r = await this.post('/login', { phone, password: pw }); const c = await this.get('/consent'); if (c.status === 200) await this.post('/consent', { agree: '1', next: '/' }); await this.get('/'); return r; } }
@@ -25,7 +25,7 @@ class C { constructor() { this.k = {}; this.t = ''; }
   r = await a.post('/order/' + oid + '/pay', { method: 'wechat' });
   ok(db.get("SELECT status FROM groups WHERE id=?", gid).status === 'success', '满员后成团');
   const ords = db.all("SELECT id,status FROM orders WHERE group_id=?", gid); ok(ords.length === 2, '团内两张订单');
-  r = await adm.get('/admin/login'); await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); await adm.get('/admin');
+  r = await adm.get('/admin/login'); await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); await adm.get('/admin/password'); await adm.post('/admin/password/skip'); await adm.get('/admin');
   r = await adm.post('/admin/orders/' + oid + '/ship', { company: '中通快递', tracking_no: 'ZT0000000001' }); ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped', '成团后可发货');
   // 失败团:创建一个新团后强制过期
   r = await b.post('/checkout', { sku_id: gb.sku_id, qty: 1, promo_type: 'group', promo_id: gb.id }); r = await b.post('/order/create', { items: itemsRaw(r.text), promo_type: 'group', promo_id: gb.id, address_id: (r.text.match(/name="address_id" value="(\d+)"/) || [])[1] || db.get('SELECT id FROM addresses WHERE user_id=3').id });
@@ -250,6 +250,119 @@ class C { constructor() { this.k = {}; this.t = ''; }
     ok2(db.get('SELECT status FROM orders WHERE id=?', hoid).status === 'unpaid', 'H1:已有待付款订单');
     r = await h.get('/me/cancel'); ok2(!r.text.includes('暂不能注销') && r.text.includes('将在注销时自动取消'), 'H1:待付款订单不阻止注销');
     r = await h.post('/me/cancel', { confirm_text: '确认注销', ack: '1' }); ok2(r.loc === '/' && db.get('SELECT status FROM orders WHERE id=?', hoid).status === 'cancelled', 'H1:注销时自动取消待付款订单');
+  }
+
+  console.log('== 后台完善 ==');
+  {
+    const lastLog = () => db.get('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 1');
+    // 人工调整积分:原因必填,写入积分明细与操作日志
+    const mu = db.get("SELECT id, points FROM users WHERE phone='13800000003'");
+    r = await adm.get('/admin/members/' + mu.id);
+    ok(r.text.includes('调整原因(必填'), '会员详情:积分调整原因为必填项');
+    await adm.post('/admin/members/' + mu.id + '/points', { delta: 50, reason: '' });
+    ok(db.get('SELECT points FROM users WHERE id=?', mu.id).points === mu.points, '未填原因不能调整积分');
+    r = await adm.get('/admin/members/' + mu.id); ok(r.text.includes('请填写调整原因'), '未填原因有错误提示');
+    await adm.post('/admin/members/' + mu.id + '/points', { delta: -(mu.points + 1), reason: '测试扣减' });
+    ok(db.get('SELECT points FROM users WHERE id=?', mu.id).points === mu.points, '扣减不能超过当前积分');
+    await adm.post('/admin/members/' + mu.id + '/points', { delta: 50, reason: '活动补发' });
+    ok(db.get('SELECT points FROM users WHERE id=?', mu.id).points === mu.points + 50, '填写原因后积分调整成功');
+    ok(db.get('SELECT reason FROM points_log WHERE user_id=? ORDER BY id DESC', mu.id).reason === '管理员调整:活动补发', '积分明细记录调整原因');
+    ok(lastLog().action === '调整积分' && lastLog().detail.includes('活动补发') && lastLog().detail.includes('+50'), '操作日志记录积分调整(含原因与数值)');
+    r = await adm.get('/admin/points-log?uid=' + mu.id); ok(r.status === 200 && r.text.includes('管理员调整:活动补发'), '会员积分明细页(分页)');
+    r = await adm.get('/admin/points-log?dir=admin&q=活动补发'); ok(r.text.includes('活动补发'), '全站积分明细可按人工调整/关键词筛选');
+    r = await adm.get('/admin/points-log/export?uid=' + mu.id); ok(r.text.includes('变动后余额') && r.text.includes('活动补发'), '积分明细导出CSV');
+    ok(lastLog().action === '导出积分明细CSV', '导出积分明细记入操作日志');
+
+    // 评价:显示/隐藏/回复均记日志(修复「审核通过」日志被注释)
+    const rv = db.get("SELECT id FROM reviews ORDER BY id LIMIT 1");
+    db.exec1("UPDATE reviews SET status='rejected' WHERE id=?", rv.id);
+    await adm.post('/admin/reviews/' + rv.id + '/approve');
+    ok(db.get('SELECT status FROM reviews WHERE id=?', rv.id).status === 'approved' && lastLog().action.startsWith('评价审核通过'), '评价重新显示并记入操作日志');
+    await adm.post('/admin/reviews/' + rv.id + '/reject'); ok(lastLog().action === '隐藏评价', '隐藏评价记入操作日志');
+    await adm.post('/admin/reviews/' + rv.id + '/approve');
+    r = await adm.post('/admin/reviews/' + rv.id + '/reply', { reply: '感谢支持,本品全国联保' }); r = await adm.get('/admin/reviews');
+    ok(r.text.includes('含违禁/敏感词'), '评价回复做违禁词检查并提示');
+    await adm.post('/admin/reviews/' + rv.id + '/reply', { reply: '感谢您的支持' });
+
+    // 批量上/下架
+    await adm.get('/admin/products');
+    await adm.post('/admin/products/batch', { action: 'off', ids: '1' }); // URLSearchParams 单值
+    ok(db.get('SELECT status FROM products WHERE id=1').status === 0 && lastLog().action === '批量下架商品', '批量下架并记日志');
+    r = await adm.req('POST', '/admin/products/batch', null); // 无 body
+    const multi = new URLSearchParams([['_csrf', adm.t], ['action', 'on'], ['ids', '1'], ['ids', '2']]).toString();
+    await fetch(base + '/admin/products/batch', { method: 'POST', headers: { Cookie: Object.entries(adm.k).map(([x, y]) => x + '=' + y).join('; '), 'Content-Type': 'application/x-www-form-urlencoded' }, body: multi, redirect: 'manual' });
+    ok(db.get('SELECT status FROM products WHERE id=1').status === 1 && db.get('SELECT status FROM products WHERE id=2').status === 1 && lastLog().action === '批量上架商品', '批量上架(多选)');
+    r = await adm.get('/admin/products'); ok(r.text.includes('name="ids"') && r.text.includes('批量下架') && r.text.includes('快速上架'), '商品列表有勾选框、批量操作与快速上架入口');
+
+    // 快速上架
+    const cat = db.get('SELECT id FROM categories WHERE parent_id>0 ORDER BY id LIMIT 1').id, before = db.get('SELECT COUNT(*) n FROM products').n;
+    await adm.get('/admin/products/quick');
+    r = await adm.post('/admin/products/quick', { name: '快速上架测试', category_id: cat, template_id: '', price: '9.9', stock: '20' });
+    ok(db.get('SELECT COUNT(*) n FROM products').n === before && r.text.includes('请选择运费模板'), '快速上架:运费模板必选');
+    r = await adm.post('/admin/products/quick', { name: '快速上架测试', category_id: cat, template_id: 1, price: '9.9', stock: '20', market_price: '5' });
+    ok(r.text.includes('划线原价需高于售价'), '快速上架:划线价校验');
+    r = await adm.post('/admin/products/quick', { name: '快速上架测试', category_id: cat, template_id: 1, price: '9.9', stock: '20', spec: '500g' });
+    const qp = db.get("SELECT * FROM products WHERE name='快速上架测试'");
+    ok(qp && qp.status === 1 && r.loc === '/admin/products' && db.get('SELECT stock, spec_text, price FROM skus WHERE product_id=?', qp.id).stock === 20, '快速上架:单规格商品创建并上架');
+    ok((await a.get('/product/' + qp.id)).status === 200, '快速上架商品前台可访问');
+    r = await adm.post('/admin/products/quick', { name: '假一赔十 测试品', category_id: cat, template_id: 1, price: '9.9', stock: '1' });
+    ok(/\/admin\/products\/\d+\/edit/.test(r.loc || ''), '快速上架:命中违禁词时保存并跳转编辑页提示');
+    r = await adm.get(r.loc); ok(r.text.includes('违禁/敏感词'), '违禁词提示显示');
+
+    // 订单详情页直接创建售后单
+    const eo = db.get("SELECT o.* FROM orders o WHERE o.status IN ('paid','shipped') AND o.type!='points' AND o.pay_amount>0 AND NOT EXISTS (SELECT 1 FROM aftersales s WHERE s.order_id=o.id AND s.status IN ('pending','approved_return','returned')) ORDER BY o.id DESC LIMIT 1");
+    r = await adm.get('/admin/orders/' + eo.id); ok(r.text.includes('为此订单创建售后单'), '订单详情:可创建售后单');
+    r = await adm.post('/admin/orders/' + eo.id + '/aftersale', { type: 'refund', reason: '', amount: '0.01' });
+    ok(!db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status='pending'", eo.id), '售后原因必填');
+    r = await adm.post('/admin/orders/' + eo.id + '/aftersale', { type: 'refund', reason: '用户来电申请退款', amount: '0.01' });
+    const nas = db.get("SELECT * FROM aftersales WHERE order_id=? AND status='pending' ORDER BY id DESC", eo.id);
+    ok(nas && /\/admin\/aftersales\/\d+/.test(r.loc || '') && nas.created_by, '订单详情创建售后单成功');
+    ok(db.get("SELECT content FROM messages WHERE user_id=? AND sender='staff' ORDER BY id DESC", eo.user_id).content.includes('#' + nas.id), '创建售后单后客服消息通知用户');
+    r = await adm.post('/admin/orders/' + eo.id + '/aftersale', { type: 'refund', reason: '重复', amount: '0.01' });
+    ok(db.get("SELECT COUNT(*) n FROM aftersales WHERE order_id=? AND status='pending'", eo.id).n === 1, '已有进行中售后单时不可重复创建');
+    r = await adm.get('/admin/aftersales?q=' + eo.order_no); ok(r.text.includes(eo.order_no) && r.text.includes('用户来电申请退款'), '售后列表按订单号搜索');
+    r = await adm.get('/admin/aftersales?q=不存在的单号XYZ'); ok(r.text.includes('暂无售后单'), '售后搜索无结果');
+    await adm.post('/admin/aftersales/' + nas.id + '/handle', { action: 'reject', admin_note: '测试驳回' });
+
+    // 订单导出按筛选条件
+    r = await adm.get('/admin/orders/export?status=completed'); const lines = r.text.trim().split('\n').slice(1);
+    ok(lines.length > 0 && lines.every(l => l.includes('已完成')), '订单导出按当前筛选条件');
+    // 物流轨迹记日志
+    await adm.post('/admin/orders/' + eo.id + '/trace', { text: '包裹已到达分拣中心' }); ok(lastLog().action === '更新物流轨迹', '物流轨迹更新记入日志');
+
+    // 政策编辑:版本号校验 + 保存快照
+    const pv = db.get("SELECT * FROM articles WHERE category='policy' AND topic='terms'"), ver = db.get("SELECT value FROM settings WHERE key='policy_version'").value;
+    await adm.get('/admin/policies?tab=terms');
+    await adm.post('/admin/policies', { topic: 'terms', title: pv.title, content: pv.content, version: 'abc' });
+    ok(db.get("SELECT value FROM settings WHERE key='policy_version'").value === ver && !db.get("SELECT 1 FROM policy_versions WHERE topic='terms'"), '协议版本号格式校验');
+    await adm.post('/admin/policies', { topic: 'terms', title: pv.title, content: pv.content, version: ver });
+    const hv = db.get("SELECT * FROM policy_versions WHERE topic='terms' ORDER BY id DESC");
+    ok(hv && hv.version === ver && hv.content === pv.content, '保存协议时留存历史快照');
+    r = await adm.get('/admin/policies?tab=terms'); ok(r.text.includes('历史版本') && r.text.includes('/admin/policies/history/' + hv.id), '协议页显示保存记录');
+    ok((await adm.get('/admin/policies/history/' + hv.id)).status === 200, '历史快照可查看');
+
+    // 新建管理员:首次登录必须改密(临时密码)
+    await adm.get('/admin/admins');
+    await adm.post('/admin/admins/save', { username: 'tmpstaff', name: '临时员工', role_id: db.get("SELECT id FROM roles WHERE permissions!='all' ORDER BY id LIMIT 1").id, password: 'Temp#2026x', status: '1' });
+    ok(db.get("SELECT must_change_pw FROM admins WHERE username='tmpstaff'").must_change_pw === 1, '新建管理员账号标记为首次登录须改密');
+
+    // 正式环境(未设置 DEMO_MODE):在进程内启动一份不带 DEMO_MODE 的后台,验证不能跳过
+    delete process.env.DEMO_MODE;
+    const app = require('../server');
+    const srv = await new Promise(res => { const s2 = app.listen(0, () => res(s2)); });
+    const pbase = 'http://127.0.0.1:' + srv.address().port;
+    const p1 = new C(pbase); await p1.get('/admin/login');
+    r = await p1.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin/password', '正式环境:默认密码登录强制改密');
+    r = await p1.get('/admin/password'); ok(!r.text.includes('暂不修改'), '正式环境:改密页不提供跳过');
+    r = await p1.post('/admin/password/skip'); r = await p1.get('/admin'); ok(r.status === 302 && r.loc === '/admin/password', '正式环境:跳过请求被拒绝,仍被拦截');
+    const p2 = new C(pbase); await p2.get('/admin/login');
+    r = await p2.post('/admin/login', { username: 'tmpstaff', password: 'Temp#2026x' }); ok(r.loc === '/admin/password', '新建账号用临时密码登录需改密');
+    await p2.get('/admin/password');
+    r = await p2.post('/admin/password', { old_password: 'Temp#2026x', password: 'Staff#2026New', password2: 'Staff#2026New' }); ok(r.loc === '/admin', '修改密码后进入后台');
+    ok(db.get("SELECT must_change_pw FROM admins WHERE username='tmpstaff'").must_change_pw === 0, '改密后清除首次登录标记');
+    r = await p2.get('/admin/products'); ok(r.status === 200, '改密后可正常使用后台', r.status);
+    const p3 = new C(pbase); await p3.get('/admin/login'); r = await p3.post('/admin/login', { username: 'tmpstaff', password: 'Staff#2026New' }); ok(r.loc === '/admin', '新密码再次登录不再要求改密');
+    srv.close();
   }
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);

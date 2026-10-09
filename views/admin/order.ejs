@@ -16,6 +16,19 @@
   <% } else if(o.status==='paid'){ %><p class="muted">拼团尚未成团,成团后方可发货。</p><% } else if(o.status==='shipped'){ %><p>已发货:<%= o.express_company %> <%= o.tracking_no %><br><span class="muted"><%= o.shipped_at %></span></p><% } else { %><p class="muted">当前状态无可用的发货操作</p><% } %>
   <% if(['unpaid','paid','shipped'].includes(o.status)){ %><hr style="border:0;border-top:1px solid var(--line);margin:14px 0"><form method="post" action="/admin/orders/<%= o.id %>/cancel" data-confirm="<%= o.status==='unpaid'?'确定取消该订单?':'该订单已支付,取消将全额退款(原路退回),订单使用的积分同步退回,确定?' %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="form-row"><label>取消原因</label><input name="reason" placeholder="如:缺货/用户申请"></div><button class="btn danger" style="width:100%;justify-content:center"><%= o.status==='unpaid'?'取消订单':'取消并退款' %></button></form><% } %></div>
  <div class="card"><h3>商家备注</h3><form method="post" action="/admin/orders/<%= o.id %>/remark"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="admin_remark" rows="3"><%= o.admin_remark||'' %></textarea><button class="btn sm mt">保存备注</button></form></div>
- <% if(aftersale){ %><div class="card"><h3>售后</h3><p><span class="os <%= aftersale.status %>"><%= AFTERSALE_STATUS[aftersale.status] %></span> <%= aftersale.type==='refund'?'仅退款':'退货退款' %></p><a class="btn sm" href="/admin/aftersales/<%= aftersale.id %>">处理售后</a></div><% } %>
+ <div class="card" id="aftersale"><h3>售后</h3>
+  <% if(aftersale){ %><p><span class="os <%= aftersale.status %>"><%= AFTERSALE_STATUS[aftersale.status] %></span> <%= AFTERSALE_TYPE[aftersale.type]||aftersale.type %> · ¥<%= aftersale.amount.toFixed(2) %></p><a class="btn sm" href="/admin/aftersales/<%= aftersale.id %>">查看/处理售后单 #<%= aftersale.id %></a><% } %>
+  <% if(asInfo.refunded>0){ %><p class="muted" style="font-size:12px">已退现金 ¥<%= asInfo.refunded.toFixed(2) %></p><% } %>
+  <% if(asInfo.canCreate && can('order')){ %><details class="fold mt"><summary class="btn sm primary">为此订单创建售后单</summary>
+   <form method="post" action="/admin/orders/<%= o.id %>/aftersale" class="as-form"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row"><label>售后类型</label><select name="type" required>
+     <% if (o.status==='paid') { %><option value="refund">仅退款(未发货)</option><% } else { %><option value="quality">质量问题退换货</option><% if (asInfo.can7) { %><option value="no_reason">7天无理由退货(签收第 <%= asInfo.daysSince %> 天)</option><% } %><option value="refund_return">退货退款</option><option value="refund">仅退款</option><% } %>
+    </select><% if (o.status!=='paid' && !asInfo.can7) { %><div class="help">「7天无理由退货」不可用:<%= !asInfo.noReason ? '含鲜活易腐等不支持7天无理由的商品' : asInfo.daysSince===null ? '尚未签收' : '已超过签收后 7 天' %></div><% } %></div>
+    <div class="form-row"><label>原因</label><input name="reason" required maxlength="50" placeholder="如:商品破损 / 尺码不合适"></div>
+    <div class="form-row"><label>退款金额(最多 ¥<%= asInfo.maxAmount.toFixed(2) %>)</label><input type="number" name="amount" step="0.01" min="0" max="<%= asInfo.maxAmount %>" value="<%= asInfo.maxAmount.toFixed(2) %>" required><div class="help">退款完成时现金原路退回;订单使用的 <%= o.points_used||0 %> 积分按比例退回</div></div>
+    <div class="form-row"><label>处理说明(选填)</label><textarea name="note" rows="2" maxlength="500"></textarea></div>
+    <button class="btn primary">创建并通知用户</button></form></details>
+  <% } else if(!aftersale){ %><p class="muted" style="font-size:12px">当前订单状态不可创建售后(仅已付款/已发货/已完成的非积分订单)。</p><% } %>
+ </div>
  <% if(invoice){ %><div class="card"><h3>发票</h3><p><%= invoice.title %> · <%= {pending:'待开具',issued:'已开具',rejected:'已驳回'}[invoice.status] %></p><a class="btn sm" href="/admin/invoices">发票管理</a></div><% } %>
 </div></div>

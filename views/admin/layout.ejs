@@ -1,27 +1,28 @@
 <% if (typeof layoutless!=='undefined' && layoutless) { %><%- body %><% } else { %>
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="csrf" content="<%= csrf %>">
-<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=6"></head><body>
+<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=7"></head><body>
 <div class="layout">
 <aside class="side" id="side">
   <div class="brand"><i>财</i><span><%= shop.shop_name %><small>管理后台</small></span></div>
   <% const P=pending||{}; const dot=n=>n?`<span class="dot">${n}</span>`:''; 
      const menu=[
       ['概览',[['dashboard','/admin','📊 数据概览'],['stats','/admin/stats','📈 统计报表']]],
-      ['商品',[['product','/admin/products','📦 商品管理'],['product','/admin/categories','🗂 分类管理'],['product','/admin/brands','🏷 品牌管理'],['product','/admin/shipping','🚚 运费模板'],['product','/admin/banned-words','🚫 违禁词检查'],['product','/admin/inventory','⚠️ 库存预警'+(warnCount?dot(warnCount):'')]]],
+      ['商品',[['product','/admin/products','📦 商品管理'],['product','/admin/products/quick','⚡ 快速上架'],['product','/admin/categories','🗂 分类管理'],['product','/admin/brands','🏷 品牌管理'],['product','/admin/shipping','🚚 运费模板'],['product','/admin/banned-words','🚫 违禁词检查'],['product','/admin/inventory','⚠️ 库存预警'+(warnCount?dot(warnCount):'')]]],
       ['交易',[['order','/admin/orders','🧾 订单管理'+dot(P.orders)],['order','/admin/aftersales','🔧 售后管理'+dot(P.as)],['order','/admin/invoices','📄 发票管理'+dot(P.invoices)],['review','/admin/reviews','💬 评价管理'+dot(P.reviews)]]],
-      ['会员',[['member','/admin/members','👥 会员管理'],['member','/admin/levels','💎 会员等级'],['member','/admin/invites','🔗 邀请管理'],['member','/admin/cloud-members','🪪 云商卡会员'],['member','/admin/cloud-cards','💎 云商卡类型'],['member','/admin/cloud-settings','⚙️ 云商卡配置'],['service','/admin/service','🎧 客服中心'+dot(P.msgs)]]],
+      ['会员',[['member','/admin/members','👥 会员管理'],['member','/admin/points-log','🪙 积分明细'],['member','/admin/levels','💎 会员等级'],['member','/admin/invites','🔗 邀请管理'],['member','/admin/cloud-members','🪪 云商卡会员'],['member','/admin/cloud-cards','💎 云商卡类型'],['member','/admin/cloud-settings','⚙️ 云商卡配置'],['service','/admin/service','🎧 客服中心'+dot(P.msgs)]]],
       ['营销',[['marketing','/admin/coupons','🎟 优惠券'],['marketing','/admin/seckills','⚡ 限时秒杀'],['marketing','/admin/groupbuys','👥 拼团活动'],['marketing','/admin/groups','📋 团列表'],['marketing','/admin/points-goods','🎁 积分商城'],['marketing','/admin/banners','🖼 Banner'],['marketing','/admin/keywords','🔥 热搜词']]],
       ['内容',[['content','/admin/notices','📢 公告管理'],['content','/admin/help-articles','❓ 帮助文章'],['content','/admin/pages','📃 关于/单页'],['content','/admin/policies','🔒 隐私政策/用户协议']]],
       ['系统',[['system','/admin/settings','⚙️ 站点设置'],['system','/admin/admins','🧑‍💼 管理员账号'],['system','/admin/roles','🔐 角色权限'],['system','/admin/logs','📝 操作日志']]]
      ]; %>
+  <% const curPath=req.originalUrl.split('?')[0]; const bestNav=menu.flatMap(g=>g[1]).map(m=>m[1]).filter(h=>h==='/admin'?(curPath==='/admin'||curPath==='/admin/'):curPath.startsWith(h)).sort((x,y)=>y.length-x.length)[0]; %>
   <% menu.forEach(g=>{ const items=g[1].filter(m=>can(m[0])); if(!items.length) return; %><h6><%= g[0] %></h6>
-    <% items.forEach(m=>{ const on = m[1]==='/admin' ? req.originalUrl.split('?')[0]==='/admin'||req.originalUrl.split('?')[0]==='/admin/' : req.originalUrl.split('?')[0].startsWith(m[1]); %><a href="<%= m[1] %>" class="<%= on?'on':'' %>"><span><%- m[2].replace(/<span.*$/,'') %></span><%- (m[2].match(/<span.*$/)||[''])[0] %></a><% }) %><% }) %>
+    <% items.forEach(m=>{ const on = m[1]===bestNav; %><a href="<%= m[1] %>" class="<%= on?'on':'' %>"><span><%- m[2].replace(/<span.*$/,'') %></span><%- (m[2].match(/<span.*$/)||[''])[0] %></a><% }) %><% }) %>
 </aside><div class="side-mask" onclick="document.getElementById('side').classList.remove('open')"></div>
 <div class="main">
   <div class="top"><button class="menu-btn" aria-label="菜单" onclick="document.getElementById('side').classList.toggle('open')">☰</button><b><%= title %></b>
     <div class="u"><a href="/" target="_blank">🛒 查看商城</a><a href="/admin/password"><%= admin.name %>(<%= admin.role_name %>)</a>
     <form method="post" action="/admin/logout" style="margin:0"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">退出</button></form></div></div>
-  <div class="content"><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %><%- body %></div>
+  <div class="content"><% if (typeof pwSkipped!=='undefined' && pwSkipped) { %><div class="flash warn">演示环境:当前账号仍在使用默认密码,正式运营前请 <a href="/admin/password"><u>修改密码</u></a>(正式环境不设置 DEMO_MODE 时将强制修改)。</div><% } %><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %><%- body %></div>
 </div></div>
 <script>
 var CSRF=document.querySelector('meta[name=csrf]').content;

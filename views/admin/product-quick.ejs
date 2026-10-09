@@ -1,0 +1,19 @@
+<div class="card" style="max-width:760px"><h3>⚡ 快速上架 <span class="muted" style="font-weight:400;font-size:13px">单规格商品一页填完;多规格、上传图片、详情排版请用「新增商品」或保存后再编辑</span></h3>
+<form method="post" action="/admin/products/quick"><input type="hidden" name="_csrf" value="<%= csrf %>">
+ <div class="form-grid">
+  <div class="form-row" style="grid-column:1/-1"><label>商品名称 *</label><input type="text" name="name" value="<%= b.name||'' %>" required maxlength="60"></div>
+  <div class="form-row" style="grid-column:1/-1"><label>副标题/卖点</label><input type="text" name="subtitle" value="<%= b.subtitle||'' %>" maxlength="80"><div class="help">请勿使用「最」「第一」「国家级」等绝对化用语;保存时自动做违禁词检查</div></div>
+  <div class="form-row"><label>分类 *</label><select name="category_id" required><option value="">请选择</option><% cats.filter(c=>c.parent).forEach(c=>{ %><option value="<%= c.v %>" <%= String(b.category_id)===String(c.v)?'selected':'' %>><%= c.t.replace('　└ ','') %></option><% }) %></select></div>
+  <div class="form-row"><label>运费模板 *</label><select name="template_id" required><option value="">请选择运费模板</option><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= String(b.template_id)===String(t.id)?'selected':'' %>><%= t.name %></option><% }) %></select></div>
+  <div class="form-row"><label>售价(元) *</label><input type="number" step="0.01" min="0.01" name="price" value="<%= b.price||'' %>" required></div>
+  <div class="form-row"><label>库存 *</label><input type="number" min="0" name="stock" value="<%= b.stock||100 %>" required></div>
+  <div class="form-row"><label>规格(选填)</label><input type="text" name="spec" value="<%= b.spec||'' %>" maxlength="30" placeholder="如:500g / 默认"></div>
+  <div class="form-row"><label>划线原价(元,选填)</label><input type="number" step="0.01" min="0" name="market_price" value="<%= b.market_price||'' %>" placeholder="留空则不显示划线价"><div class="help">仅可填写曾真实销售过的价格</div></div>
+  <div class="form-row"><label>品牌</label><select name="brand_id"><option value="0">无</option><% brands.forEach(x=>{ %><option value="<%= x.id %>" <%= String(b.brand_id)===String(x.id)?'selected':'' %>><%= x.name %></option><% }) %></select></div>
+  <div class="form-row"><label>七天无理由退货</label><select name="no_reason_return"><option value="">跟随分类(「鲜活易腐类」分类不支持)</option><option value="1" <%= b.no_reason_return==='1'?'selected':'' %>>支持</option><option value="0" <%= b.no_reason_return==='0'?'selected':'' %>>不支持(鲜活易腐等)</option></select></div>
+  <div class="form-row" style="grid-column:1/-1"><label>主图地址(选填)</label><input type="text" name="image_url" value="<%= b.image_url||'' %>" placeholder="以 / 或 https:// 开头;留空显示默认占位图"></div>
+  <div class="form-row" style="grid-column:1/-1"><label>商品详情(选填,支持 HTML)</label><textarea name="description" rows="4"><%= b.description||'' %></textarea></div>
+  <div class="form-row"><label>保存后</label><select name="status"><option value="1">立即上架</option><option value="0" <%= b.status==='0'?'selected':'' %>>暂不上架(下架状态)</option></select></div>
+ </div>
+ <button class="btn primary">保存</button> <a class="btn" href="/admin/products">返回列表</a>
+</form></div>

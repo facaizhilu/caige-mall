@@ -13,13 +13,19 @@ module.exports = function (r, { filesOf }) {
   const perms = a => a ? (a.perms === 'all' ? 'all' : String(a.perms).split(',')) : [];
   const can = (a, p) => a && (a.perms === 'all' || String(a.perms).split(',').includes(p));
   const log = (req, action, detail) => db.exec1('INSERT INTO admin_logs(admin_id,admin_name,action,detail,ip,created_at) VALUES(?,?,?,?,?,?)', req.session.admin ? req.session.admin.id : null, req.session.admin ? req.session.admin.username : '-', action, String(detail || '').slice(0, 300), req.ip, now());
+  // 种子数据中的默认账号密码:用这些密码登录时必须先改密
+  const DEFAULT_PW = { admin: 'admin123', ops: 'ops123456', kefu: 'kefu123456' };
+  const isDemo = () => process.env.DEMO_MODE === '1';
+  const PW_FREE = ['/password', '/password/skip', '/logout'];
   const need = p => (req, res, next) => {
     if (!req.session.admin) return res.redirect('/admin/login');
     // 每次请求刷新权限,角色变更即时生效
     const a = db.get('SELECT a.*, r.permissions, r.name role_name FROM admins a LEFT JOIN roles r ON r.id=a.role_id WHERE a.id=?', req.session.admin.id);
     if (!a || !a.status) { req.session.admin = null; return res.redirect('/admin/login'); }
     req.session.admin.perms = a.permissions || ''; req.session.admin.name = a.name; req.session.admin.role_name = a.role_name;
-    res.locals.admin = req.session.admin;
+    res.locals.admin = req.session.admin; res.locals.pwSkipped = !!req.session.admin.pwSkipped;
+    // 默认/临时密码:强制先修改密码(仅 DEMO_MODE=1 的演示环境允许跳过)
+    if (req.session.admin.mustChange && !PW_FREE.includes(req.path)) { flash(req, 'warn', '为保障后台安全,请先修改默认/临时密码后再继续操作'); return res.redirect('/admin/password'); }
     if (p && !can(req.session.admin, p)) return res.status(403).page('admin/forbidden', { title: '无权限' });
     next();
   };
@@ -41,9 +47,11 @@ module.exports = function (r, { filesOf }) {
     if (!a.status) return bad('该管理员账号已被停用');
     fails.delete(k);
     req.session.regenerate(() => {
-      req.session.admin = { id: a.id, username: a.username, name: a.name, perms: a.permissions || '', role_name: a.role_name };
-      db.exec1('UPDATE admins SET last_login=? WHERE id=?', now(), a.id); log(req, '登录后台', '');
-      req.session.save(() => res.redirect('/admin'));
+      const pw = String(req.body.password || '');
+      const mustChange = !!a.must_change_pw || DEFAULT_PW[a.username] === pw || Object.values(DEFAULT_PW).includes(pw);
+      req.session.admin = { id: a.id, username: a.username, name: a.name, perms: a.permissions || '', role_name: a.role_name, mustChange };
+      db.exec1('UPDATE admins SET last_login=? WHERE id=?', now(), a.id); log(req, '登录后台', mustChange ? '使用默认/临时密码,要求修改' : '');
+      req.session.save(() => res.redirect(mustChange ? '/admin/password' : '/admin'));
     });
   });
   r.post('/logout', (req, res) => { if (req.session.admin) log(req, '退出后台', ''); req.session.regenerate(() => res.redirect('/admin/login')); });
@@ -142,6 +150,40 @@ module.exports = function (r, { filesOf }) {
     svc.setSetting('banned_words', list.join('\n'));
     log(req, '修改违禁词表', `${list.length} 个`); flash(req, 'success', `违禁词表已保存(${list.length} 个)`); res.redirect('/admin/banned-words');
   });
+  // 批量上/下架
+  r.post('/products/batch', need('product'), (req, res) => {
+    const ids = [...new Set([].concat(req.body.ids || []).map(x => int(x)).filter(x => x > 0))].slice(0, 500), st = req.body.action === 'on' ? 1 : req.body.action === 'off' ? 0 : null;
+    if (st === null || !ids.length) { flash(req, 'error', '请先勾选商品并选择批量操作'); return back(req, res, '/admin/products'); }
+    const n = db.prepare(`UPDATE products SET status=? WHERE status>=0 AND id IN (${ids.map(() => '?').join(',')})`).run(st, ...ids).changes;
+    log(req, st ? '批量上架商品' : '批量下架商品', `${n} 件:#${ids.join(',#')}`.slice(0, 300));
+    flash(req, 'success', `已${st ? '上架' : '下架'} ${n} 件商品`); back(req, res, '/admin/products');
+  });
+  // 快速上架:单规格商品一页填完(名称/分类/运费模板/价格/库存),同样做违禁词检查
+  r.get('/products/quick', need('product'), (req, res) => res.page('admin/product-quick', { title: '快速上架', cats: catOptions(), tpls: db.all('SELECT * FROM shipping_templates ORDER BY id'), brands: db.all('SELECT * FROM brands ORDER BY sort'), b: {} }));
+  r.post('/products/quick', need('product'), (req, res) => {
+    const b = req.body;
+    const row = { name: String(b.name || '').trim().slice(0, 60), subtitle: String(b.subtitle || '').trim().slice(0, 80), category_id: int(b.category_id), brand_id: int(b.brand_id), template_id: int(b.template_id), description: String(b.description || '').trim().slice(0, 5000), market_price: String(b.market_price || '').trim() === '' ? null : round2(num(b.market_price)), no_reason_return: b.no_reason_return === '1' ? 1 : b.no_reason_return === '0' ? 0 : null, status: b.status === '0' ? 0 : 1 };
+    const price = round2(num(b.price)), stock = Math.max(0, int(b.stock)), spec = String(b.spec || '').trim().slice(0, 30) || '默认';
+    const image = String(b.image_url || '').trim();
+    const fail = m => { flash(req, 'error', m); res.page('admin/product-quick', { title: '快速上架', cats: catOptions(), tpls: db.all('SELECT * FROM shipping_templates ORDER BY id'), brands: db.all('SELECT * FROM brands ORDER BY sort'), b, flash: { type: 'error', msg: m } }); };
+    if (!row.name) return fail('请填写商品名称');
+    if (!row.category_id || !db.get('SELECT 1 FROM categories WHERE id=? AND parent_id>0', row.category_id)) return fail('请选择商品分类(二级分类)');
+    if (!row.template_id || !db.get('SELECT 1 FROM shipping_templates WHERE id=?', row.template_id)) return fail('请选择运费模板');
+    if (!(price > 0)) return fail('售价需大于 0');
+    if (row.market_price != null && row.market_price <= 0) row.market_price = null;
+    if (row.market_price != null && row.market_price <= price) return fail('划线原价需高于售价;如不确定曾真实销售的价格,请留空');
+    if (image && !/^(\/|https?:\/\/)/.test(image)) return fail('图片地址需以 / 或 http(s):// 开头');
+    let pid;
+    db.transaction(() => {
+      Object.assign(row, { price, stock, images: JSON.stringify(image ? [image] : []), spec_names: '规格', weight: 0.5, sort: 0, is_hot: 0, is_new: 1, created_at: now() });
+      const ks = Object.keys(row); pid = db.prepare(`INSERT INTO products(${ks.join(',')}) VALUES(${ks.map(() => '?').join(',')})`).run(...ks.map(k => row[k])).lastInsertRowid;
+      db.exec1('INSERT INTO skus(product_id,attrs,spec_text,price,stock,code) VALUES(?,?,?,?,?,?)', pid, JSON.stringify({ 规格: spec }), spec, price, stock, String(b.code || '').trim().slice(0, 40));
+      log(req, '快速上架商品', `#${pid} ${row.name}`);
+    })();
+    const B = require('../lib/banned'), hits = B.checkProduct(row, [{ spec_text: spec }]);
+    if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + B.summarize(hits)); return res.redirect('/admin/products/' + pid + '/edit'); }
+    flash(req, 'success', `商品 #${pid} 已${row.status ? '上架' : '保存为下架状态'};如需多规格或上传图片,可在「编辑」中补充`); res.redirect('/admin/products');
+  });
   r.post('/products/:id/toggle', need('product'), (req, res) => { db.exec1('UPDATE products SET status=1-status WHERE id=?', int(req.params.id)); log(req, '商品上/下架', '#' + req.params.id); back(req, res, '/admin/products'); });
   r.post('/products/:id/stock', need('product'), (req, res) => {
     const s = db.get('SELECT * FROM skus WHERE id=?', int(req.body.sku_id)); if (s) { db.exec1('UPDATE skus SET stock=? WHERE id=?', Math.max(0, int(req.body.stock)), s.id); db.exec1('UPDATE products SET stock=(SELECT SUM(stock) FROM skus WHERE product_id=?) WHERE id=?', s.product_id, s.product_id); log(req, '调整库存', `SKU#${s.id} → ${int(req.body.stock)}`); }
@@ -158,7 +200,7 @@ module.exports = function (r, { filesOf }) {
     const rows = db.all('SELECT s.*, p.name, p.id pid, p.status FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? ORDER BY s.stock, p.id', th);
     res.page('admin/inventory', { title: '库存预警', rows, th });
   });
-  r.get('/export/products', need('stats'), (req, res) => sendCSV(res, '商品库存', ['商品ID', '商品名称', '分类', '品牌', '规格', '编码', '价格', '库存', '销量', '状态'], db.all('SELECT p.id,p.name,c.name cn,b.name bn,s.spec_text,s.code,s.price,s.stock,p.sales,p.status FROM skus s JOIN products p ON p.id=s.product_id LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id ORDER BY p.id,s.id').map(x => [x.id, x.name, x.cn, x.bn, x.spec_text, x.code, x.price, x.stock, x.sales, x.status ? '上架' : '下架'])));
+  r.get('/export/products', need('stats'), (req, res) => void log(req, '导出商品库存CSV', '') || sendCSV(res, '商品库存', ['商品ID', '商品名称', '分类', '品牌', '规格', '编码', '价格', '库存', '销量', '状态'], db.all('SELECT p.id,p.name,c.name cn,b.name bn,s.spec_text,s.code,s.price,s.stock,p.sales,p.status FROM skus s JOIN products p ON p.id=s.product_id LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id ORDER BY p.id,s.id').map(x => [x.id, x.name, x.cn, x.bn, x.spec_text, x.code, x.price, x.stock, x.sales, x.status ? '上架' : '下架'])));
 
   // ================= 分类 / 品牌 / 运费模板(通用 CRUD) =================
   crud(r, { path: 'categories', table: 'categories', perm: 'product', title: '分类管理', singular: '分类', order: 'CASE WHEN parent_id=0 THEN sort ELSE (SELECT sort FROM categories p WHERE p.id=categories.parent_id) END, parent_id, sort, id', toggle: 'status',
@@ -178,14 +220,19 @@ module.exports = function (r, { filesOf }) {
     canDelete: x => x.id === 1 ? '默认模板不能删除' : (db.get('SELECT 1 FROM products WHERE template_id=?', x.id) ? '有商品使用该模板,不能删除' : null) }, ctx);
 
   // ================= 订单 =================
-  r.get('/orders', need('order'), (req, res) => {
-    const { q = '', status = '', type = '', from = '', to = '' } = req.query;
+  const orderWhere = query => {
+    const { q = '', status = '', type = '', from = '', to = '' } = query;
     const where = ['1=1'], params = [];
     if (q.trim()) { where.push('(o.order_no LIKE ? OR o.receiver LIKE ? OR o.phone LIKE ? OR u.phone LIKE ? OR o.tracking_no LIKE ?)'); const k = '%' + q.trim() + '%'; params.push(k, k, k, k, k); }
     if (status) { where.push('o.status=?'); params.push(status); }
     if (type) { where.push('o.type=?'); params.push(type); }
+    if (int(query.uid)) { where.push('o.user_id=?'); params.push(int(query.uid)); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('o.created_at>=?'); params.push(from + ' 00:00:00'); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push('o.created_at<=?'); params.push(to + ' 23:59:59'); }
+    return { where, params, q: String(q), status: String(status), type: String(type), from: String(from), to: String(to) };
+  };
+  r.get('/orders', need('order'), (req, res) => {
+    const { where, params, q, status, type, from, to } = orderWhere(req.query);
     const sql = `SELECT o.*, u.nickname, u.phone uphone FROM orders o JOIN users u ON u.id=o.user_id WHERE ${where.join(' AND ')} ORDER BY o.id DESC`;
     const pg = U.paginate(sql, params, req.query.page, 15);
     pg.rows.forEach(o => { o.items = db.all('SELECT * FROM order_items WHERE order_id=?', o.id); if (o.type === 'group') o.groupStatus = (db.get('SELECT status FROM groups WHERE id=?', o.group_id) || {}).status; });
@@ -193,14 +240,16 @@ module.exports = function (r, { filesOf }) {
     res.page('admin/orders', { title: '订单管理', pg, q, status, type, from, to, counts });
   });
   r.get('/orders/export', need('stats'), (req, res) => {
-    const rows = db.all('SELECT o.*, u.phone uphone FROM orders o JOIN users u ON u.id=o.user_id ORDER BY o.id DESC').map(o => [o.order_no, o.created_at, o.uphone, U.ORDER_STATUS[o.status], o.type, o.goods_amount, o.freight, o.level_discount, o.coupon_discount, o.points_discount, o.pay_amount, U.PAY_METHOD[o.pay_method] || '', o.receiver, o.phone, `${o.province}${o.city}${o.district}${o.detail}`, o.express_company || '', o.tracking_no || '', db.all('SELECT name,spec_text,qty FROM order_items WHERE order_id=?', o.id).map(i => `${i.name}(${i.spec_text})x${i.qty}`).join(';')]);
-    log(req, '导出订单CSV', rows.length + '条');
+    const { where, params } = orderWhere(req.query); // 导出与列表筛选条件一致
+    const rows = db.all(`SELECT o.*, u.phone uphone FROM orders o JOIN users u ON u.id=o.user_id WHERE ${where.join(' AND ')} ORDER BY o.id DESC`, ...params).map(o => [o.order_no, o.created_at, o.uphone, U.ORDER_STATUS[o.status], o.type, o.goods_amount, o.freight, o.level_discount, o.coupon_discount, o.points_discount, o.pay_amount, U.PAY_METHOD[o.pay_method] || '', o.receiver, o.phone, `${o.province}${o.city}${o.district}${o.detail}`, o.express_company || '', o.tracking_no || '', db.all('SELECT name,spec_text,qty FROM order_items WHERE order_id=?', o.id).map(i => `${i.name}(${i.spec_text})x${i.qty}`).join(';')]);
+    log(req, '导出订单CSV', rows.length + '条 ' + JSON.stringify(req.query).slice(0, 150));
     sendCSV(res, '订单', ['订单号', '下单时间', '会员手机', '状态', '类型', '商品金额', '运费', '会员折扣', '优惠券', '积分抵扣', '实付', '支付方式', '收货人', '收货电话', '收货地址', '快递公司', '运单号', '商品'], rows);
   });
   r.get('/orders/:id', need('order'), (req, res) => {
     const o = db.get('SELECT o.*, u.nickname, u.phone uphone FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=?', int(req.params.id));
     if (!o) { flash(req, 'error', '订单不存在'); return res.redirect('/admin/orders'); }
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
+    res.locals.asInfo = asInfo(o);
     res.page('admin/order', { title: '订单详情', o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id), traces: db.all('SELECT * FROM traces WHERE order_id=? ORDER BY id DESC', o.id), aftersale: db.get('SELECT * FROM aftersales WHERE order_id=? ORDER BY id DESC LIMIT 1', o.id), invoice: db.get('SELECT * FROM invoices WHERE order_id=?', o.id), group });
   });
   r.post('/orders/:id/ship', need('order'), (req, res) => {
@@ -218,7 +267,7 @@ module.exports = function (r, { filesOf }) {
     flash(req, x.ok ? 'success' : 'error', x.ok ? (o.status === 'unpaid' ? '订单已取消' : '订单已取消,款项原路退回' + (x.points ? `,退回积分 ${x.points}` : '')) : x.msg); res.redirect('/admin/orders/' + o.id);
   });
   r.post('/orders/:id/remark', need('order'), (req, res) => { db.exec1('UPDATE orders SET admin_remark=? WHERE id=?', String(req.body.admin_remark || '').slice(0, 200), int(req.params.id)); log(req, '订单备注', '#' + req.params.id); res.redirect('/admin/orders/' + int(req.params.id)); });
-  r.post('/orders/:id/trace', need('order'), (req, res) => { const t = String(req.body.text || '').trim().slice(0, 100); if (t) db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', int(req.params.id), now(), t); else svc.advanceTrace(int(req.params.id)); res.redirect('/admin/orders/' + int(req.params.id)); });
+  r.post('/orders/:id/trace', need('order'), (req, res) => { const t = String(req.body.text || '').trim().slice(0, 100); if (t) db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', int(req.params.id), now(), t); else svc.advanceTrace(int(req.params.id)); log(req, '更新物流轨迹', '#' + req.params.id + ' ' + t); res.redirect('/admin/orders/' + int(req.params.id)); });
   r.post('/orders/:id/address', need('order'), (req, res) => {
     const o = db.get('SELECT * FROM orders WHERE id=?', int(req.params.id));
     if (o && ['unpaid', 'paid'].includes(o.status)) { db.exec1('UPDATE orders SET receiver=?, phone=?, detail=? WHERE id=?', String(req.body.receiver || o.receiver).slice(0, 20), String(req.body.phone || o.phone).slice(0, 20), String(req.body.detail || o.detail).slice(0, 100), o.id); log(req, '修改收货信息', '#' + o.id); flash(req, 'success', '收货信息已更新'); }
@@ -227,9 +276,13 @@ module.exports = function (r, { filesOf }) {
 
   // ================= 售后 =================
   r.get('/aftersales', need('order'), (req, res) => {
-    const st = req.query.status || '';
-    const pg = U.paginate(`SELECT a.*, o.order_no, o.status ostatus, u.phone, u.nickname FROM aftersales a JOIN orders o ON o.id=a.order_id JOIN users u ON u.id=a.user_id ${st ? 'WHERE a.status=?' : ''} ORDER BY a.id DESC`, st ? [st] : [], req.query.page, 15);
-    res.page('admin/aftersales', { title: '售后管理', pg, st });
+    const st = String(req.query.status || ''), q = String(req.query.q || '').trim(), type = String(req.query.type || '');
+    const where = ['1=1'], params = [];
+    if (st) { where.push('a.status=?'); params.push(st); }
+    if (type && U.AFTERSALE_TYPE[type]) { where.push('a.type=?'); params.push(type); }
+    if (q) { const k = '%' + q + '%'; where.push('(o.order_no LIKE ? OR u.phone LIKE ? OR u.nickname LIKE ? OR a.reason LIKE ? OR a.id=?)'); params.push(k, k, k, k, int(q.replace(/^#/, ''))); }
+    const pg = U.paginate(`SELECT a.*, o.order_no, o.status ostatus, u.phone, u.nickname FROM aftersales a JOIN orders o ON o.id=a.order_id JOIN users u ON u.id=a.user_id WHERE ${where.join(' AND ')} ORDER BY a.id DESC`, params, req.query.page, 15);
+    res.page('admin/aftersales', { title: '售后管理', pg, st, q, type });
   });
   r.get('/aftersales/:id', need('order'), (req, res) => {
     const a = db.get('SELECT a.*, o.order_no, o.pay_amount, o.points_used, o.points_discount, o.points_awarded, o.status ostatus, o.completed_at, o.no7_confirmed, u.phone, u.nickname, u.cancelled_at ucancel FROM aftersales a JOIN orders o ON o.id=a.order_id JOIN users u ON u.id=a.user_id WHERE a.id=?', int(req.params.id));
@@ -269,9 +322,11 @@ module.exports = function (r, { filesOf }) {
   });
   // 发票
   r.get('/invoices', need('order'), (req, res) => {
-    const st = req.query.status || '';
-    const pg = U.paginate(`SELECT i.*, o.order_no, u.phone FROM invoices i JOIN orders o ON o.id=i.order_id JOIN users u ON u.id=i.user_id ${st ? 'WHERE i.status=?' : ''} ORDER BY i.id DESC`, st ? [st] : [], req.query.page, 15);
-    res.page('admin/invoices', { title: '发票管理', pg, st });
+    const st = String(req.query.status || ''), q = String(req.query.q || '').trim(), where = ['1=1'], params = [];
+    if (st) { where.push('i.status=?'); params.push(st); }
+    if (q) { const k = '%' + q + '%'; where.push('(o.order_no LIKE ? OR u.phone LIKE ? OR i.title LIKE ?)'); params.push(k, k, k); }
+    const pg = U.paginate(`SELECT i.*, o.order_no, u.phone FROM invoices i JOIN orders o ON o.id=i.order_id JOIN users u ON u.id=i.user_id WHERE ${where.join(' AND ')} ORDER BY i.id DESC`, params, req.query.page, 15);
+    res.page('admin/invoices', { title: '发票管理', pg, st, q });
   });
   r.post('/invoices/:id/handle', need('order'), (req, res) => {
     const i = db.get('SELECT * FROM invoices WHERE id=?', int(req.params.id)); if (!i) return res.redirect('/admin/invoices');
@@ -291,9 +346,10 @@ module.exports = function (r, { filesOf }) {
     const rv = db.get('SELECT * FROM reviews WHERE id=?', int(req.params.id)); if (!rv) return res.redirect('/admin/reviews');
     const act = req.params.act;
     if (act === 'approve' && rv.status !== 'approved') {
-      db.transaction(() => { db.exec1("UPDATE reviews SET status='approved', points_awarded=1 WHERE id=?", rv.id); if (!rv.points_awarded && rv.status === 'pending') svc.addPoints(rv.user_id, int(svc.S('review_points'), 10), '评价奖励'); })(); // 新评价在发表时已发放积分;仅补发旧版待审核评价 log(req, '评价审核通过', '#' + rv.id);
-    } else if (act === 'reject') { db.exec1("UPDATE reviews SET status='rejected' WHERE id=?", rv.id); log(req, '评价审核拒绝', '#' + rv.id); }
-    else if (act === 'reply') { db.exec1('UPDATE reviews SET reply=? WHERE id=?', String(req.body.reply || '').slice(0, 300), rv.id); log(req, '回复评价', '#' + rv.id); }
+      db.transaction(() => { db.exec1("UPDATE reviews SET status='approved', points_awarded=1 WHERE id=?", rv.id); if (!rv.points_awarded && rv.status === 'pending') svc.addPoints(rv.user_id, int(svc.S('review_points'), 10), '评价奖励'); })(); // 新评价在发表时已发放积分;仅补发旧版待审核评价
+      log(req, '评价审核通过(显示)', '#' + rv.id);
+    } else if (act === 'reject') { db.exec1("UPDATE reviews SET status='rejected' WHERE id=?", rv.id); log(req, '隐藏评价', '#' + rv.id); }
+    else if (act === 'reply') { const t = String(req.body.reply || '').trim().slice(0, 300); const B = require('../lib/banned'), hits = B.check({ reply: t }); db.exec1('UPDATE reviews SET reply=? WHERE id=?', t, rv.id); log(req, t ? '回复评价' : '清除评价回复', '#' + rv.id); if (hits.length) flash(req, 'warn', '回复已保存,但含违禁/敏感词:' + B.summarize(hits) + ',请核实修改'); }
     else if (act === 'delete') { db.exec1('DELETE FROM reviews WHERE id=?', rv.id); log(req, '删除评价', '#' + rv.id); }
     back(req, res, '/admin/reviews');
   });
@@ -318,9 +374,15 @@ module.exports = function (r, { filesOf }) {
   });
   r.post('/members/:id/status', need('member'), (req, res) => { const u = db.get('SELECT * FROM users WHERE id=?', int(req.params.id)); if (u && u.cancelled_at) { flash(req, 'error', '该账号已注销,不可启用'); return back(req, res, '/admin/members'); } if (u) { db.exec1('UPDATE users SET status=1-status WHERE id=?', u.id); if (u.status) db.exec1('DELETE FROM sessions WHERE sess LIKE ?', `%"uid":${u.id}%`); log(req, u.status ? '禁用会员' : '启用会员', `#${u.id} ${u.phone}`); } back(req, res, '/admin/members'); });
   r.post('/members/:id/points', need('member'), (req, res) => {
-    const d = int(req.body.delta), reason = String(req.body.reason || '').trim().slice(0, 50) || '管理员调整';
-    if (!d) { flash(req, 'error', '请输入非零的调整数值(正数增加,负数扣减)'); return res.redirect('/admin/members/' + int(req.params.id)); }
-    svc.addPoints(int(req.params.id), d, '管理员调整:' + reason); log(req, '调整积分', `#${req.params.id} ${d > 0 ? '+' : ''}${d} ${reason}`); flash(req, 'success', '积分已调整'); res.redirect('/admin/members/' + int(req.params.id));
+    const uid = int(req.params.id), d = int(req.body.delta), reason = String(req.body.reason || '').trim().slice(0, 50);
+    const u = db.get('SELECT id, points, phone FROM users WHERE id=?', uid), go = (t, m) => { flash(req, t, m); res.redirect('/admin/members/' + uid + '#points'); };
+    if (!u) { flash(req, 'error', '会员不存在'); return res.redirect('/admin/members'); }
+    if (!d) return go('error', '请输入非零的调整数值(正数增加,负数扣减)');
+    if (Math.abs(d) > 100000) return go('error', '单次调整不能超过 100000 积分');
+    if (reason.length < 2) return go('error', '请填写调整原因(必填,将记入积分明细与操作日志)');
+    if (d < 0 && u.points + d < 0) return go('error', `扣减数量超过会员当前积分(${u.points})`);
+    db.transaction(() => { svc.addPoints(uid, d, '管理员调整:' + reason); log(req, '调整积分', `#${uid} ${u.phone || ''} ${d > 0 ? '+' : ''}${d} 原因:${reason} 调整前 ${u.points}`); })();
+    go('success', `积分已调整 ${d > 0 ? '+' : ''}${d}`);
   });
   r.post('/members/:id/level', need('member'), (req, res) => {
     const lv = db.get('SELECT * FROM member_levels WHERE id=?', int(req.body.level_id)); if (lv) { db.exec1('UPDATE users SET level_id=?, growth=MAX(growth,?) WHERE id=?', lv.id, lv.min_growth, int(req.params.id)); log(req, '设置会员等级', `#${req.params.id} → ${lv.name}`); flash(req, 'success', '等级已更新'); }
@@ -329,6 +391,27 @@ module.exports = function (r, { filesOf }) {
   r.post('/members/:id/edit', need('member'), (req, res) => { db.exec1('UPDATE users SET nickname=?, remark=? WHERE id=?', String(req.body.nickname || '').slice(0, 20), String(req.body.remark || '').slice(0, 200), int(req.params.id)); log(req, '编辑会员', '#' + req.params.id); flash(req, 'success', '已保存'); res.redirect('/admin/members/' + int(req.params.id)); });
   r.post('/members/:id/reset-password', need('member'), (req, res) => { const pw = String(req.body.password || ''); if (pw.length < 6) flash(req, 'error', '新密码至少 6 位'); else { db.exec1('UPDATE users SET password_hash=? WHERE id=?', bcrypt.hashSync(pw, 10), int(req.params.id)); log(req, '重置会员密码', '#' + req.params.id); flash(req, 'success', '密码已重置'); } res.redirect('/admin/members/' + int(req.params.id)); });
   r.post('/members/:id/coupon', need('member'), (req, res) => { const x = svc.grantCoupon(int(req.params.id), int(req.body.coupon_id), true); log(req, '发放优惠券', `#${req.params.id} coupon ${req.body.coupon_id}`); flash(req, x.ok ? 'success' : 'error', x.ok ? '优惠券已发放' : x.msg); res.redirect('/admin/members/' + int(req.params.id)); });
+  // 积分明细(全站 / 单个会员),积分不可购买、提现、转赠,此处只读;人工调整在会员详情页进行且必须填写原因
+  const pointsWhere = query => {
+    const where = ['1=1'], params = [], q = String(query.q || '').trim(), dir = String(query.dir || ''), uid = int(query.uid), from = String(query.from || ''), to = String(query.to || '');
+    if (uid) { where.push('l.user_id=?'); params.push(uid); }
+    if (q) { const k = '%' + q + '%'; where.push('(u.phone LIKE ? OR u.nickname LIKE ? OR l.reason LIKE ?)'); params.push(k, k, k); }
+    if (dir === 'in') where.push('l.delta>0'); else if (dir === 'out') where.push('l.delta<0'); else if (dir === 'admin') where.push("l.reason LIKE '管理员调整%'");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('l.created_at>=?'); params.push(from + ' 00:00:00'); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push('l.created_at<=?'); params.push(to + ' 23:59:59'); }
+    return { sql: `SELECT l.*, u.nickname, u.phone FROM points_log l LEFT JOIN users u ON u.id=l.user_id WHERE ${where.join(' AND ')} ORDER BY l.id DESC`, params, q, dir, uid, from, to };
+  };
+  r.get('/points-log', need('member'), (req, res) => {
+    const w = pointsWhere(req.query), pg = U.paginate(w.sql, w.params, req.query.page, 25);
+    const sum = db.get(`SELECT COALESCE(SUM(CASE WHEN delta>0 THEN delta END),0) inc, COALESCE(SUM(CASE WHEN delta<0 THEN delta END),0) outv FROM (${w.sql})`, ...w.params);
+    const member = w.uid ? db.get('SELECT id, nickname, phone, points FROM users WHERE id=?', w.uid) : null;
+    res.page('admin/points-log', { title: member ? `积分明细 · ${member.nickname || member.phone}` : '积分明细', pg, sum, member, ...w });
+  });
+  r.get('/points-log/export', need('stats'), (req, res) => {
+    const w = pointsWhere(req.query), rows = db.all(w.sql + ' LIMIT 20000', ...w.params);
+    log(req, '导出积分明细CSV', rows.length + '条');
+    sendCSV(res, '积分明细', ['时间', '会员ID', '昵称', '手机号', '变动', '变动后余额', '原因'], rows.map(l => [l.created_at, l.user_id, l.nickname, l.phone, l.delta, l.balance, l.reason]));
+  });
   crud(r, { path: 'levels', table: 'member_levels', perm: 'member', title: '会员等级', singular: '会员等级', order: 'min_growth',
     cols: [{ label: 'ID', f: x => x.id }, { label: '等级名称', f: x => `<b style="color:${esc(x.color)}">💎 ${esc(x.name)}</b>` }, { label: '所需成长值', f: x => x.min_growth }, { label: '会员折扣', f: x => x.discount < 100 ? (x.discount / 10) + ' 折' : '无折扣' }, { label: '会员数', f: x => db.get('SELECT COUNT(*) n FROM users WHERE level_id=?', x.id).n }, { label: '权益说明', f: x => esc(x.remark) }],
     fields: [{ name: 'name', label: '等级名称', required: true }, { name: 'min_growth', label: '所需成长值', type: 'number', int: true, min: 0 }, { name: 'discount', label: '折扣百分比(100=不打折,95=九五折)', type: 'number', int: true, min: 50, def: 100 }, { name: 'color', label: '徽章颜色', def: '#999999', pattern: /^#[0-9a-fA-F]{6}$/ }, { name: 'remark', label: '权益说明' }],
@@ -336,11 +419,13 @@ module.exports = function (r, { filesOf }) {
     canDelete: x => x.id === 1 ? '基础等级不能删除' : (db.get('SELECT 1 FROM users WHERE level_id=?', x.id) ? '该等级下还有会员,不能删除' : null) }, ctx);
   // ================= 邀请(单级,一次性积分) =================
   r.get('/invites', need('member'), (req, res) => {
-    const st = req.query.status || '';
-    const pg = U.paginate(`SELECT r.*, a.nickname an, a.phone ap, b.nickname bn, b.phone bp, o.order_no FROM invite_rewards r LEFT JOIN users a ON a.id=r.referrer_id LEFT JOIN users b ON b.id=r.invitee_id LEFT JOIN orders o ON o.id=r.order_id ${st ? 'WHERE r.status=?' : ''} ORDER BY r.id DESC`, st ? [st] : [], req.query.page, 20);
+    const st = String(req.query.status || ''), q = String(req.query.q || '').trim(), where = ['1=1'], params = [];
+    if (st) { where.push('r.status=?'); params.push(st); }
+    if (q) { const k = '%' + q + '%'; where.push('(a.phone LIKE ? OR a.nickname LIKE ? OR b.phone LIKE ? OR b.nickname LIKE ? OR o.order_no LIKE ?)'); params.push(k, k, k, k, k); }
+    const pg = U.paginate(`SELECT r.*, a.nickname an, a.phone ap, b.nickname bn, b.phone bp, o.order_no FROM invite_rewards r LEFT JOIN users a ON a.id=r.referrer_id LEFT JOIN users b ON b.id=r.invitee_id LEFT JOIN orders o ON o.id=r.order_id WHERE ${where.join(' AND ')} ORDER BY r.id DESC`, params, req.query.page, 20);
     const sum = db.get("SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN status='granted' THEN points END),0) granted, COALESCE(SUM(CASE WHEN status='pending' THEN 1 END),0) pending FROM invite_rewards");
     const invited = db.get('SELECT COUNT(*) n FROM users WHERE referrer_id IS NOT NULL').n;
-    res.page('admin/invites', { title: '邀请管理', pg, st, sum, invited, s: svc.settings(), coupons: db.all('SELECT id, name FROM coupons WHERE status=1 ORDER BY id') });
+    res.page('admin/invites', { title: '邀请管理', pg, st, q, sum, invited, s: svc.settings(), coupons: db.all('SELECT id, name FROM coupons WHERE status=1 ORDER BY id') });
   });
   r.post('/invites/settings', need('member'), (req, res) => {
     const b = req.body;
@@ -460,17 +545,26 @@ module.exports = function (r, { filesOf }) {
     const get = t => db.get("SELECT * FROM articles WHERE category='policy' AND topic=? ORDER BY id LIMIT 1", t) || { topic: t, title: t === 'privacy' ? '隐私政策' : '用户协议', content: '' };
     const consented = db.get("SELECT COUNT(*) n FROM users WHERE consent_version=? AND cancelled_at IS NULL", svc.S('policy_version') || '1.1').n;
     const total = db.get('SELECT COUNT(*) n FROM users WHERE cancelled_at IS NULL').n;
-    res.page('admin/policies', { title: '隐私政策 / 用户协议', privacy: get('privacy'), terms: get('terms'), version: svc.S('policy_version') || '1.1', consented, total, tab: req.query.tab === 'terms' ? 'terms' : 'privacy' });
+    const tab = req.query.tab === 'terms' ? 'terms' : 'privacy';
+    const history = db.all('SELECT id, version, title, admin_name, created_at, LENGTH(content) len FROM policy_versions WHERE topic=? ORDER BY id DESC LIMIT 30', tab);
+    res.page('admin/policies', { title: '隐私政策 / 用户协议', privacy: get('privacy'), terms: get('terms'), version: svc.S('policy_version') || '1.1', consented, total, tab, history });
+  });
+  // 历史版本快照(只读查看)
+  r.get('/policies/history/:id', need('content'), (req, res) => {
+    const h = db.get('SELECT * FROM policy_versions WHERE id=?', int(req.params.id)); if (!h) return res.redirect('/admin/policies');
+    res.page('admin/policy-history', { title: `${h.title} 历史版本 v${h.version}`, h });
   });
   r.post('/policies', need('content'), (req, res) => {
     const topic = req.body.topic === 'terms' ? 'terms' : 'privacy';
     const title = String(req.body.title || '').trim().slice(0, 30) || (topic === 'privacy' ? '隐私政策' : '用户协议');
     const content = String(req.body.content || '');
     if (!content.trim()) { flash(req, 'error', '内容不能为空'); return res.redirect('/admin/policies?tab=' + topic); }
+    const oldV = svc.S('policy_version') || '1.1', newV = String(req.body.version || '').trim().replace(/^v/i, '').slice(0, 20);
+    if (newV && !/^\d{1,3}(\.\d{1,3}){0,3}$/.test(newV)) { flash(req, 'error', '版本号格式应为数字,如 1.2'); return res.redirect('/admin/policies?tab=' + topic); }
     const ex = db.get("SELECT id FROM articles WHERE category='policy' AND topic=?", topic);
     if (ex) db.exec1('UPDATE articles SET title=?, content=?, status=1 WHERE id=?', title, content, ex.id);
     else db.exec1("INSERT INTO articles(category,topic,title,content,status,sort,created_at) VALUES('policy',?,?,?,1,0,?)", topic, title, content, now());
-    const oldV = svc.S('policy_version') || '1.1', newV = String(req.body.version || '').trim().slice(0, 20);
+    db.exec1('INSERT INTO policy_versions(topic,version,title,content,admin_name,created_at) VALUES(?,?,?,?,?,?)', topic, newV || oldV, title, content, req.session.admin.name || req.session.admin.username, now());
     if (newV && newV !== oldV) { svc.setSetting('policy_version', newV); log(req, '更新协议版本', `${oldV} → ${newV}`); }
     log(req, '编辑' + title, topic); flash(req, 'success', title + '已保存' + (newV && newV !== oldV ? `,版本号更新为 v${newV}(用户下次访问时需重新同意)` : '')); res.redirect('/admin/policies?tab=' + topic);
   });
@@ -492,32 +586,54 @@ module.exports = function (r, { filesOf }) {
     }) : [];
     res.page('admin/service', { title: '客服中心', convs, cur, orders, days, msgs: cur ? db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', cur.id) : [] });
   });
-  // 客服根据会话为用户创建售后单
-  r.post('/service/:uid/aftersale', need('service'), (req, res) => {
-    const uid = int(req.params.uid), back2 = m => { flash(req, 'error', m); res.redirect('/admin/service?uid=' + uid); };
-    const o = db.get('SELECT * FROM orders WHERE id=? AND user_id=?', int(req.body.order_id), uid);
-    if (!o || !['paid', 'shipped', 'completed'].includes(o.status) || o.type === 'points') return back2('该订单当前不可创建售后');
-    if (db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status IN ('pending','approved_return','returned')", o.id)) return back2('该订单已有进行中的售后单');
-    const type = req.body.type;
-    if (!U.AFTERSALE_TYPE[type]) return back2('请选择售后类型');
+  // 客服/订单详情页为用户创建售后单(售后统一由工作人员发起)
+  const createAftersale = (req, o, b) => {
+    if (!o || !['paid', 'shipped', 'completed'].includes(o.status) || o.type === 'points') return { msg: '该订单当前不可创建售后' };
+    if (db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status IN ('pending','approved_return','returned')", o.id)) return { msg: '该订单已有进行中的售后单' };
+    const type = b.type;
+    if (!U.AFTERSALE_TYPE[type]) return { msg: '请选择售后类型' };
     const items = db.all('SELECT product_id FROM order_items WHERE order_id=?', o.id);
     if (type === 'no_reason') {
       const daysSince = o.completed_at ? (Date.now() - U.parseDate(o.completed_at)) / 86400000 : null;
-      if (!items.every(i => !i.product_id || svc.noReasonOf(i.product_id))) return back2('该订单含不支持7天无理由退货的商品,请选择「质量问题退换货」或其他类型');
-      if (o.status !== 'completed' || daysSince === null || daysSince > 7) return back2('7天无理由退货仅限签收后 7 天内');
+      if (!items.every(i => !i.product_id || svc.noReasonOf(i.product_id))) return { msg: '该订单含不支持7天无理由退货的商品(如鲜活易腐类),请选择「质量问题退换货」或其他类型' };
+      if (o.status !== 'completed' || daysSince === null || daysSince > 7) return { msg: '7天无理由退货仅限签收后 7 天内' };
     }
-    if (type !== 'refund' && o.status === 'paid') return back2('订单尚未发货,请选择「仅退款」');
+    if (type !== 'refund' && o.status === 'paid') return { msg: '订单尚未发货,请选择「仅退款」' };
     const refunded = db.get("SELECT COALESCE(SUM(refund_cash),0) c FROM aftersales WHERE order_id=? AND status='refunded'", o.id).c;
     const max = round2(Math.max(0, o.pay_amount - refunded));
-    const amount = round2(num(req.body.amount, max));
-    if (amount < 0 || amount > max) return back2(`退款金额需在 0 ~ ${max.toFixed(2)} 之间`);
-    const reason = String(req.body.reason || '').trim().slice(0, 50); if (!reason) return back2('请填写售后原因');
-    const note = String(req.body.note || '').trim().slice(0, 500);
-    const r2 = db.exec1('INSERT INTO aftersales(order_id,user_id,type,reason,description,amount,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)', o.id, uid, type, reason, note, amount, 'pending', (req.session.admin.name || req.session.admin.username), now(), now());
-    db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', o.id, now(), `客服已创建售后单(${U.AFTERSALE_TYPE[type]})`);
-    svc.notifyService(uid, 'staff', `【售后通知】已为您的订单 ${o.order_no} 创建售后单 #${r2.lastInsertRowid}(${U.AFTERSALE_TYPE[type]},退款金额 ¥${amount.toFixed(2)}),我们会尽快处理,进度可在「我的 - 退款/售后」查看。`);
-    log(req, '创建售后单', `#${r2.lastInsertRowid} 订单 ${o.order_no} ${U.AFTERSALE_TYPE[type]} ¥${amount}`);
-    flash(req, 'success', `售后单 #${r2.lastInsertRowid} 已创建并通知用户`); res.redirect('/admin/aftersales/' + r2.lastInsertRowid);
+    const amount = round2(num(b.amount, max));
+    if (!(amount >= 0) || amount > max) return { msg: `退款金额需在 0 ~ ${max.toFixed(2)} 之间` };
+    const reason = String(b.reason || '').trim().slice(0, 50); if (!reason) return { msg: '请填写售后原因' };
+    const note = String(b.note || '').trim().slice(0, 500);
+    const id = db.transaction(() => {
+      const r2 = db.exec1('INSERT INTO aftersales(order_id,user_id,type,reason,description,amount,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)', o.id, o.user_id, type, reason, note, amount, 'pending', (req.session.admin.name || req.session.admin.username), now(), now());
+      db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', o.id, now(), `客服已创建售后单(${U.AFTERSALE_TYPE[type]})`);
+      svc.notifyService(o.user_id, 'staff', `【售后通知】已为您的订单 ${o.order_no} 创建售后单 #${r2.lastInsertRowid}(${U.AFTERSALE_TYPE[type]},退款金额 ¥${amount.toFixed(2)}),我们会尽快处理,进度可在「我的 - 退款/售后」查看。`);
+      log(req, '创建售后单', `#${r2.lastInsertRowid} 订单 ${o.order_no} ${U.AFTERSALE_TYPE[type]} ¥${amount}`);
+      return r2.lastInsertRowid;
+    })();
+    return { ok: true, id };
+  };
+  // 订单可创建售后的信息(订单详情页 / 客服中心共用)
+  const asInfo = o => {
+    const items = db.all('SELECT product_id FROM order_items WHERE order_id=?', o.id);
+    const active = db.get("SELECT id, status FROM aftersales WHERE order_id=? AND status IN ('pending','approved_return','returned') ORDER BY id DESC", o.id);
+    const refunded = db.get("SELECT COALESCE(SUM(refund_cash),0) c FROM aftersales WHERE order_id=? AND status='refunded'", o.id).c;
+    const noReason = items.every(i => !i.product_id || svc.noReasonOf(i.product_id));
+    const daysSince = o.completed_at ? Math.floor((Date.now() - U.parseDate(o.completed_at)) / 86400000) : null;
+    return { active, refunded, maxAmount: round2(Math.max(0, o.pay_amount - refunded)), noReason, daysSince, can7: noReason && o.status === 'completed' && daysSince !== null && daysSince <= 7 && o.type !== 'points', canCreate: ['paid', 'shipped', 'completed'].includes(o.status) && o.type !== 'points' && !active };
+  };
+  r.post('/service/:uid/aftersale', need('service'), (req, res) => {
+    const uid = int(req.params.uid);
+    const x = createAftersale(req, db.get('SELECT * FROM orders WHERE id=? AND user_id=?', int(req.body.order_id), uid), req.body);
+    if (!x.ok) { flash(req, 'error', x.msg); return res.redirect('/admin/service?uid=' + uid); }
+    flash(req, 'success', `售后单 #${x.id} 已创建并通知用户`); res.redirect('/admin/aftersales/' + x.id);
+  });
+  r.post('/orders/:id/aftersale', need('order'), (req, res) => {
+    const o = db.get('SELECT * FROM orders WHERE id=?', int(req.params.id));
+    const x = createAftersale(req, o, req.body);
+    if (!x.ok) { flash(req, 'error', x.msg); return res.redirect('/admin/orders/' + int(req.params.id) + '#aftersale'); }
+    flash(req, 'success', `售后单 #${x.id} 已创建并通知用户`); res.redirect('/admin/aftersales/' + x.id);
   });
   r.post('/service/:uid/reply', need('service'), (req, res) => { const c = String(req.body.content || '').trim().slice(0, 500); if (c && db.get('SELECT 1 FROM users WHERE id=?', int(req.params.uid))) { db.exec1("INSERT INTO messages(user_id,sender,content,created_at) VALUES(?,?,?,?)", int(req.params.uid), 'staff', c, now()); log(req, '客服回复', '#' + req.params.uid); } res.redirect('/admin/service?uid=' + int(req.params.uid)); });
 
@@ -574,11 +690,11 @@ module.exports = function (r, { filesOf }) {
       if (me && !b.status) return fail('不能停用自己');
       if (me && int(b.role_id) !== db.get('SELECT role_id FROM admins WHERE id=?', id).role_id && db.get('SELECT permissions FROM roles WHERE id=?', int(b.role_id)).permissions !== 'all') return fail('不能降低自己的权限');
       db.exec1('UPDATE admins SET username=?, name=?, role_id=?, status=? WHERE id=?', username, name, int(b.role_id), b.status ? 1 : 0, id);
-      if (pw) db.exec1('UPDATE admins SET password_hash=? WHERE id=?', bcrypt.hashSync(pw, 10), id);
+      if (pw) db.exec1('UPDATE admins SET password_hash=?, must_change_pw=? WHERE id=?', bcrypt.hashSync(pw, 10), me ? 0 : 1, id); // 他人重置的密码为临时密码,登录后须修改
       log(req, '编辑管理员', username);
     } else {
       if (pw.length < 8) return fail('密码至少 8 位');
-      db.exec1('INSERT INTO admins(username,password_hash,name,role_id,status,created_at) VALUES(?,?,?,?,?,?)', username, bcrypt.hashSync(pw, 10), name, int(b.role_id), b.status ? 1 : 0, now()); log(req, '新增管理员', username);
+      db.exec1('INSERT INTO admins(username,password_hash,name,role_id,status,must_change_pw,created_at) VALUES(?,?,?,?,?,1,?)', username, bcrypt.hashSync(pw, 10), name, int(b.role_id), b.status ? 1 : 0, now()); log(req, '新增管理员', username);
     }
     flash(req, 'success', '管理员已保存'); res.redirect('/admin/admins');
   });
@@ -587,18 +703,32 @@ module.exports = function (r, { filesOf }) {
     if (id === req.session.admin.id) flash(req, 'error', '不能删除自己'); else { db.exec1('DELETE FROM admins WHERE id=?', id); log(req, '删除管理员', '#' + id); flash(req, 'success', '已删除'); }
     res.redirect('/admin/admins');
   });
-  r.get('/password', need(null), (req, res) => res.page('admin/password', { title: '修改密码' }));
+  r.get('/password', need(null), (req, res) => res.page('admin/password', { title: '修改密码', forced: !!req.session.admin.mustChange, demo: isDemo() }));
   r.post('/password', need(null), (req, res) => {
-    const a = db.get('SELECT * FROM admins WHERE id=?', req.session.admin.id);
+    const a = db.get('SELECT * FROM admins WHERE id=?', req.session.admin.id), pw = String(req.body.password || '');
     if (!bcrypt.compareSync(String(req.body.old_password || ''), a.password_hash)) flash(req, 'error', '原密码错误');
-    else if (String(req.body.password || '').length < 8) flash(req, 'error', '新密码至少 8 位');
-    else if (req.body.password !== req.body.password2) flash(req, 'error', '两次输入不一致');
-    else { db.exec1('UPDATE admins SET password_hash=? WHERE id=?', bcrypt.hashSync(req.body.password, 10), a.id); log(req, '修改自己的密码', ''); flash(req, 'success', '密码已修改'); }
+    else if (pw.length < 8) flash(req, 'error', '新密码至少 8 位');
+    else if (pw !== req.body.password2) flash(req, 'error', '两次输入不一致');
+    else if (pw === req.body.old_password) flash(req, 'error', '新密码不能与原密码相同');
+    else if (Object.values(DEFAULT_PW).includes(pw) || /^(\d)\1+$|^12345678|^password$/i.test(pw)) flash(req, 'error', '新密码过于简单或为系统默认密码,请换一个');
+    else {
+      const wasForced = !!req.session.admin.mustChange;
+      db.exec1('UPDATE admins SET password_hash=?, must_change_pw=0 WHERE id=?', bcrypt.hashSync(pw, 10), a.id);
+      req.session.admin.mustChange = false; req.session.admin.pwSkipped = false;
+      log(req, '修改自己的密码', wasForced ? '首次登录强制改密' : ''); flash(req, 'success', '密码已修改');
+      if (wasForced) return res.redirect('/admin');
+    }
     res.redirect('/admin/password');
+  });
+  // 仅演示环境(环境变量 DEMO_MODE=1)可跳过强制改密
+  r.post('/password/skip', need(null), (req, res) => {
+    if (!isDemo()) { flash(req, 'error', '正式环境必须修改默认密码后才能使用后台'); return res.redirect('/admin/password'); }
+    if (req.session.admin.mustChange) { req.session.admin.mustChange = false; req.session.admin.pwSkipped = true; log(req, '演示模式跳过修改默认密码', ''); }
+    res.redirect('/admin');
   });
   r.get('/logs', need('system'), (req, res) => {
     const q = String(req.query.q || '').trim(), where = ['1=1'], params = []; if (q) { where.push('(admin_name LIKE ? OR action LIKE ? OR detail LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
     res.page('admin/logs', { title: '操作日志', pg: U.paginate(`SELECT * FROM admin_logs WHERE ${where.join(' AND ')} ORDER BY id DESC`, params, req.query.page, 25), q });
   });
-  r.get('/logs/export', need('stats'), (req, res) => sendCSV(res, '操作日志', ['时间', '管理员', '操作', '详情', 'IP'], db.all('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 5000').map(l => [l.created_at, l.admin_name, l.action, l.detail, l.ip])));
+  r.get('/logs/export', need('system'), (req, res) => void log(req, '导出操作日志CSV', '') || sendCSV(res, '操作日志', ['时间', '管理员', '操作', '详情', 'IP'], db.all('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 5000').map(l => [l.created_at, l.admin_name, l.action, l.detail, l.ip])));
 };

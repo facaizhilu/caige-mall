@@ -1,4 +1,5 @@
 // 冒烟测试:node test/smoke.js [baseUrl]  (需要服务已启动;会写入演示库,建议在全新库上运行)
+// 服务需以 DEMO_MODE=1 启动(演示账号使用默认密码,测试通过「演示环境:暂不修改」跳过强制改密)
 const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000);
 let pass = 0, fail = 0;
 class Client {
@@ -74,9 +75,13 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   console.log('== 后台 ==');
   r = await adm.get('/admin'); ok(r.status === 302 && r.loc === '/admin/login', '后台未登录跳转');
   r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'bad' }); ok(r.loc === '/admin/login', '后台错误密码');
-  r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin', '后台登录'); await adm.get('/admin');
+  r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin/password', '后台登录:默认密码登录后强制跳转修改密码');
+  r = await adm.get('/admin/orders'); ok(r.status === 302 && r.loc === '/admin/password', '未改默认密码时访问其他后台页面被拦截');
+  r = await adm.get('/admin/password'); ok(r.text.includes('系统默认密码') && r.text.includes('演示环境:暂不修改'), '改密页提示默认密码,演示环境可跳过');
+  r = await adm.post('/admin/password', { old_password: 'admin123', password: 'admin123', password2: 'admin123' }); r = await adm.get('/admin/password'); ok(r.text.includes('新密码不能与原密码相同') || r.text.includes('过于简单'), '不能把默认密码改成默认密码');
+  r = await adm.post('/admin/password/skip'); ok(r.loc === '/admin', '演示环境(DEMO_MODE=1)可跳过'); r = await adm.get('/admin'); ok(r.status === 200 && r.text.includes('仍在使用默认密码'), '跳过后后台顶部持续提醒修改默认密码');
   ok((await shop.get('/admin')).status === 302, '前台会话不能访问后台');
-  for (const p of ['/admin', '/admin/stats', '/admin/products', '/admin/products/new', '/admin/products/1/edit', '/admin/categories', '/admin/brands', '/admin/shipping', '/admin/inventory', '/admin/orders', '/admin/aftersales', '/admin/invoices', '/admin/reviews', '/admin/members', '/admin/members/1', '/admin/policies', '/admin/policies?tab=terms', '/admin/service?uid=1', '/admin/aftersales/1', '/admin/levels', '/admin/invites', '/admin/banned-words', '/admin/cloud-cards', '/admin/cloud-settings', '/admin/cloud-members', '/admin/service', '/admin/coupons', '/admin/seckills', '/admin/groupbuys', '/admin/groups', '/admin/points-goods', '/admin/banners', '/admin/keywords', '/admin/notices', '/admin/help-articles', '/admin/pages', '/admin/settings', '/admin/admins', '/admin/roles', '/admin/logs', '/admin/coupons/new', '/admin/seckills/new', '/admin/roles/1/edit']) { r = await adm.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
+  for (const p of ['/admin', '/admin/stats', '/admin/products', '/admin/products/new', '/admin/products/quick', '/admin/points-log', '/admin/points-log?dir=admin', '/admin/aftersales?q=CG', '/admin/invites?q=138', '/admin/invoices?q=CG', '/admin/policies?tab=terms', '/admin/products/1/edit', '/admin/categories', '/admin/brands', '/admin/shipping', '/admin/inventory', '/admin/orders', '/admin/aftersales', '/admin/invoices', '/admin/reviews', '/admin/members', '/admin/members/1', '/admin/policies', '/admin/policies?tab=terms', '/admin/service?uid=1', '/admin/aftersales/1', '/admin/levels', '/admin/invites', '/admin/banned-words', '/admin/cloud-cards', '/admin/cloud-settings', '/admin/cloud-members', '/admin/service', '/admin/coupons', '/admin/seckills', '/admin/groupbuys', '/admin/groups', '/admin/points-goods', '/admin/banners', '/admin/keywords', '/admin/notices', '/admin/help-articles', '/admin/pages', '/admin/settings', '/admin/admins', '/admin/roles', '/admin/logs', '/admin/coupons/new', '/admin/seckills/new', '/admin/roles/1/edit']) { r = await adm.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
   r = await adm.get('/admin/orders?q=' + orderNo); ok(r.text.includes(orderNo), '后台看到新订单');
   r = await adm.get('/admin/orders'); const aoid = oid;
   r = await adm.post('/admin/orders/' + aoid + '/ship', { company: '顺丰速运', tracking_no: 'SF12345678901' }); ok(r.status === 302, '后台发货');
@@ -145,9 +150,9 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/coupons/save', { name: '测试券', amount: '5', threshold: '50', total: '10', per_limit: '1', valid_days: '7', category_id: '0', status: '1' }); ok(r.status === 302, '新增优惠券');
   r = await adm.post('/admin/seckills/save', { sku_id: '1', price: '1', stock: '5', start_at: '2030-01-01T10:00', end_at: '2030-01-01T12:00', limit_per_user: '1', status: '1' }); ok(r.status === 302, '新增秒杀');
   r = await adm.post('/admin/settings', { shop_name: '财哥商城', slogan: '好货不贵,财源广进', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
-  for (const p of ['/admin/orders/export', '/admin/members/export', '/admin/export/products', '/admin/logs/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
+  for (const p of ['/admin/orders/export', '/admin/orders/export?status=completed', '/admin/members/export', '/admin/export/products', '/admin/logs/export', '/admin/points-log/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
   // RBAC
-  const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin');
+  const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin/password'); await ops.post('/admin/password/skip'); await ops.get('/admin');
   ok((await ops.get('/admin/products')).status === 200, 'RBAC: 运营可访问商品'); ok((await ops.get('/admin/orders')).status === 403, 'RBAC: 运营不可访问订单'); ok((await ops.get('/admin/admins')).status === 403, 'RBAC: 运营不可访问管理员');
   r = await adm.get('/admin/logs'); ok(r.text.includes('订单发货'), '操作日志记录发货');
   // 分销
@@ -210,7 +215,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/banned-words', { words: '躺赚\n普通商品' }); r = await adm.get('/admin/banned-words'); ok(r.text.includes('冒烟普通商品'), '违禁词表可编辑并即时生效');
   await adm.post('/admin/banned-words', { words: ['返佣', '收益', '佣金', '分销', '团队', '下线', '层级', '分红', '躺赚', '日赚', '稳赚', '积分提现', '最', '第一', '国家级', '100%', '顶级', '极品'].join('\n') });
   ok((await ops.get('/admin/cloud-cards')).status === 403, 'RBAC: 运营不可访问云商卡');
-  const kefu = new Client(); await kefu.get('/admin/login'); await kefu.post('/admin/login', { username: 'kefu', password: 'kefu123456' }); await kefu.get('/admin');
+  const kefu = new Client(); await kefu.get('/admin/login'); await kefu.post('/admin/login', { username: 'kefu', password: 'kefu123456' }); await kefu.get('/admin/password'); await kefu.post('/admin/password/skip'); await kefu.get('/admin');
   ok((await kefu.get('/admin/cloud-members')).status === 200, 'RBAC: 客服可访问云商卡会员');
   // ===== 七天无理由 =====
   console.log('== 七天无理由 ==');
