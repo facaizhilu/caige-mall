@@ -37,8 +37,10 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员', agree: '1' });
   ok(r.status === 302 && r.loc === '/me', '注册成功并登录', r.status + ' ' + r.loc);
   r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('会员中心'), '会员中心(新注册用户已同意协议,无需再次确认)');
-  ok(r.text.includes('href="/privacy"') && r.text.includes('href="/me/cancel"'), '我的菜单含隐私政策与注销账号');
-  r = await shop.get('/me/profile'); ok(!r.text.includes('生日') && !r.text.includes('birthday') && r.text.includes('注销账号'), '个人资料无生日字段,含注销入口');
+  ok(r.text.includes('href="/privacy"'), '我的菜单含隐私政策');
+  r = await shop.get('/me/profile'); ok(!r.text.includes('生日') && !r.text.includes('birthday') && r.text.includes('href="/me/cancel"'), '个人资料无生日字段,底部含注销入口');
+  ok(!r.text.includes('name="gender"') && !r.text.includes('性别'), 'A1:个人资料不再收集性别');
+  ok(r.text.lastIndexOf('href="/me/cancel"') > r.text.lastIndexOf('href="/me/history"'), '注销入口位于设置页底部');
   ok((await shop.get('/me/coupons')).text.includes('新人专享券'), '新人券已发放');
   r = await shop.post('/me/addresses', { name: '张三', phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '科技园 1 号' });
   ok(r.status === 302, '新增收货地址');
@@ -187,7 +189,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
   r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
   r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');
-  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '5', cloud_signin_extra_cap: '50', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
+  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '25', cloud_signin_extra_step: '2', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
   // 积分比例可配置,规则页同步
   r = await adm.post('/admin/settings', { shop_name: '财哥商城', points_rate: '200', points_max_percent: '30', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
   r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '后台修改积分比例/上限后积分规则页同步');

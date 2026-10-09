@@ -291,7 +291,7 @@ module.exports = function (r, { filesOf }) {
     const rv = db.get('SELECT * FROM reviews WHERE id=?', int(req.params.id)); if (!rv) return res.redirect('/admin/reviews');
     const act = req.params.act;
     if (act === 'approve' && rv.status !== 'approved') {
-      db.transaction(() => { db.exec1("UPDATE reviews SET status='approved' WHERE id=?", rv.id); if (rv.status === 'pending') svc.addPoints(rv.user_id, int(svc.S('review_points'), 10), '评价奖励'); })(); log(req, '评价审核通过', '#' + rv.id);
+      db.transaction(() => { db.exec1("UPDATE reviews SET status='approved', points_awarded=1 WHERE id=?", rv.id); if (!rv.points_awarded && rv.status === 'pending') svc.addPoints(rv.user_id, int(svc.S('review_points'), 10), '评价奖励'); })(); // 新评价在发表时已发放积分;仅补发旧版待审核评价 log(req, '评价审核通过', '#' + rv.id);
     } else if (act === 'reject') { db.exec1("UPDATE reviews SET status='rejected' WHERE id=?", rv.id); log(req, '评价审核拒绝', '#' + rv.id); }
     else if (act === 'reply') { db.exec1('UPDATE reviews SET reply=? WHERE id=?', String(req.body.reply || '').slice(0, 300), rv.id); log(req, '回复评价', '#' + rv.id); }
     else if (act === 'delete') { db.exec1('DELETE FROM reviews WHERE id=?', rv.id); log(req, '删除评价', '#' + rv.id); }
@@ -310,7 +310,7 @@ module.exports = function (r, { filesOf }) {
     const pg = U.paginate(`SELECT u.*, l.name level_name, l.color level_color, (SELECT COUNT(*) FROM orders o WHERE o.user_id=u.id) order_count FROM users u LEFT JOIN member_levels l ON l.id=u.level_id WHERE ${where.join(' AND ')} ORDER BY ${order}`, params, req.query.page, 15);
     res.page('admin/members', { title: '会员管理', pg, q, level, status, sort, consent: req.query.consent || '', levels: db.all('SELECT * FROM member_levels ORDER BY min_growth') });
   });
-  r.get('/members/export', need('stats'), (req, res) => { log(req, '导出会员CSV', ''); sendCSV(res, '会员', ['ID', '手机号', '昵称', '性别', '等级', '成长值', '积分', '累计消费', '状态', '同意协议时间', '协议版本', '注销时间', '注册时间', '最近登录'], db.all('SELECT u.*, l.name ln FROM users u LEFT JOIN member_levels l ON l.id=u.level_id ORDER BY u.id').map(u => [u.id, u.cancelled_at ? '(已注销)' : u.phone, u.nickname, u.gender, u.ln, u.growth, u.points, u.total_spent, u.cancelled_at ? '已注销' : u.status ? '正常' : '禁用', u.consent_at || '', u.consent_version || '', u.cancelled_at || '', u.created_at, u.last_login])); });
+  r.get('/members/export', need('stats'), (req, res) => { log(req, '导出会员CSV', ''); sendCSV(res, '会员', ['ID', '手机号', '昵称', '等级', '成长值', '积分', '累计消费', '状态', '同意协议时间', '协议版本', '注销时间', '注册时间', '最近登录'], db.all('SELECT u.*, l.name ln FROM users u LEFT JOIN member_levels l ON l.id=u.level_id ORDER BY u.id').map(u => [u.id, u.cancelled_at ? '(已注销)' : u.phone, u.nickname, u.ln, u.growth, u.points, u.total_spent, u.cancelled_at ? '已注销' : u.status ? '正常' : '禁用', u.consent_at || '', u.consent_version || '', u.cancelled_at || '', u.created_at, u.last_login])); });
   r.get('/members/:id', need('member'), (req, res) => {
     const u = db.get('SELECT u.*, l.name level_name, l.color level_color, ref.nickname ref_name FROM users u LEFT JOIN member_levels l ON l.id=u.level_id LEFT JOIN users ref ON ref.id=u.referrer_id WHERE u.id=?', int(req.params.id));
     if (!u) { flash(req, 'error', '会员不存在'); return res.redirect('/admin/members'); }
@@ -378,17 +378,17 @@ module.exports = function (r, { filesOf }) {
     validate: row => (!['silver', 'gold'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null)
   }, ctx);
 
-  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_cap', 'cloud_extra_expire_days'];
+  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_step', 'cloud_extra_expire_days'];
   r.get('/cloud-settings', need('member'), (req, res) => { svc.cloud.ensureDefaults(); res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings() }); });
   r.post('/cloud-settings', need('member'), (req, res) => {
     const b = req.body;
-    const d = int(b.cloud_discount, 0), ex = int(b.cloud_signin_extra, -1), cap = int(b.cloud_signin_extra_cap, -1), exp = int(b.cloud_extra_expire_days, 0);
+    const d = int(b.cloud_discount, 0), ex = int(b.cloud_signin_extra, -1), step = int(b.cloud_signin_extra_step, -1), exp = int(b.cloud_extra_expire_days, 0);
     if (d < 50 || d > 100) { flash(req, 'error', '会员价折扣需在 50~100 之间(100=不打折)'); return res.redirect('/admin/cloud-settings'); }
-    if (ex < 0 || ex > 100) { flash(req, 'error', '签到加赠积分需为 0~100'); return res.redirect('/admin/cloud-settings'); }
-    if (cap < 0 || cap > 3000) { flash(req, 'error', '每月加赠上限需为 0~3000'); return res.redirect('/admin/cloud-settings'); }
+    if (ex < 0 || ex > 1000) { flash(req, 'error', '连续签到第 1 天加赠积分需为 0~1000'); return res.redirect('/admin/cloud-settings'); }
+    if (step < 0 || step > 100) { flash(req, 'error', '每连续 1 天递增积分需为 0~100'); return res.redirect('/admin/cloud-settings'); }
     if (exp < 1 || exp > 365) { flash(req, 'error', '加赠积分有效期需为 1~365 天'); return res.redirect('/admin/cloud-settings'); }
     svc.setSetting('cloud_discount', d); svc.setSetting('cloud_free_shipping', b.cloud_free_shipping ? '1' : '0');
-    svc.setSetting('cloud_signin_extra', ex); svc.setSetting('cloud_signin_extra_cap', cap); svc.setSetting('cloud_extra_expire_days', exp);
+    svc.setSetting('cloud_signin_extra', ex); svc.setSetting('cloud_signin_extra_step', step); svc.setSetting('cloud_extra_expire_days', exp);
     log(req, '修改云商卡配置', CLOUD_KEYS.map(k => k + '=' + svc.S(k)).join(' '));
     flash(req, 'success', '云商卡配置已保存'); res.redirect('/admin/cloud-settings');
   });
@@ -457,9 +457,9 @@ module.exports = function (r, { filesOf }) {
   // 隐私政策 / 用户协议(文章形式存储,带版本号;提升版本号后老用户下次访问需重新同意)
   r.get('/policies', need('content'), (req, res) => {
     const get = t => db.get("SELECT * FROM articles WHERE category='policy' AND topic=? ORDER BY id LIMIT 1", t) || { topic: t, title: t === 'privacy' ? '隐私政策' : '用户协议', content: '' };
-    const consented = db.get("SELECT COUNT(*) n FROM users WHERE consent_version=? AND cancelled_at IS NULL", svc.S('policy_version') || '1.0').n;
+    const consented = db.get("SELECT COUNT(*) n FROM users WHERE consent_version=? AND cancelled_at IS NULL", svc.S('policy_version') || '1.1').n;
     const total = db.get('SELECT COUNT(*) n FROM users WHERE cancelled_at IS NULL').n;
-    res.page('admin/policies', { title: '隐私政策 / 用户协议', privacy: get('privacy'), terms: get('terms'), version: svc.S('policy_version') || '1.0', consented, total, tab: req.query.tab === 'terms' ? 'terms' : 'privacy' });
+    res.page('admin/policies', { title: '隐私政策 / 用户协议', privacy: get('privacy'), terms: get('terms'), version: svc.S('policy_version') || '1.1', consented, total, tab: req.query.tab === 'terms' ? 'terms' : 'privacy' });
   });
   r.post('/policies', need('content'), (req, res) => {
     const topic = req.body.topic === 'terms' ? 'terms' : 'privacy';
@@ -469,7 +469,7 @@ module.exports = function (r, { filesOf }) {
     const ex = db.get("SELECT id FROM articles WHERE category='policy' AND topic=?", topic);
     if (ex) db.exec1('UPDATE articles SET title=?, content=?, status=1 WHERE id=?', title, content, ex.id);
     else db.exec1("INSERT INTO articles(category,topic,title,content,status,sort,created_at) VALUES('policy',?,?,?,1,0,?)", topic, title, content, now());
-    const oldV = svc.S('policy_version') || '1.0', newV = String(req.body.version || '').trim().slice(0, 20);
+    const oldV = svc.S('policy_version') || '1.1', newV = String(req.body.version || '').trim().slice(0, 20);
     if (newV && newV !== oldV) { svc.setSetting('policy_version', newV); log(req, '更新协议版本', `${oldV} → ${newV}`); }
     log(req, '编辑' + title, topic); flash(req, 'success', title + '已保存' + (newV && newV !== oldV ? `,版本号更新为 v${newV}(用户下次访问时需重新同意)` : '')); res.redirect('/admin/policies?tab=' + topic);
   });

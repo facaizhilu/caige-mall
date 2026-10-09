@@ -175,5 +175,67 @@ class C { constructor() { this.k = {}; this.t = ''; }
   ok(cloud.signinExtra(3, svc.addPoints) === 0, '过期/未开通会员无签到加赠');
   ok(!db.get("SELECT name FROM sqlite_master WHERE name IN ('commissions','cloud_referral_log','cloud_daily_log','cloud_redeem_requests')"), '分销/推三返一/每日返积分/兑换申请表已归档');
 
+  console.log('== v1.1 合规修订 ==');
+  {
+    const U2 = require('../lib/util');
+    const ok2 = ok;
+    ok2(cloud.extraForStreak(1) === 25 && cloud.extraForStreak(2) === 27 && cloud.extraForStreak(3) === 29 && cloud.extraForStreak(40) === 103, '云商卡签到加赠:25、27、29……逐日递增');
+    db.prepare("DELETE FROM signins WHERE user_id=1 AND day=?").run(U2.today());
+    let tot = 0; for (let i = 0; i < 5; i++) tot += cloud.signinExtra(1, svc.addPoints, 30); ok2(tot === 5 * 83, '云商卡签到加赠不设每月上限', tot);
+    const c1 = new C(); await c1.login('13800000001', '123456');
+    // C2:久远的已完成订单仍有质量问题售后入口
+    const o1 = db.get("SELECT id FROM orders WHERE user_id=1 AND status='completed' AND type='normal' AND id NOT IN (SELECT order_id FROM aftersales WHERE status IN ('pending','approved_return','returned')) ORDER BY id LIMIT 1");
+    db.prepare("UPDATE orders SET completed_at=? WHERE id=?").run(U2.offset(-60 * 86400000), o1.id);
+    r = await c1.get('/order/' + o1.id); ok2(r.text.includes('联系客服申请售后(质量问题)') && r.text.includes('已超过七天无理由退货期'), 'C2:60 天前完成的订单仍可联系客服申请质量问题售后');
+    r = await c1.get('/orders'); ok2(r.text.includes('/order/' + o1.id + '/aftersale'), 'C2:订单列表也保留售后入口');
+    r = await c1.post('/order/' + o1.id + '/aftersale'); ok2(r.loc === '/service#end', 'C2:售后申请转客服');
+    // C1:鲜活易腐商品页
+    r = await c1.get('/product/8'); ok2(r.text.includes('本商品属于鲜活易腐类,不支持七天无理由退货') && !r.text.includes('签收后 7 天内可申请') && !r.text.includes('7天无理由退换') && !r.text.includes('全国联保'), 'C1:鲜活易腐商品页无七天无理由模板文案');
+    r = await c1.get('/product/9'); ok2(!/全国联保|假一赔十|财哥严选/.test(r.text), 'G6:商品详情无全国联保/假一赔十/财哥严选');
+    // G3:无评价不显示好评率
+    const noRv = db.get("SELECT id FROM products WHERE status=1 AND id NOT IN (SELECT product_id FROM reviews WHERE status='approved') LIMIT 1");
+    r = await c1.get('/product/' + noRv.id); ok2(r.text.includes('暂无评价') && !r.text.includes('好评率'), 'G3:无评价时显示「暂无评价」');
+    // G4:秒杀未开始不把原价标为秒杀价
+    const skPre = db.get("SELECT * FROM seckills WHERE start_at>? AND status=1 LIMIT 1", U2.now());
+    if (skPre) { r = await c1.get('/product/' + skPre.product_id); ok2(r.text.includes('秒杀价 <b style="color:var(--red)">¥' + skPre.price + '</b>') && r.text.includes('开抢') && !r.text.includes(' 秒杀价,每人限购'), 'G4:秒杀未开始时显示「秒杀价 ¥x,开抢时间」'); }
+    // G1 / D1
+    r = await c1.get('/'); ok2(r.text.includes('普通商品满99元包邮(大件、偏远地区除外') && !r.text.includes('全场满99'), 'G1:包邮口径更新');
+    r = await c1.get('/notices'); ok2(!r.text.includes('积分翻倍'), 'D1:积分翻倍公告已下线');
+    ok2(['全国联保', '假一赔十', '财哥严选'].every(w => require('../lib/banned').words().includes(w)), 'G6:违禁词表含全国联保/假一赔十/财哥严选');
+    // 协议
+    ok2(svc.S('policy_version') === '1.1', '协议版本 1.1');
+    r = await c1.get('/privacy'); ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '【公司全称】', '【联系邮箱】', '【生效日期】', '版本号:1.1'].every(x => r.text.includes(x)), '隐私政策补充 A2/A3/A4/A11,保留占位符');
+    r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
+    r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
+    r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('不设每日或每月上限') && !r.text.includes('{{'), '积分规则:评价积分与云商卡递增加赠');
+    r = await c1.get('/me/cloud'); ok2(r.text.includes('25、27、29') && !r.text.includes('每月最多'), '云商卡页:递增加赠说明');
+    // A1:性别不再保存
+    db.prepare("UPDATE users SET gender='保密' WHERE id=1").run();
+    await c1.get('/me/profile'); await c1.post('/me/profile', { nickname: '财哥粉丝', gender: '男' }); ok2(db.get('SELECT gender FROM users WHERE id=1').gender === '保密', 'A1:提交 gender 不被保存');
+    // D2:差评也在发表时发放积分,审核通过不重复发放
+    const oc = db.get("SELECT o.id, i.id iid FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.user_id=1 AND o.status='completed' AND i.product_id IS NOT NULL ORDER BY o.id LIMIT 1");
+    ok2(!!oc, 'D2:找到可评价订单');
+    if (oc) {
+      db.prepare('UPDATE order_items SET reviewed=0 WHERE id=?').run(oc.iid);
+      r = await c1.get('/order/' + oc.id + '/review'); const iid = (r.text.match(/name="content_(\d+)"/) || [])[1];
+      ok2(r.text.includes('与评分高低无关'), 'D2:评价页文案');
+      const p0 = db.get('SELECT points FROM users WHERE id=1').points;
+      await c1.post('/order/' + oc.id + '/review', { ['rating_' + iid]: '1', ['content_' + iid]: '差评测试:不太满意' });
+      const p1 = db.get('SELECT points FROM users WHERE id=1').points; ok2(p1 === p0 + 10, 'D2:一星差评发表即得 10 积分', p1 - p0);
+      const rvId = db.get("SELECT id FROM reviews WHERE content='差评测试:不太满意'").id;
+      await adm.post('/admin/reviews/' + rvId + '/approve'); ok2(db.get('SELECT points FROM users WHERE id=1').points === p1, 'D2:审核通过不重复发放');
+    }
+    // H1:待付款订单不阻止注销,注销时自动取消
+    const h = new C(); const hp = '137' + String(Date.now()).slice(-8);
+    await h.get('/register'); await h.post('/register', { phone: hp, password: 'abc12345', password2: 'abc12345', nickname: '注销测2', agree: '1' }); await h.get('/me');
+    await h.post('/me/addresses', { name: '注销测', phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '注销路 2 号' });
+    const sk9 = (await h.get('/product/9')).text.match(/\{"id":(\d+),"attrs"/)[1];
+    r = await h.post('/checkout', { sku_id: sk9, qty: 1 });
+    r = await h.post('/order/create', { items: itemsRaw(r.text), address_id: (r.text.match(/name="address_id" value="(\d+)"/) || [])[1] }); const hoid = (r.loc.match(/order\/(\d+)/) || [])[1];
+    ok2(db.get('SELECT status FROM orders WHERE id=?', hoid).status === 'unpaid', 'H1:已有待付款订单');
+    r = await h.get('/me/cancel'); ok2(!r.text.includes('暂不能注销') && r.text.includes('将在注销时自动取消'), 'H1:待付款订单不阻止注销');
+    r = await h.post('/me/cancel', { confirm_text: '确认注销', ack: '1' }); ok2(r.loc === '/' && db.get('SELECT status FROM orders WHERE id=?', hoid).status === 'cancelled', 'H1:注销时自动取消待付款订单');
+  }
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

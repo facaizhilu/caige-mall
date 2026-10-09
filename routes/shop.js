@@ -89,7 +89,10 @@ module.exports = function (app, { filesOf }) {
       faved = !!db.get('SELECT 1 FROM favorites WHERE user_id=? AND product_id=?', req.user.id, p.id);
       db.exec1('INSERT OR REPLACE INTO history(user_id,product_id,viewed_at) VALUES(?,?,?)', req.user.id, p.id, now());
     }
-    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, freight, faved, noReason: svc.noReasonOf(p.id) });
+    // 好评率:无评价显示「暂无评价」;评价少于 RATE_MIN 条时只显示条数,不显示百分比(避免误导)
+    const RATE_MIN = 10;
+    const rateText = !rs.n ? '暂无评价' : rs.n < RATE_MIN ? `共 ${rs.n} 条评价` : `好评率 ${Math.round((rs.good || 0) / rs.n * 100)}%(共 ${rs.n} 条评价)`;
+    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, freight, faved, noReason: svc.noReasonOf(p.id), RATE_MIN, rateText });
   });
 
   app.post('/favorite/:id', needLogin, (req, res) => {
@@ -200,14 +203,24 @@ module.exports = function (app, { filesOf }) {
     const counts = {}; for (const r of db.all('SELECT status, COUNT(*) n FROM orders WHERE user_id=? GROUP BY status', req.user.id)) counts[r.status] = r.n;
     res.page('shop/orders', { title: '我的订单', pg, st, counts });
   });
-  // 可联系客服申请售后:已付款/已发货/已完成(完成后 N 天内),非积分兑换单,且无进行中的售后
+  // 可联系客服申请售后:已付款/已发货/已完成(不限完成时间:质量问题售后始终可申请,只有七天无理由退货会过期),
+  // 非积分兑换单,且无进行中的售后(与后台客服创建售后单的条件一致)
   function canAftersale(o) {
     if (!o || o.type === 'points' || !['paid', 'shipped', 'completed'].includes(o.status)) return false;
-    const days = int(svc.S('aftersale_days'), 7);
-    if (o.status === 'completed' && U.parseDate(o.completed_at) < new Date(Date.now() - Math.max(days, 15) * 86400000)) return false;
-    return !db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status NOT IN ('rejected','cancelled')", o.id);
+    return !db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status IN ('pending','approved_return','returned')", o.id);
+  }
+  // 售后入口文案:已完成订单超过七天无理由退货期(或商品不支持七天无理由)时,入口标明「质量问题」并提示
+  function aftersaleInfo(o) {
+    if (!canAftersale(o)) return null;
+    if (o.status !== 'completed') return { label: '💬 联系客服申请售后', note: '' };
+    const past7 = !o.completed_at || U.parseDate(o.completed_at) < new Date(Date.now() - 7 * 86400000);
+    const no7 = db.all('SELECT product_id FROM order_items WHERE order_id=?', o.id).some(i => i.product_id && !svc.noReasonOf(i.product_id));
+    if (past7) return { label: '💬 联系客服申请售后(质量问题)', note: '已超过七天无理由退货期,如有质量问题仍可联系客服处理' };
+    if (no7) return { label: '💬 联系客服申请售后(质量问题)', note: '该订单含不支持七天无理由退货的商品,如有质量问题可联系客服处理' };
+    return { label: '💬 联系客服申请售后', note: '' };
   }
   app.locals.canAftersale = canAftersale;
+  app.locals.aftersaleInfo = aftersaleInfo;
   app.get('/order/:id', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
     if (!o) return res.status(404).page('shop/error', { title: '订单不存在', code: 404, message: '订单不存在' });
@@ -217,7 +230,7 @@ module.exports = function (app, { filesOf }) {
     const invoice = db.get('SELECT * FROM invoices WHERE order_id=?', o.id);
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     const expireAt = o.status === 'unpaid' ? U.fmtDate(new Date(U.parseDate(o.created_at).getTime() + int(svc.S('unpaid_cancel_minutes'), 30) * 60000)) : null;
-    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o) });
+    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o), afterInfo: aftersaleInfo(o) });
   });
   app.get('/order/:id/pay', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
@@ -267,15 +280,20 @@ module.exports = function (app, { filesOf }) {
   app.post('/order/:id/review', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
     if (!o || o.status !== 'completed') { flash(req, 'error', '仅已完成订单可评价'); return res.redirect('/orders'); }
+    // 评价积分:发表文字评价即发放,与评分高低、审核结果无关(审核仅过滤违法违规或与商品无关的内容)
+    const pts = Math.max(0, int(svc.S('review_points'), 10));
     let n = 0;
-    for (const it of db.all('SELECT * FROM order_items WHERE order_id=? AND reviewed=0 AND product_id IS NOT NULL', o.id)) {
-      const content = String(req.body['content_' + it.id] || '').trim().slice(0, 500);
-      if (!content) continue;
-      const rating = Math.min(5, Math.max(1, int(req.body['rating_' + it.id], 5)));
-      db.exec1('INSERT INTO reviews(product_id,order_id,order_item_id,user_id,rating,content,status,created_at) VALUES(?,?,?,?,?,?,?,?)', it.product_id, o.id, it.id, req.user.id, rating, content, 'pending', now());
-      db.exec1('UPDATE order_items SET reviewed=1 WHERE id=?', it.id); n++;
-    }
-    flash(req, n ? 'success' : 'error', n ? '评价已提交,审核通过后展示并奖励积分' : '请至少填写一条评价内容');
+    db.transaction(() => {
+      for (const it of db.all('SELECT * FROM order_items WHERE order_id=? AND reviewed=0 AND product_id IS NOT NULL', o.id)) {
+        const content = String(req.body['content_' + it.id] || '').trim().slice(0, 500);
+        if (!content) continue;
+        const rating = Math.min(5, Math.max(1, int(req.body['rating_' + it.id], 5)));
+        db.exec1('INSERT INTO reviews(product_id,order_id,order_item_id,user_id,rating,content,status,points_awarded,created_at) VALUES(?,?,?,?,?,?,?,?,?)', it.product_id, o.id, it.id, req.user.id, rating, content, 'pending', pts ? 1 : 0, now());
+        db.exec1('UPDATE order_items SET reviewed=1 WHERE id=?', it.id); n++;
+        if (pts) svc.addPoints(req.user.id, pts, '评价奖励');
+      }
+    })();
+    flash(req, n ? 'success' : 'error', n ? (pts ? `评价已提交,已发放 ${pts * n} 积分;评价经审核后展示` : '评价已提交,经审核后展示') : '请至少填写一条评价内容');
     res.redirect(n ? '/me/reviews' : '/order/' + o.id + '/review');
   });
   app.get('/me/reviews', needLogin, (req, res) => {
@@ -401,8 +419,8 @@ module.exports = function (app, { filesOf }) {
   });
   app.post('/me/profile', needLogin, (req, res) => {
     const nick = String(req.body.nickname || '').trim().slice(0, 20) || req.user.nickname;
-    const g = ['男', '女', '保密'].includes(req.body.gender) ? req.body.gender : '保密';
-    db.exec1('UPDATE users SET nickname=?, gender=? WHERE id=?', nick, g, req.user.id);
+    // 不收集性别(数据最小化):忽略任何 gender 参数,users.gender 列保留但不再使用
+    db.exec1('UPDATE users SET nickname=? WHERE id=?', nick, req.user.id);
     flash(req, 'success', '资料已保存'); res.redirect('/me/profile');
   });
   app.get('/me/profile', needLogin, (req, res) => res.page('shop/profile', { title: '个人资料' }));
@@ -457,7 +475,7 @@ module.exports = function (app, { filesOf }) {
   });
 
   // ---------------- 隐私政策 / 用户协议 / 同意 ----------------
-  const policyVersion = () => svc.S('policy_version') || '1.0';
+  const policyVersion = () => svc.S('policy_version') || '1.1';
   const policy = topic => {
     const a = db.get("SELECT * FROM articles WHERE category='policy' AND topic=? ORDER BY id LIMIT 1", topic);
     return a ? { ...a, content: String(a.content || '').split('{{version}}').join(policyVersion()) } : null;
@@ -480,23 +498,26 @@ module.exports = function (app, { filesOf }) {
   });
 
   // ---------------- 注销账号 ----------------
+  // 仅待发货/待收货订单与处理中的售后暂缓注销;待付款订单不构成障碍,注销时自动取消
   const cancelBlockers = uid => {
-    const b = [];
-    const o = db.get("SELECT COUNT(*) n FROM orders WHERE user_id=? AND status IN ('unpaid','paid','shipped')", uid).n;
-    if (o) b.push(`有 ${o} 笔未完成的订单(待付款/待发货/待收货)`);
+    const o = db.get("SELECT COUNT(*) n FROM orders WHERE user_id=? AND status IN ('paid','shipped')", uid).n;
     const a = db.get("SELECT COUNT(*) n FROM aftersales WHERE user_id=? AND status IN ('pending','approved_return','returned')", uid).n;
-    if (a) b.push(`有 ${a} 个处理中的售后`);
-    return b;
+    return o + a;
   };
-  app.get('/me/cancel', needLogin, (req, res) => res.page('shop/cancel-account', { title: '注销账号', blockers: cancelBlockers(req.user.id) }));
+  const cancelBlockMsg = n => `暂不能注销:有 ${n} 笔待发货/待收货订单或处理中的售后,请处理完毕后再申请注销(待付款订单将在注销时自动取消)。`;
+  const unpaidCount = uid => db.get("SELECT COUNT(*) n FROM orders WHERE user_id=? AND status='unpaid'", uid).n;
+  app.get('/me/cancel', needLogin, (req, res) => { const n = cancelBlockers(req.user.id); res.page('shop/cancel-account', { title: '注销账号', blocked: n > 0, blockMsg: n ? cancelBlockMsg(n) : '', unpaid: unpaidCount(req.user.id) }); });
   app.post('/me/cancel', needLogin, (req, res) => {
     const uid = req.user.id;
-    const blockers = cancelBlockers(uid);
-    if (blockers.length) { flash(req, 'error', '暂不能注销:' + blockers.join(';')); return res.redirect('/me/cancel'); }
+    const nb = cancelBlockers(uid);
+    if (nb) { flash(req, 'error', cancelBlockMsg(nb)); return res.redirect('/me/cancel'); }
     if (String(req.body.confirm_text || '').trim() !== '确认注销') { flash(req, 'error', '请在输入框中填写「确认注销」'); return res.redirect('/me/cancel'); }
     if (req.body.ack !== '1') { flash(req, 'error', '请勾选「我已了解注销后果」'); return res.redirect('/me/cancel'); }
     db.transaction(() => {
       const t = now();
+      // 待付款订单自动取消(释放库存、退回优惠券与抵扣积分,随后积分随注销清零)
+      for (const uo of db.all("SELECT id FROM orders WHERE user_id=? AND status='unpaid'", uid)) svc.cancelOrder(uo.id, '账号注销自动取消');
+      const ptsNow = db.get('SELECT points FROM users WHERE id=?', uid).points;
       // 账号本身:去标识化,保留 id 以便订单等法定留存记录匿名关联
       db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, remark=NULL,
         signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
@@ -507,7 +528,7 @@ module.exports = function (app, { filesOf }) {
       db.exec1("UPDATE invoices SET email='', title=CASE WHEN type='personal' THEN '个人' ELSE title END WHERE user_id=?", uid);
       db.exec1("UPDATE orders SET receiver='已注销用户', phone='***', detail='***', remark='' WHERE user_id=?", uid);
       db.exec1("UPDATE reviews SET status='hidden' WHERE user_id=?", uid);
-      db.exec1('INSERT INTO points_log(user_id,delta,balance,reason,created_at) VALUES(?,?,?,?,?)', uid, -(req.user.points || 0), 0, '账号注销,积分清零', t);
+      db.exec1('INSERT INTO points_log(user_id,delta,balance,reason,created_at) VALUES(?,?,?,?,?)', uid, -(ptsNow || 0), 0, '账号注销,积分清零', t);
     })();
     req.session.regenerate(() => { req.session.flash = { type: 'success', msg: '账号已注销,感谢您的使用' }; req.session.save(() => res.redirect('/')); });
   });
@@ -529,8 +550,8 @@ module.exports = function (app, { filesOf }) {
       db.exec1('INSERT INTO signins(user_id,day,points,streak) VALUES(?,?,?,?)', u.id, today, pts, streak);
       db.exec1('UPDATE users SET signin_streak=?, last_signin=? WHERE id=?', streak, today, u.id);
       svc.addPoints(u.id, pts, `每日签到(连续${streak}天)`); svc.addGrowth(u.id, 2);
-      // 云商卡会员:仅在主动签到时加赠,当月封顶,限期有效
-      const extra = svc.cloud.signinExtra(u.id, svc.addPoints);
+      // 云商卡会员:仅在主动签到时加赠,按连续签到天数递增(不设上限),限期有效
+      const extra = svc.cloud.signinExtra(u.id, svc.addPoints, streak);
       if (extra) db.exec1('UPDATE signins SET extra=? WHERE user_id=? AND day=?', extra, u.id, today);
       const msg = extra
         ? `签到成功,获得 ${pts} 积分(连续${streak}天),云商卡会员加赠 +${extra}`

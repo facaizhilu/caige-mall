@@ -8,7 +8,8 @@ const ejs = require('ejs');
 const db = require('./lib/db');
 const U = require('./lib/util');
 const svc = require('./lib/svc');
-const { RETURN_HELP, CLOUD_HELP } = require('./lib/seed-texts');
+const { RETURN_HELP, CLOUD_HELP, SEED_DESC_EDITS, CLOUD_HELP_EDIT } = require('./lib/seed-texts');
+const banned = require('./lib/banned');
 const SqliteStore = require('./lib/session-store');
 
 if (db.get('SELECT COUNT(*) n FROM admins').n === 0) require('./lib/seed')(false);
@@ -40,6 +41,35 @@ svc.cloud.ensureDefaults();
     db.exec1("UPDATE articles SET content='<p>积分可在下单时抵扣部分金额,抵扣比例与单笔上限以《积分规则》页面公示为准。优惠券需满足门槛,每单限用一张。</p>' WHERE category='help' AND title='积分与优惠券使用说明'");
     db.exec1("UPDATE articles SET content=REPLACE(content,'<b>积分仅限本账户使用,不可转让、不可提现、不可兑换现金</b>','<b>积分仅限本账户使用,不可购买、不可转让、不可提现、不可兑换现金</b>,具体以《积分规则》为准') WHERE category='policy' AND topic='terms'");
     mark('batch3_texts');
+  }
+  if (!done('v11_compliance')) { // 合规审查报告 v1.1 修订:同步旧库中的展示文案与协议(仅替换仍为原文的内容)
+    db.transaction(() => {
+      // G1:顶部公告与首页 Banner 的包邮口径与运费模板一致
+      const ann = svc.S('announcement');
+      if (ann === '🎉 财哥商城开业大吉!新人注册即送积分与优惠券,全场满99元包邮') svc.setSetting('announcement', svc.ANNOUNCEMENT);
+      else if (ann && ann.includes('全场满99元包邮')) svc.setSetting('announcement', ann.split('全场满99元包邮').join('普通商品满99元包邮(大件、偏远地区除外,以商品页标示为准)'));
+      db.exec1("UPDATE banners SET subtitle=REPLACE(subtitle,'全场满99包邮','普通商品满99元包邮(大件、偏远地区除外)') WHERE subtitle LIKE '%全场满99包邮%'");
+      // D1:积分规则中没有「每周五积分翻倍」活动,下线该公告(保留记录,status=0)
+      db.exec1("UPDATE articles SET status=0 WHERE category='notice' AND title LIKE '%积分翻倍%'");
+      // C1/G6:商品详情通用模板去掉「财哥严选」「假一赔十」「7天无理由退换」「全国联保」(退货政策以商品页「服务」栏按商品实际显示)
+      for (const [o, n] of SEED_DESC_EDITS) db.exec1('UPDATE products SET description=REPLACE(description,?,?) WHERE instr(description,?)>0', o, n, o);
+      // G6:「财哥严选」不再作为品牌名使用
+      if (!db.get("SELECT 1 FROM brands WHERE name='财哥'")) db.exec1("UPDATE brands SET name='财哥', description='财哥品牌官方旗舰' WHERE name='财哥严选'");
+      db.exec1("UPDATE products SET name=REPLACE(name,'财哥严选 ','财哥 ') WHERE name LIKE '财哥严选 %'");
+      // G6:违禁词表补充(后台已编辑过的词表只追加缺少的词)
+      const bw = svc.S('banned_words');
+      if (bw != null) { const have = new Set(String(bw).split(/\r?\n/).map(x => x.trim())); const add = banned.ADDED_WORDS.filter(w => !have.has(w)); if (add.length) svc.setSetting('banned_words', String(bw).replace(/\s*$/, '') + '\n' + add.join('\n')); }
+      // 店主要求:云商卡签到加赠改为按连续签到天数递增(第 1 天 25,每连续 1 天 +2),取消每月上限;有效期不变
+      svc.setSetting('cloud_signin_extra', '25'); svc.setSetting('cloud_signin_extra_step', '2');
+      db.exec1("DELETE FROM settings WHERE key='cloud_signin_extra_cap'");
+      db.exec1("UPDATE articles SET content=REPLACE(content,?,?) WHERE category='help' AND instr(content,?)>0", CLOUD_HELP_EDIT[0], CLOUD_HELP_EDIT[1], CLOUD_HELP_EDIT[0]);
+      // A2/A3/A4/A11/B1/H1/D2:隐私政策、用户协议、积分规则修订,并提升协议版本号使老用户重新确认
+      // (全新安装时正文已是新版、版本默认 1.1,不会重复提升)
+      const ed = require('./lib/policies').applyV11Edits(db), changed = ed.privacy + ed.terms;
+      const m = String(svc.S('policy_version') || '1.0').match(/^(\d+)\.(\d+)$/);
+      if (changed && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('协议已修订,版本号提升为 v' + svc.S('policy_version')); }
+      mark('v11_compliance');
+    })();
   }
 })();
 
@@ -151,7 +181,7 @@ app.use((req, res, next) => {
       res.locals.user = u; req.user = u;
       res.locals.cartCount = db.get('SELECT COALESCE(SUM(qty),0) n FROM cart WHERE user_id=?', u.id).n;
       // 未同意当前版本《用户协议》《隐私政策》的老用户:先完成一次性确认
-      if (u.consent_version !== (svc.S('policy_version') || '1.0') && !/^\/(consent|privacy|terms|logout)(\/|$|\?)/.test(req.path)) {
+      if (u.consent_version !== (svc.S('policy_version') || '1.1') && !/^\/(consent|privacy|terms|logout)(\/|$|\?)/.test(req.path)) {
         if (req.method === 'GET') return res.redirect('/consent?next=' + encodeURIComponent(req.originalUrl));
         return res.status(403).redirect('/consent');
       }

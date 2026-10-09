@@ -20,9 +20,10 @@
     <% if (o.status==='unpaid') { %><a class="btn primary" href="/order/<%= o.id %>/pay">去支付</a><form method="post" action="/order/<%= o.id %>/cancel" data-confirm="确定取消订单?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger">取消订单</button></form><% } %>
     <% if (o.status==='shipped') { %><form method="post" action="/order/<%= o.id %>/confirm" data-confirm="确认已收到商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary">确认收货</button></form><% } %>
     <% if (o.status==='completed') { %><a class="btn" href="/order/<%= o.id %>/review">评价</a><% } %>
-    <% if (canAfter) { %><form method="post" action="/order/<%= o.id %>/aftersale"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn">💬 联系客服申请售后</button></form><% } %>
+    <% if (canAfter) { %><form method="post" action="/order/<%= o.id %>/aftersale"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn"><%= afterInfo.label %></button></form><% } %>
     <% if (aftersale) { %><a class="btn" href="/aftersale/<%= aftersale.id %>">售后进度:<%= AFTERSALE_STATUS[aftersale.status] %></a><% } %>
   </div>
+  <% if (canAfter && afterInfo.note) { %><p class="muted after-note" style="text-align:right;font-size:12px;margin:8px 0 0"><%= afterInfo.note %></p><% } %>
 </div>
 <% if (['paid','shipped','completed'].includes(o.status) && o.type!=='points') { %>
 <div class="card mt"><h3 style="margin-top:0">🧾 发票</h3>

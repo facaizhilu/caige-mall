@@ -1,6 +1,6 @@
 <div class="crumb"><a href="/orders">我的订单</a> › 评价</div>
 <form method="post" action="/order/<%= o.id %>/review" class="card"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<p class="muted">评价为文字 + 星级评分,提交后需经平台审核方可展示,审核通过奖励 <%= shop.review_points %> 积分。</p>
+<p class="muted">评价为文字 + 星级评分。<% if (+shop.review_points > 0) { %>发表文字评价可获得 <%= shop.review_points %> 积分,与评分高低无关(好评、中评、差评均同样发放)。<% } %>平台审核仅过滤违法违规或与商品无关的内容,不会因差评不予展示或不发放积分。</p>
 <% items.forEach(i=>{ %><div class="review"><img loading="lazy" decoding="async" src="<%= i.image %>" style="width:70px;height:70px;border-radius:8px;object-fit:cover"><div class="rv-body"><b><%= i.name %></b> <span class="muted"><%= i.spec_text %></span>
 <% if(i.reviewed){ %><div class="tag green">已评价</div><% } else { %>
 <div class="form-row mt"><label>评分</label><select name="rating_<%= i.id %>" class="rating-sel"><option value="5">★★★★★ 非常满意</option><option value="4">★★★★ 满意</option><option value="3">★★★ 一般</option><option value="2">★★ 较差</option><option value="1">★ 很差</option></select></div>

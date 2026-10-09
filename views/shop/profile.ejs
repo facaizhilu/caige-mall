@@ -3,7 +3,6 @@
  <form method="post" action="/me/profile" style="max-width:460px"><input type="hidden" name="_csrf" value="<%= csrf %>">
   <div class="form-row"><label>手机号</label><input value="<%= U.maskPhone(user.phone) %>" disabled></div>
   <div class="form-row"><label>昵称</label><input name="nickname" value="<%= user.nickname %>" maxlength="20"></div>
-  <div class="form-row"><label>性别</label><select name="gender"><% ['男','女','保密'].forEach(g=>{ %><option <%= user.gender===g?'selected':'' %>><%= g %></option><% }) %></select></div>
   <button class="btn primary">保存</button></form></div>
 <div class="card mt"><h3 style="margin-top:0">修改密码</h3>
  <form method="post" action="/me/password" style="max-width:460px"><input type="hidden" name="_csrf" value="<%= csrf %>">
@@ -14,6 +13,6 @@
     <a href="/privacy">隐私政策<span class="muted"><%= user.consent_at ? '已同意 v' + (user.consent_version||'') : '' %> ›</span></a>
     <a href="/terms">用户协议<span class="muted">›</span></a>
     <a href="/me/history">管理浏览记录<span class="muted">›</span></a>
-    <a href="/me/cancel" class="danger-t">注销账号<span class="muted">›</span></a>
   </div></div>
+<p class="acct-cancel-link" style="text-align:center;margin:28px 0 8px;font-size:12px"><a href="/me/cancel" style="color:#9ca3af">注销账号</a></p>
 </div></div>
