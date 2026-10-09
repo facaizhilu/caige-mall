@@ -56,3 +56,12 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
  .login-card{padding:26px 20px}.imgs img{width:72px;height:72px}
  .card{overflow-x:auto}
 }
+/* v5 合规改造:客服创建售后单 */
+.svc-order{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.svc-order details summary{list-style:none;display:inline-flex;cursor:pointer}.svc-order details summary::-webkit-details-marker{display:none}
+.as-form{margin-top:10px;background:#fafbfc;border-radius:8px;padding:10px}
+.msg.as-req{border:2px solid #f59e0b}
+.policy-edit textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:420px}
+.grid>*{min-width:0}
+.as-form input,.as-form select,.as-form textarea{width:100%;box-sizing:border-box}
+form.flex>input[name=content]{flex:1;min-width:0}

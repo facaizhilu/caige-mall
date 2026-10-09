@@ -6,7 +6,7 @@
     <div class="form-row"><label>密码</label><input type="password" name="password" required minlength="6" placeholder="6-32 位"></div>
     <div class="form-row"><label>确认密码</label><input type="password" name="password2" required minlength="6"></div>
     <div class="form-row"><label>邀请码(选填)</label><input name="ref" value="<%= ref %>" maxlength="10" placeholder="好友邀请码"></div>
-    <label style="display:block;margin-bottom:14px"><input type="checkbox" name="agree" value="1" style="width:auto" checked> 我已阅读并同意《用户协议》与《隐私政策》</label>
+    <label class="agree"><input type="checkbox" name="agree" value="1" required> 我已阅读并同意<a href="/terms" target="_blank">《用户协议》</a><a href="/privacy" target="_blank">《隐私政策》</a></label>
     <button class="btn primary lg block">注 册</button></form>
   <p class="right"><a href="/login">已有账号?去登录</a></p>
 </div>

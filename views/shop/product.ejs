@@ -13,7 +13,7 @@
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
     <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货 · <%= tpl? (tpl.free_over>0.01?`满 ¥${tpl.free_over} 包邮`:'包邮'):'' %> · <a class="muted" href="/help">运费规则</a></dd>
-      <dt>服务</dt><dd><span class="tag green">正品保证</span><span class="tag green">7天退换</span><span class="tag green">极速发货</span></dd>
+      <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><span class="tag green">极速发货</span><% if (!noReason) { %><div class="no7-note">鲜活易腐等商品签收后不支持七天无理由退货;如有质量问题,仍可联系客服退换。</div><% } %></dd>
       <dt>销量</dt><dd>已售 <%= p.sales %> 件 · 好评率 <%= rs.n? Math.round((rs.good||0)/rs.n*100):100 %>%</dd></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>
     <div class="opt"><label>数量</label><div class="flex"><div class="qty"><button type="button" id="qm">−</button><input id="qty" value="1" inputmode="numeric"><button type="button" id="qp">+</button></div><span class="muted">库存 <b id="stock">-</b> 件</span></div></div>
@@ -28,6 +28,7 @@
       <% if (canGroup) { %><button class="btn lg" style="border-color:var(--red);color:var(--red)" onclick="buy('group')">👥 发起拼团 ¥<%= groupbuy.price %>(<%= groupbuy.size %>人团)</button><% } %>
       <button class="btn lg" id="favBtn" onclick="fav()"><%= faved?'★ 已收藏':'☆ 收藏' %></button>
     </div>
+    <% if (!noReason) { %><label class="agree no7-ack"><input type="checkbox" id="no7ok"> 本商品不支持7天无理由退货,我已知晓</label><% } %>
     <% if (openGroups.length) { %><div class="card mt" style="background:#fffaf0;padding:12px 16px"><b>正在拼团,可直接参团:</b><% openGroups.forEach(g=>{ %><div class="flex between" style="margin-top:6px"><span><%= g.nickname.slice(0,1) %>** 发起的团,还差 <b style="color:var(--red)"><%= g.need-g.joined %></b> 人</span><span class="flex"><span class="muted">剩余 <span class="cd" data-countdown="<%= g.expire_at %>"></span></span><a class="btn primary sm" href="/group/<%= g.id %>">去参团</a></span></div><% }) %></div><% } %>
   </div>
 </div>
@@ -38,10 +39,9 @@
 </div>
 <div class="card sec" id="reviews">
   <div class="sec-h"><h2>用户评价</h2><span class="muted">好评率 <b class="price" style="color:var(--red)"><%= rs.n? Math.round((rs.good||0)/rs.n*100):100 %>%</b> · 综合 <%= (rs.avg||5).toFixed(1) %> 分</span></div>
-  <div class="sortbar"><a class="<%= rv==='all'?'on':'' %>" href="<%= qs(req,{rv:'all'}) %>#reviews">全部</a><a class="<%= rv==='good'?'on':'' %>" href="<%= qs(req,{rv:'good'}) %>#reviews">好评</a><a class="<%= rv==='bad'?'on':'' %>" href="<%= qs(req,{rv:'bad'}) %>#reviews">中差评</a><a class="<%= rv==='img'?'on':'' %>" href="<%= qs(req,{rv:'img'}) %>#reviews">有图(<%= rs.img||0 %>)</a></div>
+  <div class="sortbar"><a class="<%= rv==='all'?'on':'' %>" href="<%= qs(req,{rv:'all'}) %>#reviews">全部</a><a class="<%= rv==='good'?'on':'' %>" href="<%= qs(req,{rv:'good'}) %>#reviews">好评</a><a class="<%= rv==='bad'?'on':'' %>" href="<%= qs(req,{rv:'bad'}) %>#reviews">中差评</a></div>
   <% if (!reviews.length) { %><div class="empty" style="padding:30px">暂无评价</div><% } %>
   <% reviews.forEach(r=>{ %><div class="review"><div class="avatar" style="width:40px;height:40px;font-size:16px"><%= r.nickname.slice(0,1) %></div><div style="flex:1"><div class="flex between"><b><%= r.nick %></b><span class="muted"><%= r.created_at.slice(0,10) %></span></div><div class="stars"><%= '★'.repeat(r.rating)+'☆'.repeat(5-r.rating) %></div><div><%= r.content %></div>
-    <% if (r.imgs.length) { %><div class="rimgs"><% r.imgs.forEach(i=>{ %><img loading="lazy" decoding="async" src="<%= i %>"><% }) %></div><% } %>
     <% if (r.reply) { %><div class="reply"><b>商家回复:</b><%= r.reply %></div><% } %></div></div><% }) %>
 </div>
 <div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc">正品保障;签收后 7 天内可申请退款/退货退款;发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>
@@ -51,7 +51,8 @@
   var SKUS=<%- JSON.stringify(skus.map(s=>({id:s.id,attrs:s.attrs,price:s.price,stock:s.stock}))) %>, SPECS=<%- JSON.stringify(specs.map(s=>s.name)) %>;
   var SK=<%- JSON.stringify(seckill&&seckill.live?{sku:seckill.sku_id,price:seckill.price,id:seckill.id,left:seckill.stock-seckill.sold,limit:seckill.limit_per_user}:null) %>;
   var GB=<%- JSON.stringify(groupbuy?{sku:groupbuy.sku_id,id:groupbuy.id}:null) %>;
-  var PID=<%= p.id %>, LOGGED=<%= user?'true':'false' %>;
+  var PID=<%= p.id %>, LOGGED=<%= user?'true':'false' %>, NO7=<%= noReason?'false':'true' %>;
+  function no7(){if(!NO7)return true;var c=document.getElementById('no7ok');if(c.checked)return true;if(confirm('本商品不支持7天无理由退货,我已知晓。\n\n点击「确定」表示您已知晓并继续。')){c.checked=true;return true}return false}
   function cur(){var sel={};document.querySelectorAll('[data-spec]').forEach(function(g){var o=g.querySelector('.chip.on');sel[g.dataset.spec]=o&&o.dataset.v});
     return SKUS.find(function(s){return SPECS.every(function(n){return s.attrs[n]===sel[n]})})||(SPECS.length?null:SKUS[0])}
   function refresh(){var s=cur();document.getElementById('stock').textContent=s?s.stock:0;
@@ -61,8 +62,8 @@
   document.querySelectorAll('.chip').forEach(function(c){c.onclick=function(){c.parentNode.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on')});c.classList.add('on');refresh()}});
   var q=document.getElementById('qty');
   document.getElementById('qm').onclick=function(){q.value=Math.max(1,(+q.value||1)-1)};document.getElementById('qp').onclick=function(){var s=cur();q.value=Math.min(s?s.stock:1,(+q.value||1)+1)};
-  function guard(){if(!LOGGED){location.href='/login?next='+encodeURIComponent(location.pathname);return null}var s=cur();if(!s||s.stock<=0){toast('该规格暂时缺货');return null}var n=Math.max(1,parseInt(q.value)||1);if(n>s.stock){toast('库存不足,仅剩 '+s.stock+' 件');return null}return {s:s,n:n}}
-  window.addCart=function(){var g=guard();if(!g)return;postJSON('/cart/add',{sku_id:g.s.id,qty:g.n}).then(function(r){toast(r.msg);if(r.ok){var b=document.getElementById('cartBadge');if(b){b.textContent=r.count;b.classList.remove('hide')}}})};
+  function guard(){if(!LOGGED){location.href='/login?next='+encodeURIComponent(location.pathname);return null}var s=cur();if(!s||s.stock<=0){toast('该规格暂时缺货');return null}var n=Math.max(1,parseInt(q.value)||1);if(n>s.stock){toast('库存不足,仅剩 '+s.stock+' 件');return null}if(!no7())return null;return {s:s,n:n}}
+  window.addCart=function(){var g=guard();if(!g)return;postJSON('/cart/add',{sku_id:g.s.id,qty:g.n,no7_ok:NO7?'1':''}).then(function(r){toast(r.msg);if(r.ok){var b=document.getElementById('cartBadge');if(b){b.textContent=r.count;b.classList.remove('hide')}}})};
   window.buy=function(type){var g=guard();if(!g)return;var f=document.getElementById('buyForm');
     if(type==='seckill'){if(SK.sku!==g.s.id){toast('请选择秒杀规格');return}if(g.n>SK.limit){toast('每人限购'+SK.limit+'件');return}f.promo_type.value='seckill';f.promo_id.value=SK.id}
     else if(type==='group'){if(GB.sku!==g.s.id){toast('拼团仅限默认规格,请选择第一个规格');return}f.promo_type.value='group';f.promo_id.value=GB.id}

@@ -10,7 +10,8 @@
  <div class="form-row"><label>排序(大的在前)</label><input type="number" name="sort" value="<%= p.sort||0 %>"></div>
  <div class="form-row"><label>重量(kg)</label><input type="number" step="0.01" name="weight" value="<%= p.weight||0.5 %>"></div>
 </div>
-<div class="flex wrapf"><label><input type="checkbox" name="status" value="1" <%= p.status?'checked':'' %>> 上架</label><label><input type="checkbox" name="is_hot" value="1" <%= p.is_hot?'checked':'' %>> 热卖推荐</label><label><input type="checkbox" name="is_new" value="1" <%= p.is_new?'checked':'' %>> 新品</label></div></div>
+<div class="flex wrapf"><label><input type="checkbox" name="status" value="1" <%= p.status?'checked':'' %>> 上架</label><label><input type="checkbox" name="is_hot" value="1" <%= p.is_hot?'checked':'' %>> 热卖推荐</label><label><input type="checkbox" name="is_new" value="1" <%= p.is_new?'checked':'' %>> 新品</label></div>
+ <div class="form-row mt"><label>支持七天无理由退货</label><select name="no_reason_return"><option value="" <%= p.no_reason_return==null?'selected':'' %>>跟随分类(默认支持;「鲜活易腐类」分类默认不支持)</option><option value="1" <%= p.no_reason_return===1?'selected':'' %>>支持7天无理由退货</option><option value="0" <%= p.no_reason_return===0?'selected':'' %>>不支持7天无理由退货</option></select><div class="muted" style="font-size:12px">不支持的商品,用户加购/下单前须勾选确认「本商品不支持7天无理由退货,我已知晓」</div></div></div>
 <div class="card"><h3>商品图片 <span class="muted" style="font-weight:400">(第一张为主图,最多 9 张)</span></h3>
  <div class="imgs"><% imgs.forEach(i=>{ %><div class="im"><img src="<%= i %>"><label><input type="checkbox" name="images_keep" value="<%= i %>" checked> 保留</label></div><% }) %></div>
  <div class="form-row mt"><label>上传新图片(png/jpg/gif/webp,≤3MB)</label><input type="file" name="image_files" accept="image/*" multiple></div>

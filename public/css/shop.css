@@ -347,3 +347,23 @@ textarea{resize:vertical}
 .qbadge{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:600;text-align:center;margin-left:2px;vertical-align:middle}
 /* 确认订单提交栏:窄屏下提示单独一行,「应付」不再被挤成两行 */
 @media(max-width:600px){.ck-submit{flex-wrap:wrap;gap:8px}.ck-submit>.muted{flex-basis:100%;font-size:12px}.ck-submit>.flex{margin-left:auto;white-space:nowrap}}
+
+/* ---- 合规改造 v10:协议勾选、隐私政策、注销、浏览记录删除、七天无理由 ---- */
+.agree{display:flex;gap:6px;align-items:flex-start;margin:4px 0 14px;font-size:13px;line-height:1.6;color:var(--ink2);cursor:pointer}
+.agree input[type=checkbox]{width:16px;height:16px;flex:none;margin:2px 0 0;accent-color:var(--red)}
+.agree a{color:var(--red)}
+.policy-links{font-size:12px;color:var(--ink2);text-align:center;margin:12px 0 0}.policy-links a{color:var(--red)}
+.policy .rich h3{font-size:16px;margin:18px 0 8px}.policy .rich p,.policy .rich li{line-height:1.8}
+.policy .rich table.tbl td,.policy .rich table.tbl th{vertical-align:top;font-size:13px}
+.consent-list{padding-left:20px;line-height:1.9;color:var(--ink2)}
+.setlist a{display:flex;justify-content:space-between;padding:12px 2px;border-bottom:1px solid var(--line);color:var(--ink)}.setlist a:last-child{border-bottom:0}
+.danger-t,.setlist a.danger-t{color:var(--red)!important}
+.btn.danger.lg.block{background:var(--red);color:#fff;border-color:var(--red)}
+.hist-grid{grid-template-columns:repeat(3,1fr)}
+.hist-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 4px}
+.hist-meta .link{font-size:12px;padding:6px 4px;background:none;border:0;cursor:pointer}
+.tag.no7{background:#fff4e5;color:#b45309;border-color:#fcd9a8}
+.no7-note{font-size:12px;color:#b45309;margin-top:4px}
+.no7-ack{background:#fff8ec;border:1px solid #fcd9a8;border-radius:8px;padding:8px 10px;margin-top:10px;color:#92400e}
+@media (max-width:768px){.hist-grid{grid-template-columns:repeat(2,1fr)!important}}
+@media (max-width:768px){.policy .rich .tbl.stack td[data-label]{text-align:left;justify-content:flex-start;gap:12px}.policy .rich .tbl.stack td[data-label]:before{min-width:4.5em}}

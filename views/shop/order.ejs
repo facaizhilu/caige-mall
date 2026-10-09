@@ -10,7 +10,7 @@
 <div class="grid g2" style="grid-template-columns:1fr 1fr">
   <div class="card"><h3 style="margin-top:0">收货信息</h3><dl class="kv"><dt>收货人</dt><dd><%= o.receiver %> <%= o.phone %></dd><dt>地址</dt><dd><%= o.province %> <%= o.city %> <%= o.district %> <%= o.detail %></dd><dt>备注</dt><dd><%= o.remark||'-' %></dd></dl>
     <% if (o.tracking_no) { %><dl class="kv mt"><dt>物流公司</dt><dd><%= o.express_company %></dd><dt>运单号</dt><dd><%= o.tracking_no %></dd></dl><a class="btn sm mt" href="/order/<%= o.id %>/logistics">查看物流轨迹</a><% } %></div>
-  <div class="card"><h3 style="margin-top:0">订单信息</h3><dl class="kv"><dt>下单时间</dt><dd><%= o.created_at %></dd><dt>支付方式</dt><dd><%= o.pay_method?PAY_METHOD[o.pay_method]:'-' %></dd><dt>支付时间</dt><dd><%= o.paid_at||'-' %></dd><dt>类型</dt><dd><%= {normal:'普通订单',seckill:'限时秒杀',group:'拼团订单',points:'积分兑换'}[o.type] %></dd></dl></div>
+  <div class="card"><h3 style="margin-top:0">订单信息</h3><dl class="kv"><dt>下单时间</dt><dd><%= o.created_at %></dd><dt>支付方式</dt><dd><%= o.pay_method?PAY_METHOD[o.pay_method]:'-' %></dd><dt>支付时间</dt><dd><%= o.paid_at||'-' %></dd><dt>类型</dt><dd><%= {normal:'普通订单',seckill:'限时秒杀',group:'拼团订单',points:'积分兑换'}[o.type] %></dd><% if (o.no7_confirmed) { %><dt>退货说明</dt><dd><span class="tag">不支持7天无理由退货</span> 下单时已确认知晓</dd><% } %></dl></div>
 </div>
 <div class="card mt"><h3 style="margin-top:0">商品清单</h3>
   <% items.forEach(i=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= i.image %>"><div style="flex:1"><a href="<%= i.product_id?'/product/'+i.product_id:'#' %>"><b><%= i.name %></b></a><br><span class="muted"><%= i.spec_text %></span></div><span class="price"><%= i.price %></span><span>× <%= i.qty %></span></div><% }) %>
@@ -19,8 +19,8 @@
   <div class="flex wrapf mt" style="justify-content:flex-end">
     <% if (o.status==='unpaid') { %><a class="btn primary" href="/order/<%= o.id %>/pay">去支付</a><form method="post" action="/order/<%= o.id %>/cancel" data-confirm="确定取消订单?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger">取消订单</button></form><% } %>
     <% if (o.status==='shipped') { %><form method="post" action="/order/<%= o.id %>/confirm" data-confirm="确认已收到商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary">确认收货</button></form><% } %>
-    <% if (o.status==='completed') { %><a class="btn" href="/order/<%= o.id %>/review">评价晒单</a><% } %>
-    <% if (['paid','shipped','completed'].includes(o.status) && o.type!=='points' && !aftersale) { %><a class="btn" href="/order/<%= o.id %>/aftersale">申请退款/退货</a><% } %>
+    <% if (o.status==='completed') { %><a class="btn" href="/order/<%= o.id %>/review">评价</a><% } %>
+    <% if (canAfter) { %><form method="post" action="/order/<%= o.id %>/aftersale"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn">💬 联系客服申请售后</button></form><% } %>
     <% if (aftersale) { %><a class="btn" href="/aftersale/<%= aftersale.id %>">售后进度:<%= AFTERSALE_STATUS[aftersale.status] %></a><% } %>
   </div>
 </div>

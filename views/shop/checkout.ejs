@@ -19,7 +19,8 @@
     </div>
   </div>
   <div class="card ck-sec"><h3>🛍️ 商品清单</h3>
-    <% q.lines.forEach(l=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= l.image %>"><div style="flex:1"><b><%= l.name %></b><br><span class="muted"><%= l.spec_text %></span></div><span class="price"><%= l.price %></span><span>× <%= l.qty %></span></div><% }) %>
+    <% q.lines.forEach(l=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= l.image %>"><div style="flex:1"><b><%= l.name %></b><br><span class="muted"><%= l.spec_text %></span><% if (no7Items.some(x=>x.product_id===l.product_id)) { %><br><span class="tag no7">不支持7天无理由退货</span><% } %></div><span class="price"><%= l.price %></span><span>× <%= l.qty %></span></div><% }) %>
+    <% if (no7Items.length) { %><label class="agree no7-ack"><input type="checkbox" name="no7_confirm" value="1" required> 本商品不支持7天无理由退货,我已知晓<% if (no7Items.length>1 || q.lines.length>1) { %>(<%= no7Items.map(x=>'「'+x.name.slice(0,12)+'」').join('') %>)<% } %></label><% } %>
     <div class="form-row mt"><label>订单备注</label><input name="remark" maxlength="100" placeholder="选填,如:请工作日送货"></div>
   </div>
   <% if (!promo) { %>

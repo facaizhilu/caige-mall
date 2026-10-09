@@ -1,0 +1,20 @@
+<div class="me"><%- include("_menu",{cur:"cancel"}) %><div>
+<div class="card"><h3 style="margin-top:0">注销账号</h3>
+  <p>注销是<b>不可恢复</b>的操作。注销后:</p>
+  <ul class="consent-list">
+    <li>您将无法再使用该账号登录,手机号、昵称将被删除或匿名化;</li>
+    <li>收货地址、收藏、浏览记录、客服消息、未使用的优惠券将被删除;</li>
+    <li>积分、成长值、会员等级、云商卡权益将清零且无法恢复;</li>
+    <li>邀请码失效,邀请关系解除,未结算佣金不再结算;</li>
+    <li>已完成的订单与发票记录依《电子商务法》及税收法规以<b>匿名化</b>方式保存(自交易完成起不少于 3 年),不再与您的身份关联。</li>
+  </ul>
+  <% if (blockers.length) { %>
+    <div class="flash error">暂不能注销:<%= blockers.join(';') %>。请先处理完毕(可在「我的订单」「退款/售后」中查看)后再申请注销。</div>
+    <a class="btn" href="/orders">查看我的订单</a> <a class="btn" href="/aftersales">查看售后</a>
+  <% } else { %>
+  <form method="post" action="/me/cancel" style="max-width:460px" data-confirm="最后确认:注销后账号无法恢复,确定注销?"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row"><label>请输入「确认注销」</label><input name="confirm_text" required placeholder="确认注销" autocomplete="off" pattern="确认注销"></div>
+    <label class="agree"><input type="checkbox" name="ack" value="1" required> 我已了解上述注销后果</label>
+    <button class="btn danger lg block">申请注销账号</button></form>
+  <% } %>
+</div></div></div>

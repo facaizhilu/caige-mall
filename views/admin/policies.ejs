@@ -1,0 +1,9 @@
+<div class="card"><div class="flex between wrapf"><div><b>当前协议版本:v<%= version %></b> <span class="muted">· 已同意当前版本的用户 <%= consented %> / <%= total %></span></div>
+<div class="flex"><a class="btn sm <%= tab==='privacy'?'primary':'' %>" href="/admin/policies?tab=privacy">隐私政策</a><a class="btn sm <%= tab==='terms'?'primary':'' %>" href="/admin/policies?tab=terms">用户协议</a><a class="btn sm" href="/<%= tab %>" target="_blank">前台预览 ↗</a></div></div>
+<p class="muted">内容以文章形式存储,支持 HTML;文中 <code>{{version}}</code> 会自动替换为版本号,【】为待补充信息。<b>修改实质内容时请提升版本号</b>,老用户下次访问前台时将被要求重新阅读并同意。</p>
+<% const a = tab==='terms' ? terms : privacy; %>
+<form method="post" action="/admin/policies" class="policy-edit"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="topic" value="<%= tab %>">
+  <div class="grid g2"><div class="form-row"><label>标题</label><input name="title" value="<%= a.title %>" maxlength="30"></div>
+  <div class="form-row"><label>协议版本号(隐私政策与用户协议共用)</label><input name="version" value="<%= version %>" maxlength="20" placeholder="如 1.1"></div></div>
+  <div class="form-row"><label>内容(HTML)</label><textarea name="content" rows="24"><%= a.content %></textarea></div>
+  <button class="btn primary">保存<%= a.title %></button></form></div>

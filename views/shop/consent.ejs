@@ -1,0 +1,15 @@
+<div class="card auth consent">
+  <h2>用户协议与隐私政策<%= updated ? '更新' : '' %></h2>
+  <p>欢迎使用<%= shop.shop_name %>!<%= updated ? '我们更新了' : '为更好地保护您的个人信息,请您在继续使用前阅读' %>《用户协议》和《隐私政策》(v<%= version %>),了解我们如何收集、使用和保护您的信息:</p>
+  <ul class="consent-list">
+    <li>手机号用于登录和订单通知;收货地址仅用于配送;</li>
+    <li>浏览记录仅您本人可见,不做个性化推荐,可随时删除;</li>
+    <li>本平台<b>不访问相册、相机</b>,评价、售后与客服均为文字;</li>
+    <li>您可随时查阅、更正、删除个人信息,或在「个人资料」中注销账号。</li>
+  </ul>
+  <p class="policy-links"><a href="/terms" target="_blank">阅读《用户协议》</a> · <a href="/privacy" target="_blank">阅读《隐私政策》</a></p>
+  <form method="post" action="/consent"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+    <label class="agree"><input type="checkbox" name="agree" value="1" required> 我已阅读并同意<a href="/terms" target="_blank">《用户协议》</a><a href="/privacy" target="_blank">《隐私政策》</a></label>
+    <button class="btn primary lg block">同意并继续</button></form>
+  <form method="post" action="/logout" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn lg block">不同意,退出登录</button></form>
+</div>

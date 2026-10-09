@@ -9,6 +9,7 @@
         <% if (o.status==='unpaid') { %><a class="btn sm primary" href="/order/<%= o.id %>/pay">去支付</a><% } %>
         <% if (o.status==='shipped') { %><a class="btn sm" href="/order/<%= o.id %>/logistics">查看物流</a><form method="post" action="/order/<%= o.id %>/confirm" data-confirm="确认已收到商品?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm primary">确认收货</button></form><% } %>
         <% if (o.status==='completed') { %><a class="btn sm" href="/order/<%= o.id %>/review">评价</a><% } %>
+        <% if (canAftersale(o)) { %><form method="post" action="/order/<%= o.id %>/aftersale"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">💬 联系客服申请售后</button></form><% } %>
         <% if (o.status==='completed'||o.status==='cancelled') { %><form method="post" action="/order/<%= o.id %>/rebuy"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">再次购买</button></form><% } %></div></div></div></div><% }) %>
   <%- include('../partials/pager') %>
 </div></div></div>

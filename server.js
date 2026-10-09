@@ -8,12 +8,29 @@ const ejs = require('ejs');
 const db = require('./lib/db');
 const U = require('./lib/util');
 const svc = require('./lib/svc');
+const { RETURN_HELP } = require('./lib/seed-texts');
 const SqliteStore = require('./lib/session-store');
 
 if (db.get('SELECT COUNT(*) n FROM admins').n === 0) require('./lib/seed')(false);
 // 前台已下线账户余额:旧库中的相关帮助文案同步更新(幂等)
 db.exec1("UPDATE articles SET title='支付方式说明', content='<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。</p>' WHERE category='help' AND title='余额充值说明'");
 db.exec1("UPDATE articles SET content=REPLACE(content, '款项原路退回账户余额。', '款项原路退回(演示环境为模拟退款)。') WHERE category='help' AND content LIKE '%原路退回账户余额%'");
+// 隐私政策 / 用户协议(文章形式,后台可编辑)
+require('./lib/policies').ensurePolicies(db, U.now);
+// 一次性迁移(用 settings 标记,避免覆盖后台后续修改)
+(function oneTimeMigrations() {
+  const done = k => !!db.get('SELECT 1 FROM settings WHERE key=?', 'migr_' + k);
+  const mark = k => db.exec1('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', 'migr_' + k, U.now());
+  if (!done('no7_fresh')) { // 鲜活易腐类分类默认不支持七天无理由
+    db.exec1("UPDATE categories SET no_7day=1 WHERE name='水果生鲜' OR name LIKE '%蔬菜%' OR name LIKE '%鲜活%' OR name LIKE '%海鲜%'");
+    mark('no7_fresh');
+  }
+  if (!done('return_help_v2')) {
+    db.exec1("UPDATE articles SET content=? WHERE category='help' AND title='退款退货政策'", RETURN_HELP);
+    db.exec1("UPDATE articles SET content=REPLACE(content,'<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。</p>','<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。本平台不提供账户余额与充值功能;积分仅限本账户使用,不可转让、不可提现。</p>') WHERE category='help' AND title='支付方式说明'");
+    mark('return_help_v2');
+  }
+})();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -88,7 +105,7 @@ function pageRenderer(layout) {
   };
 }
 app.locals.U = U; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
-app.locals.AFTERSALE_STATUS = U.AFTERSALE_STATUS; app.locals.PERMS = U.PERMS; app.locals.regions = require('./lib/regions');
+app.locals.AFTERSALE_STATUS = U.AFTERSALE_STATUS; app.locals.AFTERSALE_TYPE = U.AFTERSALE_TYPE; app.locals.PERMS = U.PERMS; app.locals.regions = require('./lib/regions');
 app.locals.qs = (req, over) => { const q = { ...req.query, ...over }; return '?' + Object.entries(q).filter(([, v]) => v !== '' && v != null).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); };
 
 const cookieBase = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 86400000 };
@@ -108,19 +125,23 @@ app.use('/admin', (req, res) => res.status(404).send('后台页面不存在'));
 
 // ================= 前台 =================
 app.use(session({ name: 'cg.sid', secret, resave: false, saveUninitialized: false, store: new SqliteStore('s:'), cookie: cookieBase }));
-app.use(multipart(req => !!req.session.uid));
+// 前台不提供任何图片/文件上传(评价、售后、客服均为纯文字),不挂载 multipart 解析
 app.use(csrf);
 app.use(pageRenderer('shop/layout'));
 app.use((req, res, next) => {
   res.locals.shop = svc.settings();
   res.locals.flash = req.session.flash; delete req.session.flash;
   res.locals.user = null; res.locals.cartCount = 0;
-  res.locals.PAY_METHOD = { ...U.PAY_METHOD, balance: '模拟支付' }; // 前台不再展示「账户余额」
   if (req.session.uid) {
     const u = db.get('SELECT u.*, l.name level_name, l.color level_color, l.discount level_discount FROM users u LEFT JOIN member_levels l ON l.id=u.level_id WHERE u.id=?', req.session.uid);
     if (!u || !u.status) { req.session.uid = null; } else {
       res.locals.user = u; req.user = u;
       res.locals.cartCount = db.get('SELECT COALESCE(SUM(qty),0) n FROM cart WHERE user_id=?', u.id).n;
+      // 未同意当前版本《用户协议》《隐私政策》的老用户:先完成一次性确认
+      if (u.consent_version !== (svc.S('policy_version') || '1.0') && !/^\/(consent|privacy|terms|logout)(\/|$|\?)/.test(req.path)) {
+        if (req.method === 'GET') return res.redirect('/consent?next=' + encodeURIComponent(req.originalUrl));
+        return res.status(403).redirect('/consent');
+      }
     }
   }
   res.locals.navCats = db.all('SELECT * FROM categories WHERE parent_id=0 AND status=1 ORDER BY sort,id');

@@ -1,8 +1,11 @@
-<div class="crumb"><a href="/aftersales">售后</a> › 售后详情</div>
+<div class="crumb"><a href="/aftersales">退款/售后</a> › 售后详情</div>
 <div class="card"><div class="flex between"><h3 style="margin:0">售后单 #<%= a.id %>(订单 <a href="/order/<%= a.order_id %>"><%= a.order_no %></a>)</h3><span class="os <%= a.status %>"><%= AFTERSALE_STATUS[a.status] %></span></div>
-<dl class="kv mt"><dt>类型</dt><dd><%= a.type==='refund'?'仅退款':'退货退款' %></dd><dt>退款金额</dt><dd class="price"><%= a.amount.toFixed(2) %></dd><dt>原因</dt><dd><%= a.reason %></dd><dt>描述</dt><dd><%= a.description||'-' %></dd><dt>商家说明</dt><dd><%= a.admin_note||'-' %></dd><dt>申请时间</dt><dd><%= a.created_at %></dd>
+<% const estPts = a.pay_amount > 0 ? Math.round((a.points_used||0) * Math.min(1, a.amount / a.pay_amount)) : (a.points_used||0); %>
+<dl class="kv mt"><dt>类型</dt><dd><%= AFTERSALE_TYPE[a.type] || a.type %></dd>
+<% if (a.status==='refunded') { %><dt>退款明细</dt><dd><b>退积分 <%= a.refund_points||0 %></b> / <b style="color:var(--red,#d4202a)">退现金 ¥<%= (a.refund_cash||0).toFixed(2) %></b><div class="muted" style="font-size:12px">现金<%= a.refund_channel||'原路退回' %>(演示环境为模拟退款)· <%= a.refunded_at||'' %></div></dd>
+<% } else if (!['exchanged','rejected','cancelled'].includes(a.status)) { %><dt>退款金额</dt><dd>退积分 <%= estPts %> / 退现金 ¥<%= a.amount.toFixed(2) %><div class="muted" style="font-size:12px">退款完成后现金原路退回,订单使用的积分按比例退回</div></dd><% } %>
+<dt>原因</dt><dd><%= a.reason %></dd><dt>说明</dt><dd><%= a.description||'-' %></dd><dt>商家说明</dt><dd><%= a.admin_note||'-' %></dd><dt>创建时间</dt><dd><%= a.created_at %></dd><dt>最近更新</dt><dd><%= a.updated_at||'-' %></dd>
 <% if(a.return_tracking){ %><dt>退货物流</dt><dd><%= a.return_express %> <%= a.return_tracking %></dd><% } %></dl>
-<% if(imgs.length){ %><div class="rimgs"><% imgs.forEach(i=>{ %><img loading="lazy" decoding="async" src="<%= i %>"><% }) %></div><% } %>
 <% if(a.status==='approved_return'){ %><div class="sim mt">商家已同意退货,请寄回商品并填写物流信息(演示:商家收货地址:<%= shop.address %>)</div>
 <form method="post" action="/aftersale/<%= a.id %>/return" class="flex mt wrapf"><input type="hidden" name="_csrf" value="<%= csrf %>"><select name="company" style="max-width:180px"><option>顺丰速运</option><option>中通快递</option><option>圆通速递</option><option>韵达快递</option><option>京东物流</option></select><input name="tracking" placeholder="退货运单号" required style="max-width:240px"><button class="btn primary">提交退货信息</button></form><% } %>
-<% if(['pending','approved_return'].includes(a.status)){ %><form method="post" action="/aftersale/<%= a.id %>/cancel" data-confirm="确定撤销申请?" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger sm">撤销申请</button></form><% } %></div>
+<p class="muted mt" style="font-size:12px">售后单由客服根据您的申请创建,处理进度也会通过客服消息通知您。如需补充说明或取消售后,请<a href="/service">联系客服</a>。</p></div>

@@ -4,7 +4,7 @@
 <meta name="csrf" content="<%= csrf %>">
 <title><%= title %> - <%= shop.shop_name %></title>
 <link rel="icon" href="/favicon.ico">
-<link rel="stylesheet" href="/static/css/shop.css?v=9">
+<link rel="stylesheet" href="/static/css/shop.css?v=10">
 </head><body>
 <div class="topbar"><div class="wrap">
   <div>欢迎来到<%= shop.shop_name %>!<span style="margin-left:12px">客服热线 <%= shop.service_phone %></span></div>
@@ -39,8 +39,8 @@
   <div class="cols">
     <div><h4><%= shop.shop_name %></h4><p><%= shop.slogan %></p><p>客服 <%= shop.service_phone %><br><%= shop.service_hours %></p></div>
     <div><h4>新手指南</h4><a href="/help">注册与登录</a><a href="/help">如何下单</a><a href="/help">优惠与积分</a></div>
-    <div><h4>配送与售后</h4><a href="/help">运费规则</a><a href="/aftersales">退款/退货</a><a href="/me/invoices">发票说明</a></div>
-    <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a><a href="/admin">商家后台</a></div>
+    <div><h4>配送与售后</h4><a href="/help">运费规则</a><a href="/aftersales">退款/售后</a><a href="/me/invoices">发票说明</a></div>
+    <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a><a href="/admin">商家后台</a></div>
   </div>
   <div class="cp">© 2026 <%= shop.shop_name %> · <%= shop.icp %> · 本站为演示站点,所有商品与订单均为虚构,支付为模拟支付 · <%= shop.address %></div>
 </div></footer>

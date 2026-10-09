@@ -69,9 +69,9 @@ module.exports = function (app, { filesOf }) {
     const openGroups = groupbuy ? db.all(`SELECT g.*, u.nickname FROM groups g JOIN users u ON u.id=g.leader_id WHERE g.groupbuy_id=? AND g.status='open' AND g.expire_at>? ORDER BY g.expire_at LIMIT 3`, groupbuy.id, t) : [];
     const rv = req.query.rv || 'all';
     let rvWhere = "r.product_id=? AND r.status='approved'";
-    if (rv === 'good') rvWhere += ' AND r.rating>=4'; else if (rv === 'bad') rvWhere += ' AND r.rating<=3'; else if (rv === 'img') rvWhere += " AND r.images!='[]'";
-    const reviews = db.all(`SELECT r.*, u.nickname, u.phone FROM reviews r JOIN users u ON u.id=r.user_id WHERE ${rvWhere} ORDER BY r.id DESC LIMIT 30`, p.id).map(r => ({ ...r, imgs: U.jsonArr(r.images), nick: r.nickname.slice(0, 1) + '***' + r.nickname.slice(-1) }));
-    const rs = db.get("SELECT COUNT(*) n, COALESCE(AVG(rating),5) avg, SUM(rating>=4) good, SUM(images!='[]') img FROM reviews WHERE product_id=? AND status='approved'", p.id);
+    if (rv === 'good') rvWhere += ' AND r.rating>=4'; else if (rv === 'bad') rvWhere += ' AND r.rating<=3';
+    const reviews = db.all(`SELECT r.*, u.nickname, u.phone FROM reviews r JOIN users u ON u.id=r.user_id WHERE ${rvWhere} ORDER BY r.id DESC LIMIT 30`, p.id).map(r => ({ ...r, nick: r.nickname.slice(0, 1) + '***' + r.nickname.slice(-1) }));
+    const rs = db.get("SELECT COUNT(*) n, COALESCE(AVG(rating),5) avg, SUM(rating>=4) good FROM reviews WHERE product_id=? AND status='approved'", p.id);
     const related = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.category_id=? AND p.id!=? LIMIT 4`, p.category_id, p.id));
     const brand = db.get('SELECT * FROM brands WHERE id=?', p.brand_id);
     const category = db.get('SELECT c.*, pc.name parent_name, pc.id parent_cid FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.id=?', p.category_id);
@@ -81,7 +81,7 @@ module.exports = function (app, { filesOf }) {
       faved = !!db.get('SELECT 1 FROM favorites WHERE user_id=? AND product_id=?', req.user.id, p.id);
       db.exec1('INSERT OR REPLACE INTO history(user_id,product_id,viewed_at) VALUES(?,?,?)', req.user.id, p.id, now());
     }
-    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, faved });
+    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, faved, noReason: svc.noReasonOf(p.id) });
   });
 
   app.post('/favorite/:id', needLogin, (req, res) => {
@@ -103,6 +103,7 @@ module.exports = function (app, { filesOf }) {
     const sku = db.get('SELECT s.*, p.status FROM skus s JOIN products p ON p.id=s.product_id WHERE s.id=?', skuId);
     const fail = m => wantsJson(req) ? res.json({ ok: false, msg: m }) : (flash(req, 'error', m), back(req, res, '/cart'));
     if (!sku || !sku.status) return fail('商品不存在或已下架');
+    if (!svc.noReasonOf(sku.product_id) && req.body.no7_ok !== '1') return wantsJson(req) ? res.json({ ok: false, no7: true, msg: '本商品不支持7天无理由退货,请确认知晓后再加入购物车' }) : fail('本商品不支持7天无理由退货,请勾选「我已知晓」后再加入购物车');
     const cur = db.get('SELECT qty FROM cart WHERE user_id=? AND sku_id=?', req.user.id, skuId);
     const nq = (cur ? cur.qty : 0) + qty;
     if (nq > sku.stock) return fail(`库存不足,当前仅剩 ${sku.stock} 件`);
@@ -145,7 +146,8 @@ module.exports = function (app, { filesOf }) {
     const q = svc.quote(req.user.id, { items, promo, address: a0 });
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
     const coupons = svc.userCoupons(req.user.id, 'unused').filter(c => !promo && q.goods >= c.threshold);
-    res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons });
+    const no7Items = q.lines.filter(l => !svc.noReasonOf(l.product_id));
+    res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons, no7Items });
   });
   app.post('/api/quote', needLogin, (req, res) => {
     const { items, promo } = parseCheckout(req);
@@ -173,7 +175,7 @@ module.exports = function (app, { filesOf }) {
       const has = db.get('SELECT COUNT(*) n FROM addresses WHERE user_id=?', req.user.id).n;
       db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,?)', req.user.id, addr.name, addr.phone, addr.province, addr.city, addr.district, addr.detail, has ? 0 : 1);
     }
-    const r = svc.createOrder(req.user.id, { items, promo, address: addr, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark });
+    const r = svc.createOrder(req.user.id, { items, promo, address: addr, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' });
     if (!r.ok) { flash(req, 'error', r.msg); return res.redirect('/cart'); }
     if (fromCart) for (const i of items) db.exec1('DELETE FROM cart WHERE user_id=? AND sku_id=?', req.user.id, i.sku_id);
     res.redirect('/order/' + r.id + '/pay');
@@ -190,6 +192,14 @@ module.exports = function (app, { filesOf }) {
     const counts = {}; for (const r of db.all('SELECT status, COUNT(*) n FROM orders WHERE user_id=? GROUP BY status', req.user.id)) counts[r.status] = r.n;
     res.page('shop/orders', { title: '我的订单', pg, st, counts });
   });
+  // 可联系客服申请售后:已付款/已发货/已完成(完成后 N 天内),非积分兑换单,且无进行中的售后
+  function canAftersale(o) {
+    if (!o || o.type === 'points' || !['paid', 'shipped', 'completed'].includes(o.status)) return false;
+    const days = int(svc.S('aftersale_days'), 7);
+    if (o.status === 'completed' && U.parseDate(o.completed_at) < new Date(Date.now() - Math.max(days, 15) * 86400000)) return false;
+    return !db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status NOT IN ('rejected','cancelled')", o.id);
+  }
+  app.locals.canAftersale = canAftersale;
   app.get('/order/:id', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
     if (!o) return res.status(404).page('shop/error', { title: '订单不存在', code: 404, message: '订单不存在' });
@@ -199,7 +209,7 @@ module.exports = function (app, { filesOf }) {
     const invoice = db.get('SELECT * FROM invoices WHERE order_id=?', o.id);
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     const expireAt = o.status === 'unpaid' ? U.fmtDate(new Date(U.parseDate(o.created_at).getTime() + int(svc.S('unpaid_cancel_minutes'), 30) * 60000)) : null;
-    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt });
+    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o) });
   });
   app.get('/order/:id/pay', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
@@ -254,56 +264,50 @@ module.exports = function (app, { filesOf }) {
       const content = String(req.body['content_' + it.id] || '').trim().slice(0, 500);
       if (!content) continue;
       const rating = Math.min(5, Math.max(1, int(req.body['rating_' + it.id], 5)));
-      const imgs = filesOf(req, 'images_' + it.id).slice(0, 3);
-      db.exec1('INSERT INTO reviews(product_id,order_id,order_item_id,user_id,rating,content,images,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)', it.product_id, o.id, it.id, req.user.id, rating, content, JSON.stringify(imgs), 'pending', now());
+      db.exec1('INSERT INTO reviews(product_id,order_id,order_item_id,user_id,rating,content,status,created_at) VALUES(?,?,?,?,?,?,?,?)', it.product_id, o.id, it.id, req.user.id, rating, content, 'pending', now());
       db.exec1('UPDATE order_items SET reviewed=1 WHERE id=?', it.id); n++;
     }
     flash(req, n ? 'success' : 'error', n ? '评价已提交,审核通过后展示并奖励积分' : '请至少填写一条评价内容');
     res.redirect(n ? '/me/reviews' : '/order/' + o.id + '/review');
   });
   app.get('/me/reviews', needLogin, (req, res) => {
-    const rows = db.all('SELECT r.*, p.name pname, p.images pimages FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.user_id=? ORDER BY r.id DESC', req.user.id).map(r => ({ ...r, imgs: U.jsonArr(r.images), pimg: U.firstImg(r.pimages) }));
+    const rows = db.all('SELECT r.*, p.name pname, p.images pimages FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.user_id=? ORDER BY r.id DESC', req.user.id).map(r => ({ ...r, pimg: U.firstImg(r.pimages) }));
     res.page('shop/me-reviews', { title: '我的评价', rows });
   });
 
   // 售后
+  // 售后统一走客服:用户点击「联系客服申请售后」→ 自动向客服会话发送订单信息,由客服在后台创建售后单
   app.get('/order/:id/aftersale', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
-    const days = int(svc.S('aftersale_days'), 7);
-    const ok = o && ['paid', 'shipped', 'completed'].includes(o.status) && (o.status !== 'completed' || U.parseDate(o.completed_at) > new Date(Date.now() - days * 86400000)) && o.type !== 'points';
-    if (!ok) { flash(req, 'error', '该订单当前不可申请售后'); return res.redirect('/orders'); }
-    const ex = db.get("SELECT * FROM aftersales WHERE order_id=? AND status NOT IN ('rejected','cancelled')", o.id);
-    if (ex) return res.redirect('/aftersale/' + ex.id);
-    res.page('shop/aftersale-apply', { title: '申请售后', o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id) });
+    const ex = o && db.get("SELECT id FROM aftersales WHERE order_id=? AND status NOT IN ('rejected','cancelled') ORDER BY id DESC", o.id);
+    res.redirect(ex ? '/aftersale/' + ex.id : o ? '/order/' + o.id : '/orders');
   });
   app.post('/order/:id/aftersale', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
-    if (!o || !['paid', 'shipped', 'completed'].includes(o.status)) { flash(req, 'error', '该订单当前不可申请售后'); return res.redirect('/orders'); }
-    if (db.get("SELECT 1 FROM aftersales WHERE order_id=? AND status NOT IN ('rejected','cancelled')", o.id)) { flash(req, 'error', '该订单已有售后申请'); return res.redirect('/orders'); }
-    let type = req.body.type === 'refund_return' ? 'refund_return' : 'refund';
-    if (o.status === 'paid') type = 'refund';
-    const reason = String(req.body.reason || '').slice(0, 50); if (!reason) { flash(req, 'error', '请选择售后原因'); return back(req, res, '/orders'); }
-    const r = db.exec1('INSERT INTO aftersales(order_id,user_id,type,reason,description,images,amount,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)', o.id, req.user.id, type, reason, String(req.body.description || '').slice(0, 500), JSON.stringify(filesOf(req, 'images').slice(0, 3)), o.pay_amount, 'pending', now(), now());
-    db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', o.id, now(), '买家提交了' + (type === 'refund' ? '退款' : '退货退款') + '申请');
-    flash(req, 'success', '售后申请已提交,请等待商家审核'); res.redirect('/aftersale/' + r.lastInsertRowid);
+    if (!canAftersale(o)) { flash(req, 'error', '该订单当前不可申请售后'); return o ? res.redirect('/order/' + o.id) : res.redirect('/orders'); }
+    const items = db.all('SELECT name, spec_text, qty FROM order_items WHERE order_id=?', o.id).map(i => `${i.name}${i.spec_text ? '(' + i.spec_text + ')' : ''} ×${i.qty}`).join('、');
+    const recent = db.get("SELECT 1 FROM messages WHERE user_id=? AND sender='user' AND content LIKE ? AND created_at>?", req.user.id, '我要申请售后:订单号 ' + o.order_no + '%', U.offset(-600000));
+    if (!recent) {
+      svc.notifyService(req.user.id, 'user', `我要申请售后:订单号 ${o.order_no},商品:${items},实付 ¥${o.pay_amount.toFixed(2)}`);
+      db.exec1('INSERT INTO messages(user_id,sender,content,created_at,is_read) VALUES(?,?,?,?,1)', req.user.id, 'bot', '【智能助手】已收到您的售后申请,客服核实订单后会为您创建售后单。请在下方补充说明问题(如:退货原因、商品情况),售后进度可在「我的 - 退款/售后」查看。', now());
+    }
+    res.redirect('/service#end');
   });
   app.get('/aftersales', needLogin, (req, res) => {
     const rows = db.all('SELECT a.*, o.order_no FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.user_id=? ORDER BY a.id DESC', req.user.id);
     res.page('shop/aftersales', { title: '退款/售后', rows });
   });
   app.get('/aftersale/:id', needLogin, (req, res) => {
-    const a = db.get('SELECT a.*, o.order_no FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.id=? AND a.user_id=?', int(req.params.id), req.user.id);
+    const a = db.get('SELECT a.*, o.order_no, o.points_used, o.pay_amount FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.id=? AND a.user_id=?', int(req.params.id), req.user.id);
     if (!a) return res.redirect('/aftersales');
-    res.page('shop/aftersale', { title: '售后详情', a, imgs: U.jsonArr(a.images), items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
-  });
-  app.post('/aftersale/:id/cancel', needLogin, (req, res) => {
-    db.exec1("UPDATE aftersales SET status='cancelled', updated_at=? WHERE id=? AND user_id=? AND status IN ('pending','approved_return')", now(), int(req.params.id), req.user.id);
-    res.redirect('/aftersale/' + int(req.params.id));
+    res.page('shop/aftersale', { title: '售后详情', a, items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
   });
   app.post('/aftersale/:id/return', needLogin, (req, res) => {
     const co = String(req.body.company || '').slice(0, 30), tn = String(req.body.tracking || '').trim().slice(0, 40);
     if (!co || !tn) { flash(req, 'error', '请填写退货快递公司与运单号'); return res.redirect('/aftersale/' + int(req.params.id)); }
     db.exec1("UPDATE aftersales SET status='returned', return_express=?, return_tracking=?, updated_at=? WHERE id=? AND user_id=? AND status='approved_return'", co, tn, now(), int(req.params.id), req.user.id);
+    const a = db.get('SELECT a.id, o.order_no FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.id=? AND a.user_id=?', int(req.params.id), req.user.id);
+    if (a) svc.notifyService(req.user.id, 'user', `售后单 #${a.id}(订单号 ${a.order_no})退货已寄出:${co} ${tn}`);
     flash(req, 'success', '退货信息已提交,等待商家收货确认'); res.redirect('/aftersale/' + int(req.params.id));
   });
 
@@ -336,7 +340,7 @@ module.exports = function (app, { filesOf }) {
     const err = m => { res.locals.flash = { type: 'error', msg: m }; res.page('shop/login', { title: '登录', next: req.body.next, tab: 'pwd', phone }); };
     if (tooMany(k)) return err('尝试次数过多,请 10 分钟后再试');
     if (!u || !bcrypt.compareSync(String(req.body.password || ''), u.password_hash)) { addFail(k); return err('手机号或密码错误'); }
-    if (!u.status) return err('该账号已被禁用,请联系客服');
+    if (!u.status) return err(u.cancelled_at ? '该账号已注销' : '该账号已被禁用,请联系客服');
     fails.delete(k); doLogin(req, res, u.id, req.body.next);
   });
   app.post('/sms/send', (req, res) => {
@@ -354,9 +358,10 @@ module.exports = function (app, { filesOf }) {
     if (tooMany(k)) return err('尝试次数过多,请稍后再试');
     const row = db.get("SELECT * FROM sms_codes WHERE phone=? AND used=0 ORDER BY id DESC LIMIT 1", phone);
     if (!U.isPhone(phone) || !row || row.code !== code || U.parseDate(row.created_at) < Date.now() - 300000) { addFail(k); return err('验证码错误或已过期'); }
+    if (!db.get('SELECT 1 FROM users WHERE phone=?', phone) && req.body.agree !== '1') return err('新用户需先阅读并勾选同意《用户协议》《隐私政策》');
     db.exec1('UPDATE sms_codes SET used=1 WHERE id=?', row.id);
     let u = db.get('SELECT * FROM users WHERE phone=?', phone);
-    if (!u) { const id = svc.createUser({ phone, password_hash: bcrypt.hashSync(U.randCode(12), 10) }); u = { id, status: 1 }; }
+    if (!u) { const id = svc.createUser({ phone, password_hash: bcrypt.hashSync(U.randCode(12), 10), consent: true }); u = { id, status: 1 }; }
     if (!u.status) return err('该账号已被禁用,请联系客服');
     doLogin(req, res, u.id, req.body.next);
   });
@@ -368,9 +373,9 @@ module.exports = function (app, { filesOf }) {
     const pw = String(req.body.password || '');
     if (pw.length < 6 || pw.length > 32) return err('密码长度需为 6-32 位');
     if (pw !== req.body.password2) return err('两次输入的密码不一致');
-    if (!req.body.agree) return err('请先阅读并同意《用户协议》');
+    if (req.body.agree !== '1') return err('请先阅读并勾选同意《用户协议》《隐私政策》');
     if (db.get('SELECT 1 FROM users WHERE phone=?', f.phone)) return err('该手机号已注册,请直接登录');
-    const id = svc.createUser({ phone: f.phone, password_hash: bcrypt.hashSync(pw, 10), nickname: f.nickname, referrerCode: f.ref });
+    const id = svc.createUser({ phone: f.phone, password_hash: bcrypt.hashSync(pw, 10), nickname: f.nickname, referrerCode: f.ref, consent: true });
     req.session.regenerate(() => { req.session.uid = id; req.session.flash = { type: 'success', msg: '注册成功!已赠送新人积分与新人优惠券' }; req.session.save(() => res.redirect('/me')); });
   });
   app.post('/logout', (req, res) => { req.session.regenerate(() => res.redirect('/')); });
@@ -389,8 +394,7 @@ module.exports = function (app, { filesOf }) {
   app.post('/me/profile', needLogin, (req, res) => {
     const nick = String(req.body.nickname || '').trim().slice(0, 20) || req.user.nickname;
     const g = ['男', '女', '保密'].includes(req.body.gender) ? req.body.gender : '保密';
-    const bd = /^\d{4}-\d{2}-\d{2}$/.test(req.body.birthday || '') ? req.body.birthday : null;
-    db.exec1('UPDATE users SET nickname=?, gender=?, birthday=? WHERE id=?', nick, g, bd, req.user.id);
+    db.exec1('UPDATE users SET nickname=?, gender=? WHERE id=?', nick, g, req.user.id);
     flash(req, 'success', '资料已保存'); res.redirect('/me/profile');
   });
   app.get('/me/profile', needLogin, (req, res) => res.page('shop/profile', { title: '个人资料' }));
@@ -437,7 +441,69 @@ module.exports = function (app, { filesOf }) {
     const rows = withImg(db.all(`SELECT p.*, h.viewed_at FROM history h JOIN products p ON p.id=h.product_id WHERE h.user_id=? ORDER BY h.viewed_at DESC LIMIT 60`, req.user.id));
     res.page('shop/me-history', { title: '浏览记录', rows });
   });
-  app.post('/me/history/clear', needLogin, (req, res) => { db.exec1('DELETE FROM history WHERE user_id=?', req.user.id); res.redirect('/me/history'); });
+  app.post('/me/history/clear', needLogin, (req, res) => { db.exec1('DELETE FROM history WHERE user_id=?', req.user.id); flash(req, 'success', '浏览记录已清空'); res.redirect('/me/history'); });
+  app.post('/me/history/:pid/delete', needLogin, (req, res) => {
+    db.exec1('DELETE FROM history WHERE user_id=? AND product_id=?', req.user.id, int(req.params.pid));
+    if (wantsJson(req)) return res.json({ ok: true });
+    res.redirect('/me/history');
+  });
+
+  // ---------------- 隐私政策 / 用户协议 / 同意 ----------------
+  const policyVersion = () => svc.S('policy_version') || '1.0';
+  const policy = topic => {
+    const a = db.get("SELECT * FROM articles WHERE category='policy' AND topic=? ORDER BY id LIMIT 1", topic);
+    return a ? { ...a, content: String(a.content || '').split('{{version}}').join(policyVersion()) } : null;
+  };
+  for (const [path, topic, title] of [['/privacy', 'privacy', '隐私政策'], ['/terms', 'terms', '用户协议']]) {
+    app.get(path, (req, res) => {
+      const a = policy(topic);
+      if (!a) return res.status(404).page('shop/error', { title, code: 404, message: '内容暂未发布' });
+      res.page('shop/policy', { title: a.title || title, a, version: policyVersion() });
+    });
+  }
+  app.get('/consent', needLogin, (req, res) => {
+    if (req.user.consent_version === policyVersion()) return res.redirect(safeNext(req.query.next));
+    res.page('shop/consent', { title: '用户协议与隐私政策', next: req.query.next || '/me', version: policyVersion(), updated: !!req.user.consent_version });
+  });
+  app.post('/consent', needLogin, (req, res) => {
+    if (req.body.agree !== '1') { flash(req, 'error', '请勾选同意《用户协议》《隐私政策》后继续,或退出登录'); return res.redirect('/consent?next=' + encodeURIComponent(req.body.next || '/me')); }
+    db.exec1('UPDATE users SET consent_at=?, consent_version=? WHERE id=?', now(), policyVersion(), req.user.id);
+    res.redirect(safeNext(req.body.next));
+  });
+
+  // ---------------- 注销账号 ----------------
+  const cancelBlockers = uid => {
+    const b = [];
+    const o = db.get("SELECT COUNT(*) n FROM orders WHERE user_id=? AND status IN ('unpaid','paid','shipped')", uid).n;
+    if (o) b.push(`有 ${o} 笔未完成的订单(待付款/待发货/待收货)`);
+    const a = db.get("SELECT COUNT(*) n FROM aftersales WHERE user_id=? AND status IN ('pending','approved_return','returned')", uid).n;
+    if (a) b.push(`有 ${a} 个处理中的售后`);
+    const r = db.get("SELECT COUNT(*) n FROM cloud_redeem_requests WHERE user_id=? AND status='pending'", uid).n;
+    if (r) b.push(`有 ${r} 笔待处理的积分兑换申请`);
+    return b;
+  };
+  app.get('/me/cancel', needLogin, (req, res) => res.page('shop/cancel-account', { title: '注销账号', blockers: cancelBlockers(req.user.id) }));
+  app.post('/me/cancel', needLogin, (req, res) => {
+    const uid = req.user.id;
+    const blockers = cancelBlockers(uid);
+    if (blockers.length) { flash(req, 'error', '暂不能注销:' + blockers.join(';')); return res.redirect('/me/cancel'); }
+    if (String(req.body.confirm_text || '').trim() !== '确认注销') { flash(req, 'error', '请在输入框中填写「确认注销」'); return res.redirect('/me/cancel'); }
+    if (req.body.ack !== '1') { flash(req, 'error', '请勾选「我已了解注销后果」'); return res.redirect('/me/cancel'); }
+    db.transaction(() => {
+      const t = now();
+      // 账号本身:去标识化,保留 id 以便订单等法定留存记录匿名关联
+      db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, remark=NULL,
+        signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
+      db.exec1('UPDATE users SET referrer_id=NULL WHERE referrer_id=?', uid); // 解除邀请关系
+      for (const tb of ['addresses', 'favorites', 'history', 'cart', 'messages', 'signins', 'cloud_daily_log']) db.exec1(`DELETE FROM ${tb} WHERE user_id=?`, uid);
+      db.exec1("DELETE FROM user_coupons WHERE user_id=? AND status='unused'", uid);
+      db.exec1("UPDATE invoices SET email='', title=CASE WHEN type='personal' THEN '个人' ELSE title END WHERE user_id=?", uid);
+      db.exec1("UPDATE orders SET receiver='已注销用户', phone='***', detail='***', remark='' WHERE user_id=?", uid);
+      db.exec1("UPDATE reviews SET status='hidden' WHERE user_id=?", uid);
+      db.exec1('INSERT INTO points_log(user_id,delta,balance,reason,created_at) VALUES(?,?,?,?,?)', uid, -(req.user.points || 0), 0, '账号注销,积分清零', t);
+    })();
+    req.session.regenerate(() => { req.session.flash = { type: 'success', msg: '账号已注销,感谢您的使用' }; req.session.save(() => res.redirect('/')); });
+  });
   // 积分 / 签到
   app.get('/me/points', needLogin, (req, res) => {
     const pg = U.paginate('SELECT * FROM points_log WHERE user_id=? ORDER BY id DESC', [req.user.id], req.query.page, 15);

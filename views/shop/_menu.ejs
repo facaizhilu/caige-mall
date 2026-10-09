@@ -18,6 +18,10 @@
   <a href="/me/profile" class="<%= cur==='profile'?'on':'' %>">个人资料</a>
   <a href="/me/addresses" class="<%= cur==='addresses'?'on':'' %>">收货地址</a>
   <a href="/me/levels" class="<%= cur==='levels'?'on':'' %>">会员等级</a>
+  <a href="/me/cancel" class="<%= cur==='cancel'?'on':'' %>">注销账号</a>
   <a href="/service">联系客服</a>
+  <h5>协议与隐私</h5>
+  <a href="/terms">用户协议</a>
+  <a href="/privacy">隐私政策</a>
   <form method="post" action="/logout" class="show-m"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link">退出登录</button></form>
 </aside>

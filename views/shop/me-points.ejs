@@ -2,7 +2,7 @@
 <div class="card"><div class="flex between wrapf"><div><span class="muted">我的积分</span><div class="pts" style="color:var(--gold-d);font-size:34px;font-weight:700;line-height:1.3"><b><%= user.points %></b> <small style="font-size:14px;font-weight:500">积分</small></div><span class="muted">连续签到 <%= user.signin_streak %> 天 · <%= '100' %> 积分可抵 ¥1</span></div>
   <div class="flex"><a class="btn gold" href="/points-mall">去积分商城</a><form method="post" action="/me/signin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary" <%= signed?'disabled':'' %>><%= signed?'✔ 今日已签到':'📅 立即签到' %></button></form></div></div>
   <div class="signgrid"><% days.forEach(d=>{ %><div class="<%= d.signed?'ok':'' %> <%= d.today?'today':'' %>"><%= d.d.slice(5) %><br><%= d.signed?'✔ 已签':(d.today?'今天':'—') %></div><% }) %></div>
-  <p class="muted" style="margin:0">签到规则:每日签到 <%= shop.signin_base %> 积分起,连续签到每天多 1 分(最多 +5)。购物确认收货按实付金额 1:1 获得积分与成长值。若已开通<a href="/me/cloud">云商卡会员权益</a>,签到时还可同步领取每日会员返积分。</p></div>
+  <p class="muted" style="margin:0">签到规则:每日签到 <%= shop.signin_base %> 积分起,连续签到每天多 1 分(最多 +5)。购物确认收货按实付金额 1:1 获得积分与成长值。若已开通<a href="/me/cloud">云商卡会员权益</a>,签到时还可同步领取每日会员返积分。<br><b>积分仅限本账户使用,可抵扣订单金额或兑换积分商城商品,不可转让、不可提现、不可兑换现金。</b></p></div>
 <div class="card mt"><h3 style="margin-top:0">积分明细</h3><table class="tbl"><tr><th>时间</th><th>说明</th><th class="right">变动</th><th class="right">结余</th></tr>
 <% pg.rows.forEach(r=>{ %><tr><td><%= r.created_at %></td><td><%= r.reason %></td><td class="right"><b style="color:<%= r.delta>=0?'var(--ok)':'var(--red)' %>"><%= r.delta>0?'+':'' %><%= r.delta %></b></td><td class="right"><%= r.balance %></td></tr><% }) %></table><%- include('../partials/pager') %></div>
 </div></div>

@@ -45,7 +45,7 @@
 
 <% if (status.active) { %>
 <div class="card mt" id="redeem"><h3 style="margin-top:0">积分兑换申请</h3>
-  <p class="muted">兑换比例仅作展示: <b><%= ratio %></b> 积分 ≈ 1 <%= label %>。提交后由管理员审核,通过后扣减积分并登记权益,<b>不会自动打款或提现</b>。</p>
+  <p class="muted">兑换比例仅作展示: <b><%= ratio %></b> 积分 ≈ 1 <%= label %>。提交后由管理员审核,通过后扣减积分并登记权益,<b>不会自动打款或提现</b>;积分不可转让、不可提现、不可兑换现金。</p>
   <form method="post" action="/me/cloud/redeem" class="form-row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <div style="flex:1;min-width:140px"><label>兑换积分(≥<%= redeemMin %>)</label><input type="number" name="points" min="<%= redeemMin %>" step="1" required placeholder="当前可用 <%= user.points %>"></div>
