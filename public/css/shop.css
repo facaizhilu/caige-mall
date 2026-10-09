@@ -368,3 +368,16 @@ textarea{resize:vertical}
 @media (max-width:768px){.hist-grid{grid-template-columns:repeat(2,1fr)!important}}
 @media (max-width:768px){.policy .rich .tbl.stack td[data-label]{text-align:left;justify-content:flex-start;gap:12px}.policy .rich .tbl.stack td[data-label]:before{min-width:4.5em}}
 .freight b{color:var(--ink);font-weight:600}.freight b.free{color:#136c36}
+/* 批次3:我的邀请 / 云商卡权益 */
+.invite-rule{background:#fafafc;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.7}
+.invite-rule ol{margin:6px 0 0;padding-left:18px}
+.inv-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.inv-row:first-of-type{border-top:none}
+.inv-st{font-size:12px;color:#888;background:#f4f4f6;border-radius:999px;padding:3px 10px;white-space:nowrap;text-align:right}
+.inv-st.ok{color:#15803d;background:#ecfdf3}
+.inv-st.wait{color:#b45309;background:#fff7ed;white-space:normal}
+.cloud-ben{list-style:none;margin:0;padding:0}
+.cloud-ben li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.6}
+.cloud-ben li:first-child{border-top:none}
+.cloud-ben li>b{flex:0 0 64px;color:var(--red)}
+.ban-warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:10px 12px;margin-bottom:12px}

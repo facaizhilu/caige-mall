@@ -1,0 +1,14 @@
+<div class="grid g2" style="grid-template-columns:1fr 2fr"><div>
+<div class="card"><h3>违禁词表</h3>
+  <form method="post" action="/admin/banned-words"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row"><label>每行一个词(共 <%= words.length %> 个)</label><textarea name="words" rows="18" style="font-family:inherit"><%= words.join('\n') %></textarea>
+      <div class="help">商品新增/编辑保存时检查名称、副标题、详情和规格,命中时提示修改(不阻止保存);后续商品导入同样适用。默认包含分销/收益类用语及广告法绝对化用语。</div></div>
+    <button class="btn primary">保存词表</button>
+  </form>
+</div></div><div>
+<div class="card"><h3>现有商品扫描结果(<%= rows.length %> 个商品命中)</h3>
+  <div class="tbl-wrap"><table class="t"><tr><th>ID</th><th>商品</th><th>状态</th><th>命中词(位置)</th><th></th></tr>
+  <% if (!rows.length) { %><tr><td colspan="5" class="muted">未发现命中违禁词的商品</td></tr><% } %>
+  <% rows.forEach(p=>{ %><tr><td><%= p.id %></td><td><b><%= p.name %></b><div class="muted" style="font-size:12px"><%= p.hits.slice(0,2).map(h=>'…'+h.snippet+'…').join(' ') %></div></td><td><%- p.status ? '<span class="tag green">在售</span>' : '<span class="tag gray">下架</span>' %></td><td><%= p.summary %></td><td><a class="btn sm" href="/admin/products/<%= p.id %>/edit">去修改</a></td></tr><% }) %>
+  </table></div>
+</div></div></div>

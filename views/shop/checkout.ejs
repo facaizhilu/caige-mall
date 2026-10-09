@@ -35,8 +35,8 @@
   <div class="card">
     <dl class="kv" style="grid-template-columns:1fr auto;max-width:420px;margin-left:auto">
       <dt>商品金额</dt><dd class="right" id="rGoods"><%= money(q.goods) %></dd>
-      <dt>运费</dt><dd class="right" id="rFreight"><%= money(q.freight) %></dd>
-      <dt><%= q.levelName %>会员折扣</dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd>
+      <dt>运费<% if (q.cloudFree) { %> <span class="tag gold">云商卡会员包邮</span><% } %></dt><dd class="right" id="rFreight"><%= money(q.freight) %></dd>
+      <dt><%= /云商卡/.test(q.levelName) ? q.levelName : (/会员$/.test(q.levelName) ? q.levelName + '折扣' : q.levelName + '会员折扣') %></dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd>
       <dt>优惠券</dt><dd class="right" id="rCoupon">-<%= money(q.couponDiscount) %></dd>
       <dt>积分抵扣</dt><dd class="right" id="rPts">-<%= money(q.pointsDiscount) %></dd>
     </dl>

@@ -1,0 +1,24 @@
+<div class="grid g2" style="grid-template-columns:1fr 2fr"><div>
+<div class="card"><h3>邀请规则(单级)</h3>
+  <form method="post" action="/admin/invites/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row"><label>邀请人奖励积分(一次性)</label><input type="number" name="invite_points" min="0" value="<%= s.invite_points %>" required><div class="help">被邀请人首个订单确认收货且满观察期未退款后发放;注册不奖励</div></div>
+    <div class="form-row"><label>观察期(天)</label><input type="number" name="invite_window_days" min="7" max="90" value="<%= s.invite_window_days %>" required><div class="help">不得短于七天无理由退货期;观察期内退款则取消奖励</div></div>
+    <div class="form-row"><label>被邀请人首单优惠券</label><select name="invite_coupon_id"><option value="">不发放</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>" <%= String(s.invite_coupon_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select><div class="help">通过邀请码注册时自动发放给被邀请人</div></div>
+    <button class="btn primary">保存规则</button>
+  </form>
+  <p class="muted mt" style="font-size:12px">仅一级邀请、每位好友一次性积分奖励,无现金奖励;不设置分享门槛或人数门槛。</p>
+</div>
+<div class="card"><h3>概览</h3><dl class="kv"><dt>通过邀请注册</dt><dd><%= invited %> 人</dd><dt>奖励记录</dt><dd><%= sum.n %> 条</dd><dt>观察期中</dt><dd><%= sum.pending %> 条</dd><dt>已发放积分</dt><dd><%= sum.granted %></dd></dl></div>
+</div><div>
+<div class="card"><form class="toolbar" method="get"><select name="status" onchange="this.form.submit()"><option value="">全部状态</option><% [['pending','观察期中'],['granted','已发放'],['cancelled','已取消']].forEach(([v,t])=>{ %><option value="<%= v %>" <%= st===v?'selected':'' %>><%= t %></option><% }) %></select></form>
+<div class="tbl-wrap"><table class="t"><tr><th>邀请人</th><th>被邀请人</th><th>首单</th><th>积分</th><th>状态</th><th>观察期至 / 发放时间</th></tr>
+<% if (!pg.rows.length) { %><tr><td colspan="6" class="muted">暂无记录(被邀请人首单确认收货后生成)</td></tr><% } %>
+<% pg.rows.forEach(x=>{ %><tr>
+  <td><a href="/admin/members/<%= x.referrer_id %>"><%= x.an %></a><br><span class="muted"><%= x.ap %></span></td>
+  <td><a href="/admin/members/<%= x.invitee_id %>"><%= x.bn %></a><br><span class="muted"><%= x.bp %></span></td>
+  <td><a href="/admin/orders/<%= x.order_id %>"><%= x.order_no %></a></td>
+  <td><%= x.points %></td>
+  <td><%- x.status==='granted'?'<span class="tag green">已发放</span>':x.status==='pending'?'<span class="tag gold">观察期中</span>':'<span class="tag gray">已取消</span>' %><% if (x.note) { %><br><span class="muted"><%= x.note %></span><% } %></td>
+  <td class="muted"><%= x.status==='granted' ? x.granted_at : String(x.due_at||'').slice(0,16) %></td>
+</tr><% }) %></table></div><%- include('../partials/apager') %></div>
+</div></div>

@@ -486,8 +486,6 @@ module.exports = function (app, { filesOf }) {
     if (o) b.push(`有 ${o} 笔未完成的订单(待付款/待发货/待收货)`);
     const a = db.get("SELECT COUNT(*) n FROM aftersales WHERE user_id=? AND status IN ('pending','approved_return','returned')", uid).n;
     if (a) b.push(`有 ${a} 个处理中的售后`);
-    const r = db.get("SELECT COUNT(*) n FROM cloud_redeem_requests WHERE user_id=? AND status='pending'", uid).n;
-    if (r) b.push(`有 ${r} 笔待处理的积分兑换申请`);
     return b;
   };
   app.get('/me/cancel', needLogin, (req, res) => res.page('shop/cancel-account', { title: '注销账号', blockers: cancelBlockers(req.user.id) }));
@@ -503,7 +501,8 @@ module.exports = function (app, { filesOf }) {
       db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, remark=NULL,
         signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
       db.exec1('UPDATE users SET referrer_id=NULL WHERE referrer_id=?', uid); // 解除邀请关系
-      for (const tb of ['addresses', 'favorites', 'history', 'cart', 'messages', 'signins', 'cloud_daily_log']) db.exec1(`DELETE FROM ${tb} WHERE user_id=?`, uid);
+      db.exec1("UPDATE invite_rewards SET status='cancelled', note='账号注销' WHERE (referrer_id=? OR invitee_id=?) AND status='pending'", uid, uid);
+      for (const tb of ['addresses', 'favorites', 'history', 'cart', 'messages', 'signins', 'point_lots']) db.exec1(`DELETE FROM ${tb} WHERE user_id=?`, uid);
       db.exec1("DELETE FROM user_coupons WHERE user_id=? AND status='unused'", uid);
       db.exec1("UPDATE invoices SET email='', title=CASE WHEN type='personal' THEN '个人' ELSE title END WHERE user_id=?", uid);
       db.exec1("UPDATE orders SET receiver='已注销用户', phone='***', detail='***', remark='' WHERE user_id=?", uid);
@@ -517,7 +516,8 @@ module.exports = function (app, { filesOf }) {
     const pg = U.paginate('SELECT * FROM points_log WHERE user_id=? ORDER BY id DESC', [req.user.id], req.query.page, 15);
     const days = []; const signed = new Set(db.all('SELECT day FROM signins WHERE user_id=?', req.user.id).map(r => r.day));
     for (let i = 6; i >= 0; i--) { const d = U.offset(-i * 86400000).slice(0, 10); days.push({ d, signed: signed.has(d), today: i === 0 }); }
-    res.page('shop/me-points', { title: '我的积分', pg, days, signed: req.user.last_signin === U.today() });
+    const expiring = svc.expiringPoints(req.user.id);
+    res.page('shop/me-points', { title: '我的积分', pg, days, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudActive: svc.cloud.isCardActive(req.user) });
   });
   app.post('/me/signin', needLogin, (req, res) => {
     const today = U.today(), yest = U.offset(-86400000).slice(0, 10);
@@ -526,16 +526,14 @@ module.exports = function (app, { filesOf }) {
       if (u.last_signin === today) return { ok: false, msg: '今天已经签到过啦' };
       const streak = u.last_signin === yest ? u.signin_streak + 1 : 1;
       const pts = int(svc.S('signin_base'), 5) + Math.min(streak - 1, 5);
-      db.exec1('INSERT INTO signins VALUES(?,?,?,?)', u.id, today, pts, streak);
+      db.exec1('INSERT INTO signins(user_id,day,points,streak) VALUES(?,?,?,?)', u.id, today, pts, streak);
       db.exec1('UPDATE users SET signin_streak=?, last_signin=? WHERE id=?', streak, today, u.id);
       svc.addPoints(u.id, pts, `每日签到(连续${streak}天)`); svc.addGrowth(u.id, 2);
-      let extra = 0;
-      if (svc.cloud.isCardActive(u) && u.cloud_daily_day !== today) {
-        const cr = svc.cloud.dailyReturn(u.id, svc.addPoints);
-        if (cr.ok) extra = cr.pts || 0;
-      }
+      // 云商卡会员:仅在主动签到时加赠,当月封顶,限期有效
+      const extra = svc.cloud.signinExtra(u.id, svc.addPoints);
+      if (extra) db.exec1('UPDATE signins SET extra=? WHERE user_id=? AND day=?', extra, u.id, today);
       const msg = extra
-        ? `签到成功,获得 ${pts} 积分(连续${streak}天),会员每日返积分 +${extra}`
+        ? `签到成功,获得 ${pts} 积分(连续${streak}天),云商卡会员加赠 +${extra}`
         : `签到成功,获得 ${pts} 积分(连续签到 ${streak} 天)`;
       return { ok: true, msg, pts: pts + extra };
     })();
@@ -559,22 +557,17 @@ module.exports = function (app, { filesOf }) {
   // 余额 / 充值:前台已下线账户余额,旧链接统一回到会员中心
   app.get('/me/balance', needLogin, (req, res) => res.redirect('/me'));
   app.post('/me/recharge', needLogin, (req, res) => res.redirect('/me'));
-  // 分销
-  app.get('/me/referral', needLogin, (req, res) => {
-    const invitees = db.all('SELECT id, nickname, phone, created_at, total_spent FROM users WHERE referrer_id=? ORDER BY id DESC', req.user.id);
-    const sum = db.get("SELECT COALESCE(SUM(CASE WHEN status='available' THEN amount END),0) available, COALESCE(SUM(CASE WHEN status='settled' THEN amount END),0) settled FROM commissions WHERE user_id=?", req.user.id);
-    const list = db.all('SELECT c.*, o.order_no, u.nickname FROM commissions c JOIN orders o ON o.id=c.order_id JOIN users u ON u.id=c.from_user_id WHERE c.user_id=? ORDER BY c.id DESC LIMIT 30', req.user.id);
-    res.page('shop/me-referral', { title: '邀请好友 · 分销', invitees, sum, list, link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
+  // 我的邀请(单级):邀请人仅在好友首单确认收货且满观察期后获得一次性积分;注册不奖励
+  app.get('/me/invite', needLogin, (req, res) => {
+    const invitees = db.all(`SELECT u.id, u.nickname, u.phone, u.created_at, r.status rstatus, r.points rpoints, r.due_at, r.granted_at
+      FROM users u LEFT JOIN invite_rewards r ON r.id=(SELECT id FROM invite_rewards x WHERE x.invitee_id=u.id AND x.referrer_id=? ORDER BY id DESC LIMIT 1)
+      WHERE u.referrer_id=? ORDER BY u.id DESC`, req.user.id, req.user.id);
+    const earned = db.get("SELECT COALESCE(SUM(points),0) n FROM invite_rewards WHERE referrer_id=? AND status='granted'", req.user.id).n;
+    const coupon = int(svc.S('invite_coupon_id')) ? db.get('SELECT * FROM coupons WHERE id=? AND status=1', int(svc.S('invite_coupon_id'))) : null;
+    res.page('shop/me-invite', { title: '我的邀请', invitees, earned, coupon, invitePts: int(svc.S('invite_points'), 100), windowDays: int(svc.S('invite_window_days'), 7), link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
   });
-  app.post('/me/referral/settle', needLogin, (req, res) => {
-    const r = db.transaction(() => {
-      const amt = db.get("SELECT COALESCE(SUM(amount),0) a FROM commissions WHERE user_id=? AND status='available'", req.user.id).a;
-      if (amt <= 0) return null;
-      db.exec1("UPDATE commissions SET status='settled', settled_at=? WHERE user_id=? AND status='available'", now(), req.user.id);
-      return amt;
-    })();
-    flash(req, r ? 'success' : 'error', r ? `已申请结算佣金 ¥${r.toFixed(2)},将由平台线下发放(演示)` : '暂无可结算佣金'); res.redirect('/me/referral');
-  });
+  // 旧入口(分销/云粉)统一跳转到「我的邀请」
+  for (const pth of ['/me/referral', '/me/cloud-fans']) app.get(pth, needLogin, (req, res) => res.redirect('/me/invite'));
   app.get('/me/invoices', needLogin, (req, res) => {
     const rows = db.all('SELECT i.*, o.order_no FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.user_id=? ORDER BY i.id DESC', req.user.id);
     res.page('shop/me-invoices', { title: '我的发票', rows });
@@ -582,34 +575,15 @@ module.exports = function (app, { filesOf }) {
   app.get('/me/levels', needLogin, (req, res) => res.page('shop/me-levels', { title: '会员等级', levels: db.all('SELECT * FROM member_levels ORDER BY min_growth') }));
 
 
-  // ---------------- 云商卡会员权益 ----------------
+  // ---------------- 云商卡会员权益(线下办理,后台开通;本页仅展示) ----------------
   app.get('/me/cloud', needLogin, (req, res) => {
     const cloud = svc.cloud;
     const status = cloud.cardStatus(req.user);
-    const types = db.all('SELECT c.*, p.name pname, p.price pprice, p.images FROM cloud_card_types c LEFT JOIN products p ON p.id=c.product_id WHERE c.status=1 ORDER BY c.sort, c.id')
-      .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration, img: U.firstImg(t.images) }));
-    const dailyDone = req.user.cloud_daily_day === U.today();
-    const redeems = db.all('SELECT * FROM cloud_redeem_requests WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id);
-    const refLog = db.all('SELECT * FROM cloud_referral_log WHERE user_id=? ORDER BY id DESC LIMIT 15', req.user.id);
-    const ratio = int(svc.S('cloud_redeem_ratio'), 100);
-    const label = svc.S('cloud_redeem_label') || '权益值';
-    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, dailyDone, redeems, refLog, ratio, label, dailyPts: int(svc.S('cloud_daily_points'), 10), redeemMin: int(svc.S('cloud_redeem_min'), 100) });
-  });
-  app.post('/me/cloud/daily', needLogin, (req, res) => {
-    const r = db.transaction(() => svc.cloud.dailyReturn(req.user.id, svc.addPoints))();
-    if (wantsJson(req)) return res.json(r);
-    flash(req, r.ok ? 'success' : 'error', r.msg); res.redirect('/me/cloud');
-  });
-  app.post('/me/cloud/redeem', needLogin, (req, res) => {
-    const r = svc.cloud.submitRedeem(req.user.id, req.body.points, req.body.note);
-    flash(req, r.ok ? 'success' : 'error', r.msg); res.redirect('/me/cloud');
-  });
-  app.get('/me/cloud-fans', needLogin, (req, res) => {
-    const stats = svc.cloud.fanStats(req.user.id);
-    const status = svc.cloud.cardStatus(req.user);
-    const push3Pct = svc.S('cloud_push3_pct');
-    const push3Mode = svc.S('cloud_push3_mode');
-    res.page('shop/me-cloud-fans', { title: '我的云粉', stats, status, push3Pct, push3Mode, link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
+    const types = db.all('SELECT * FROM cloud_card_types WHERE status=1 ORDER BY sort, id')
+      .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration }));
+    const month = U.today().slice(0, 7);
+    const extraUsed = db.get('SELECT COALESCE(SUM(extra),0) n FROM signins WHERE user_id=? AND day LIKE ?', req.user.id, month + '%').n;
+    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), extraUsed, card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
   });
 
   // ---------------- 积分商城 ----------------
@@ -664,12 +638,15 @@ module.exports = function (app, { filesOf }) {
     const q = String(req.query.q || '').trim();
     res.page('shop/help', { title: '帮助中心', rows: q ? rows.filter(r => (r.title + r.content).includes(q)) : rows, q });
   });
-  app.get('/article/:id', (req, res) => {
-    const a = db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id));
+  const showArticle = (a, res) => {
     if (!a) return res.status(404).page('shop/error', { title: '文章不存在', code: 404, message: '文章不存在' });
     db.exec1('UPDATE articles SET views=views+1 WHERE id=?', a.id);
+    if (a.topic === 'points_rules') a = { ...a, content: require('../lib/policies').fillPointsVars(a.content, svc.S) };
     res.page('shop/article', { title: a.title, a });
-  });
+  };
+  app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));
+  // 积分规则(公开页面,数值随后台配置自动更新)
+  app.get('/points-rules', (req, res) => showArticle(db.get("SELECT * FROM articles WHERE topic='points_rules' AND status=1 ORDER BY id LIMIT 1"), res));
   app.get('/service', (req, res) => {
     let msgs = [];
     if (req.user) { msgs = db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', req.user.id); db.exec1("UPDATE messages SET is_read=1 WHERE user_id=? AND sender IN ('staff','bot')", req.user.id); }

@@ -8,7 +8,7 @@ const ejs = require('ejs');
 const db = require('./lib/db');
 const U = require('./lib/util');
 const svc = require('./lib/svc');
-const { RETURN_HELP } = require('./lib/seed-texts');
+const { RETURN_HELP, CLOUD_HELP } = require('./lib/seed-texts');
 const SqliteStore = require('./lib/session-store');
 
 if (db.get('SELECT COUNT(*) n FROM admins').n === 0) require('./lib/seed')(false);
@@ -17,6 +17,8 @@ db.exec1("UPDATE articles SET title='支付方式说明', content='<p>本站为�
 db.exec1("UPDATE articles SET content=REPLACE(content, '款项原路退回账户余额。', '款项原路退回(演示环境为模拟退款)。') WHERE category='help' AND content LIKE '%原路退回账户余额%'");
 // 隐私政策 / 用户协议(文章形式,后台可编辑)
 require('./lib/policies').ensurePolicies(db, U.now);
+require('./lib/policies').ensurePointsRules(db, U.now);
+svc.cloud.ensureDefaults();
 // 一次性迁移(用 settings 标记,避免覆盖后台后续修改)
 (function oneTimeMigrations() {
   const done = k => !!db.get('SELECT 1 FROM settings WHERE key=?', 'migr_' + k);
@@ -29,6 +31,15 @@ require('./lib/policies').ensurePolicies(db, U.now);
     db.exec1("UPDATE articles SET content=? WHERE category='help' AND title='退款退货政策'", RETURN_HELP);
     db.exec1("UPDATE articles SET content=REPLACE(content,'<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。</p>','<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。本平台不提供账户余额与充值功能;积分仅限本账户使用,不可转让、不可提现。</p>') WHERE category='help' AND title='支付方式说明'");
     mark('return_help_v2');
+  }
+  if (!done('batch3_texts')) { // 云商卡改为线下办理、取消分销/推三返一后,同步旧库中的展示文案
+    db.exec1("UPDATE banners SET subtitle='会员价 · 包邮 · 签到加赠积分,线下办理' WHERE link='/me/cloud'");
+    db.exec1("UPDATE articles SET content=? WHERE category='help' AND title='云商卡会员权益说明'", CLOUD_HELP);
+    db.exec1("UPDATE articles SET title='积分规则说明(旧)', status=0 WHERE category='help' AND title LIKE '%分销%'");
+    db.exec1("UPDATE articles SET content=REPLACE(REPLACE(content,'<td>计算与展示积分、会员权益、每日返积分及兑换记录</td>','<td>计算与展示积分、会员等级与云商卡权益(会员价、包邮、签到加赠积分)</td>'),'<td>计算邀请奖励与分销佣金</td>','<td>计算邀请好友首单积分奖励</td>') WHERE category='policy' AND topic='privacy'");
+    db.exec1("UPDATE articles SET content='<p>积分可在下单时抵扣部分金额,抵扣比例与单笔上限以《积分规则》页面公示为准。优惠券需满足门槛,每单限用一张。</p>' WHERE category='help' AND title='积分与优惠券使用说明'");
+    db.exec1("UPDATE articles SET content=REPLACE(content,'<b>积分仅限本账户使用,不可转让、不可提现、不可兑换现金</b>','<b>积分仅限本账户使用,不可购买、不可转让、不可提现、不可兑换现金</b>,具体以《积分规则》为准') WHERE category='policy' AND topic='terms'");
+    mark('batch3_texts');
   }
 })();
 

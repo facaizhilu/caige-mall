@@ -1,4 +1,5 @@
 <% const imgs = U.jsonArr(p.images); %>
+<% if (typeof bannedHits !== 'undefined' && bannedHits && !(flash && flash.type === 'warn')) { %><div class="flash warn">⚠️ 违禁/敏感词提示:<%= bannedHits %>。请核实并修改相关文案(<a href="/admin/banned-words">管理违禁词表</a>)。</div><% } %>
 <form method="post" action="/admin/products/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id||'' %>">
 <div class="card"><h3>基本信息</h3><div class="form-grid">
  <div class="form-row" style="grid-column:1/-1"><label>商品名称 *</label><input type="text" name="name" value="<%= p.name %>" required maxlength="80"></div>

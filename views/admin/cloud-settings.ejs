@@ -1,34 +1,14 @@
 <form method="post" action="/admin/cloud-settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<div class="card"><h3>每日会员权益返积分</h3>
-  <p class="muted">会员权益生效期间,用户可通过签到或「领取每日返积分」获得积分,计入用户积分余额。过期后不可领取。</p>
+<div class="card"><h3>云商卡会员权益</h3>
+  <p class="muted">云商卡为线下销售的会员权益卡,由管理员在「会员详情」中为会员开通/续期/停用。以下为保守占位值,请按实际经营调整。云商卡不发放每日自动积分,也不与邀请/推荐挂钩。</p>
   <div class="form-grid">
-    <div class="form-row"><label>每日返积分数量</label><input type="number" name="cloud_daily_points" value="<%= s.cloud_daily_points %>" min="0" required></div>
-  </div>
-</div>
-<div class="card"><h3>一级直推(消费返积分)</h3>
-  <p class="muted">仅一级:直推好友购买「激活商品」并支付成功后,推荐人若会员权益生效,按比例获得积分。可分别开关白银/黄金档。</p>
-  <div class="form-grid">
-    <div class="form-row"><label>白银档直推比例(%)</label><input type="number" step="0.1" name="cloud_referral_pct_silver" value="<%= s.cloud_referral_pct_silver %>" min="0"></div>
-    <div class="form-row"><label>启用白银直推</label><label class="chk"><input type="checkbox" name="cloud_referral_enable_silver" value="1" <%= String(s.cloud_referral_enable_silver)==='1'?'checked':'' %>> 开启</label></div>
-    <div class="form-row"><label>黄金档直推比例(%)</label><input type="number" step="0.1" name="cloud_referral_pct_gold" value="<%= s.cloud_referral_pct_gold %>" min="0"></div>
-    <div class="form-row"><label>启用黄金直推</label><label class="chk"><input type="checkbox" name="cloud_referral_enable_gold" value="1" <%= String(s.cloud_referral_enable_gold)==='1'?'checked':'' %>> 开启</label></div>
-  </div>
-</div>
-<div class="card"><h3>推三返一(一级里程碑)</h3>
-  <p class="muted">当直推好友中累计有 3/6/9… 人购买过激活商品时,按商品金额比例发放一次积分奖励。仍为一级,无多级。</p>
-  <div class="form-grid">
-    <div class="form-row"><label>返还比例(% of 商品金额)</label><input type="number" step="0.1" name="cloud_push3_pct" value="<%= s.cloud_push3_pct %>" min="0"></div>
-    <div class="form-row"><label>发放模式</label><select name="cloud_push3_mode"><option value="per_third" <%= s.cloud_push3_mode==='per_third'?'selected':'' %>>每满三人发放一次</option><option value="once" <%= s.cloud_push3_mode==='once'?'selected':'' %>>仅首次满三人发放</option></select></div>
-  </div>
-</div>
-<div class="card"><h3>积分兑换展示</h3>
-  <p class="muted">仅用于前台展示换算关系,审核通过后扣积分并登记权益,<b>不自动打款、不支持提现</b>。</p>
-  <div class="form-grid">
-    <div class="form-row"><label>展示名称(如:权益值/云积分)</label><input name="cloud_redeem_label" value="<%= s.cloud_redeem_label %>" required></div>
-    <div class="form-row"><label>多少积分 = 1 单位展示值</label><input type="number" name="cloud_redeem_ratio" value="<%= s.cloud_redeem_ratio %>" min="1" required></div>
-    <div class="form-row"><label>最低兑换积分数</label><input type="number" name="cloud_redeem_min" value="<%= s.cloud_redeem_min %>" min="1" required></div>
+    <div class="form-row"><label>会员价折扣(%)</label><input type="number" name="cloud_discount" min="50" max="100" value="<%= s.cloud_discount %>" required><div class="help">98 = 售价的 98%;与会员等级折扣取更优,不叠加;秒杀/拼团不参与</div></div>
+    <div class="form-row"><label>会员包邮</label><label class="chk"><input type="checkbox" name="cloud_free_shipping" value="1" <%= String(s.cloud_free_shipping)==='1'?'checked':'' %>> 会员订单免运费</label></div>
+    <div class="form-row"><label>主动签到加赠积分(每次)</label><input type="number" name="cloud_signin_extra" min="0" max="100" value="<%= s.cloud_signin_extra %>" required><div class="help">仅在会员主动签到时发放</div></div>
+    <div class="form-row"><label>每月加赠上限(积分)</label><input type="number" name="cloud_signin_extra_cap" min="0" max="3000" value="<%= s.cloud_signin_extra_cap %>" required></div>
+    <div class="form-row"><label>加赠积分有效期(天)</label><input type="number" name="cloud_extra_expire_days" min="1" max="365" value="<%= s.cloud_extra_expire_days %>" required><div class="help">到期未使用自动作废;使用积分时优先扣减即将到期的部分</div></div>
   </div>
 </div>
 <button class="btn primary" style="padding:9px 30px">保存配置</button>
-<a class="btn" href="/admin/cloud-cards">管理卡类型</a>
+<a class="btn" href="/admin/cloud-cards">管理卡类型</a> <a class="btn" href="/admin/cloud-members">云商卡会员与销售记录</a>
 </form>

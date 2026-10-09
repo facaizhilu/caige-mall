@@ -73,7 +73,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'bad' }); ok(r.loc === '/admin/login', '后台错误密码');
   r = await adm.get('/admin/login'); r = await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin', '后台登录'); await adm.get('/admin');
   ok((await shop.get('/admin')).status === 302, '前台会话不能访问后台');
-  for (const p of ['/admin', '/admin/stats', '/admin/products', '/admin/products/new', '/admin/products/1/edit', '/admin/categories', '/admin/brands', '/admin/shipping', '/admin/inventory', '/admin/orders', '/admin/aftersales', '/admin/invoices', '/admin/reviews', '/admin/members', '/admin/members/1', '/admin/policies', '/admin/policies?tab=terms', '/admin/service?uid=1', '/admin/aftersales/1', '/admin/levels', '/admin/referral', '/admin/cloud-cards', '/admin/cloud-settings', '/admin/cloud-members', '/admin/cloud-redeems', '/admin/cloud-fans', '/admin/service', '/admin/coupons', '/admin/seckills', '/admin/groupbuys', '/admin/groups', '/admin/points-goods', '/admin/banners', '/admin/keywords', '/admin/notices', '/admin/help-articles', '/admin/pages', '/admin/settings', '/admin/admins', '/admin/roles', '/admin/logs', '/admin/coupons/new', '/admin/seckills/new', '/admin/roles/1/edit']) { r = await adm.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
+  for (const p of ['/admin', '/admin/stats', '/admin/products', '/admin/products/new', '/admin/products/1/edit', '/admin/categories', '/admin/brands', '/admin/shipping', '/admin/inventory', '/admin/orders', '/admin/aftersales', '/admin/invoices', '/admin/reviews', '/admin/members', '/admin/members/1', '/admin/policies', '/admin/policies?tab=terms', '/admin/service?uid=1', '/admin/aftersales/1', '/admin/levels', '/admin/invites', '/admin/banned-words', '/admin/cloud-cards', '/admin/cloud-settings', '/admin/cloud-members', '/admin/service', '/admin/coupons', '/admin/seckills', '/admin/groupbuys', '/admin/groups', '/admin/points-goods', '/admin/banners', '/admin/keywords', '/admin/notices', '/admin/help-articles', '/admin/pages', '/admin/settings', '/admin/admins', '/admin/roles', '/admin/logs', '/admin/coupons/new', '/admin/seckills/new', '/admin/roles/1/edit']) { r = await adm.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
   r = await adm.get('/admin/orders?q=' + orderNo); ok(r.text.includes(orderNo), '后台看到新订单');
   r = await adm.get('/admin/orders'); const aoid = oid;
   r = await adm.post('/admin/orders/' + aoid + '/ship', { company: '顺丰速运', tracking_no: 'SF12345678901' }); ok(r.status === 302, '后台发货');
@@ -161,50 +161,51 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/consent?next=/me'); r = await cg.post('/consent', { agree: '1', next: '/me' }); ok(r.loc === '/me', '勾选同意后继续');
   r = await cg.get('/me'); ok(r.status === 200, '同意后可正常访问');
   r = await cg.get('/me/cloud'); ok(r.status === 200 && r.text.includes('会员权益') && !/投资|收益|理财/.test(r.text), '会员云商卡页文案合规');
-  r = await cg.get('/me/cloud-fans'); ok(r.status === 200 && r.text.includes('我的云粉'), '我的云粉页');
-  await cg.get('/me/cloud');
-  r = await cg.post('/me/cloud/daily'); ok(r.status === 302, '领取每日返积分');
-  r = await cg.get('/me/cloud'); ok(r.text.includes('今日已领') || r.text.includes('已领取'), '防重复领取每日返积分展示');
-  r = await cg.post('/me/cloud/daily'); r = await cg.get('/me'); // flash may be on redirect
-  // 兑换申请:积分不足应失败
-  r = await cg.post('/me/cloud/redeem', { points: '99999999', note: '过大' }); r = await cg.get('/me/cloud'); ok(r.text.includes('积分不足') || r.text.includes('可用积分不足'), '兑换积分不足被拒');
-  r = await cg.post('/me/cloud/redeem', { points: '100', note: '冒烟兑换' }); ok(r.status === 302, '提交兑换申请');
-  r = await cg.get('/me/cloud'); ok(r.text.includes('待审核') || r.text.includes('冒烟兑换'), '兑换申请出现在列表');
-  // 后台审核:拒绝不扣分
-  r = await adm.get('/admin/cloud-redeems?status=pending');
-  const ridMatch = r.text.match(/\/admin\/cloud-redeems\/(\d+)\/handle/);
-  ok(!!ridMatch, '后台有待审核兑换');
-  if (ridMatch) {
-    const rid = ridMatch[1];
-    const beforePts = (await cg.get('/me/points')).text.match(/font-size:34px"><b>(\d+)<\/b>/);
-    r = await adm.post('/admin/cloud-redeems/' + rid + '/handle', { action: 'reject', admin_note: '冒烟拒绝', back: 'pending' });
-    ok(r.status === 302, '后台拒绝兑换');
-    const afterPts = (await cg.get('/me/points')).text.match(/font-size:34px"><b>(\d+)<\/b>/);
-    if (beforePts && afterPts) ok(beforePts[1] === afterPts[1], '拒绝兑换不扣积分');
-    else ok(true, '拒绝兑换流程完成');
-  }
-  // 购买激活商品开通卡(新用户)
+  ok(r.text.includes('线下') && !r.text.includes('/me/cloud/daily') && !r.text.includes('/me/cloud/redeem') && !/返积分|直推|推三|云粉/.test(r.text), '云商卡页:线下办理、无每日返积分/兑换/推荐奖励');
+  ok((await cg.get('/me/cloud-fans')).loc === '/me/invite' && (await cg.get('/me/referral')).loc === '/me/invite', '旧云粉/分销入口跳转到我的邀请');
+  r = await cg.get('/me/invite'); ok(r.status === 200 && r.text.includes('我的邀请') && r.text.includes('首个订单确认收货') && r.text.includes('注册本身不产生任何奖励') && !/佣金|分销|云粉|分享后|邀请满/.test(r.text), '我的邀请页:单级、首单后奖励、无分销文案');
+  r = await cg.get('/me'); ok(r.text.includes('我的邀请') && !r.text.includes('我的云粉') && !r.text.includes('积分兑换申请'), '会员中心菜单:我的邀请');
+  ok((await cg.post('/me/cloud/daily')).status === 404 && (await cg.post('/me/referral/settle')).status === 404, '每日返积分/佣金结算接口已移除');
+  r = await cg.get('/points-rules'); ok(r.status === 200 && r.text.includes('100 积分 = ¥1') && r.text.includes('不可购买') && !r.text.includes('{{'), '积分规则页(获取/使用/有效期,数值来自配置)');
+  // 云商卡会员签到加赠(主动签到才有,限期)
+  r = await cg.post('/me/signin'); r = await cg.get('/me/points'); ok(r.text.includes('云商卡会员签到加赠') && r.text.includes('限期积分'), '云商卡会员主动签到加赠限期积分');
+  // 会员价/包邮
+  r = await cg.post('/checkout', { sku_id: (await cg.get('/product/9')).text.match(/\{"id":(\d+),"attrs"/)[1], qty: 1 }); ok(r.text.includes('云商卡会员包邮'), '云商卡会员结算包邮');
+  // 后台:邀请管理 / 云商卡开通(线下销售登记)
+  r = await adm.get('/admin/invites'); ok(r.status === 200 && r.text.includes('邀请人奖励积分') && r.text.includes('观察期'), '后台邀请管理');
+  r = await adm.post('/admin/invites/settings', { invite_points: '100', invite_window_days: '3', invite_coupon_id: '' }); r = await adm.get('/admin/invites'); ok(r.text.includes('观察期需为'), '观察期不得短于 7 天');
   const act = new Client(); const aphone = '136' + String(Date.now()).slice(-8);
-  await act.get('/register'); r = await act.post('/register', { phone: aphone, password: 'abc12345', password2: 'abc12345', nickname: '云测', agree: '1', ref: '100001' });
-  ok(r.status === 302, '云粉注册');
-  await act.get('/me'); // 刷新 CSRF(注册会 regenerate session)
-  await act.post('/me/addresses', { name: '云测', phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '云商路 1 号' });
-  r = await act.get('/product/14'); const asku = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; ok(!!asku, '激活商品SKU');
-  r = await act.post('/checkout', { sku_id: asku, qty: 1 }); ok(r.status === 200 && r.text.includes('确认订单'), '激活商品结算');
-  const aAddr = (r.text.match(/name="address_id"[^>]*value="(\d+)"/) || r.text.match(/value="(\d+)"[^>]*name="address_id"/) || [])[1];
-  ok(!!aAddr, '结算页有收货地址', aAddr);
-  const aItems = ((r.text.match(/name="items" value='([^']+)'/) || [])[1] || '').replace(/&#34;/g, '"');
-  r = await act.post('/order/create', { items: aItems, address_id: aAddr, use_points: '0', no7_confirm: '1' });
-  ok(r.status === 302 && /\/order\/\d+\/pay/.test(r.loc || ''), '激活订单提交', r.loc);
-  const coid = ((r.loc || '').match(/order\/(\d+)\/pay/) || [])[1];
-  ok(!!coid, '拿到激活订单号');
-  r = await act.post('/order/' + coid + '/pay', { method: 'wechat' }); ok(r.status === 302, '激活订单支付');
-  r = await act.get('/me/cloud'); ok(r.text.includes('白银会员') || r.text.includes('会员权益生效'), '支付后开通白银会员权益');
-  // 推荐人应拿到直推积分流水
-  r = await cg.get('/me/cloud'); ok(r.text.includes('直推') || r.text.includes('会员权益'), '推荐人云商卡页可访问');
-  r = await adm.get('/admin/cloud-settings');
-  r = await adm.post('/admin/cloud-settings', { cloud_daily_points: '10', cloud_referral_pct_silver: '5', cloud_referral_pct_gold: '8', cloud_referral_enable_silver: '1', cloud_referral_enable_gold: '1', cloud_push3_pct: '30', cloud_push3_mode: 'per_third', cloud_redeem_label: '权益值', cloud_redeem_ratio: '100', cloud_redeem_min: '100' });
-  ok(r.status === 302, '保存云商卡配置');
+  await act.get('/register'); r = await act.post('/register', { phone: aphone, password: 'abc12345', password2: 'abc12345', nickname: '邀测', agree: '1', ref: '100001' });
+  ok(r.status === 302, '被邀请人注册');
+  ok((await act.get('/me/coupons')).text.includes('邀请好友首单券'), '被邀请人获得首单优惠券');
+  r = await adm.get('/admin/members?q=' + aphone); const auid = (r.text.match(/\/admin\/members\/(\d+)/) || [])[1]; ok(!!auid, '后台找到被邀请人');
+  r = await adm.get('/admin/members/' + auid); ok(r.text.includes('开通云商卡') && r.text.includes('经办员工'), '会员详情有云商卡开通表单');
+  const ctid = (r.text.match(/name="card_type_id"[\s\S]*?<option value="(\d+)"/) || [])[1];
+  r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('请填写经办员工'), '开通需登记经办员工');
+  r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '冒烟店员', receipt_note: '收据 NO.SMOKE' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('生效中') && r.text.includes('冒烟店员'), '后台开通云商卡并记录线下销售');
+  r = await act.get('/me/cloud'); ok(r.text.includes('有效期') && r.text.includes('白银月卡'), '用户端显示云商卡有效期');
+  r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
+  r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
+  r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');
+  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '5', cloud_signin_extra_cap: '50', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
+  // 积分比例可配置,规则页同步
+  r = await adm.post('/admin/settings', { shop_name: '财哥商城', points_rate: '200', points_max_percent: '30', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
+  r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '后台修改积分比例/上限后积分规则页同步');
+  await adm.post('/admin/settings', { shop_name: '财哥商城', points_rate: '100', points_max_percent: '50', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
+  // 违禁词
+  r = await adm.get('/admin/banned-words'); ok(r.status === 200 && r.text.includes('躺赚') && r.text.includes('国家级'), '违禁词检查页(默认词表)');
+  r = await adm.get('/admin/products/9/edit'); const pf = r.text;
+  const tpl = (pf.match(/name="template_id"[\s\S]*?<option value="(\d+)" selected/) || [])[1] || '1';
+  const cat9 = (pf.match(/name="category_id"[\s\S]*?<option value="(\d+)" selected/) || [])[1];
+  ok(!!cat9, '读取商品表单分类');
+  r = await adm.post('/admin/products/save', { name: '冒烟躺赚神器 国家级品质', subtitle: '测试', category_id: cat9, template_id: tpl, spec_names: '规格', sku_spec: '默认', sku_price: '9.9', sku_stock: '10' });
+  ok(/\/admin\/products\/\d+\/edit/.test(r.loc || ''), '含违禁词的商品保存后提示并回到编辑页', r.loc);
+  r = await adm.get(r.loc || '/admin/products'); ok(r.text.includes('违禁/敏感词') && r.text.includes('躺赚') && r.text.includes('国家级'), '编辑页显示命中的违禁词');
+  r = await adm.get('/admin/banned-words'); ok(r.text.includes('冒烟躺赚神器'), '违禁词扫描列出命中商品');
+  r = await adm.post('/admin/products/save', { name: '冒烟普通商品', subtitle: '测试', category_id: cat9, template_id: tpl, spec_names: '规格', sku_spec: '默认', sku_price: '9.9', sku_stock: '10' });
+  ok(r.loc === '/admin/products', '无违禁词的商品正常保存');
+  r = await adm.post('/admin/banned-words', { words: '躺赚\n普通商品' }); r = await adm.get('/admin/banned-words'); ok(r.text.includes('冒烟普通商品'), '违禁词表可编辑并即时生效');
+  await adm.post('/admin/banned-words', { words: ['返佣', '收益', '佣金', '分销', '团队', '下线', '层级', '分红', '躺赚', '日赚', '稳赚', '积分提现', '最', '第一', '国家级', '100%', '顶级', '极品'].join('\n') });
   ok((await ops.get('/admin/cloud-cards')).status === 403, 'RBAC: 运营不可访问云商卡');
   const kefu = new Client(); await kefu.get('/admin/login'); await kefu.post('/admin/login', { username: 'kefu', password: 'kefu123456' }); await kefu.get('/admin');
   ok((await kefu.get('/admin/cloud-members')).status === 200, 'RBAC: 客服可访问云商卡会员');

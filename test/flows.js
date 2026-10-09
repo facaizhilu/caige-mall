@@ -116,19 +116,64 @@ class C { constructor() { this.k = {}; this.t = ''; }
   await adm.get('/admin/products/new'); r = await adm.req('POST', '/admin/products/save', fd2, { form: true }); const np = db.get("SELECT * FROM products WHERE name='上传图测试商品'"); ok(np && /\/uploads\//.test(np.images), '后台商品图片上传', r.status);
   if (np) { const up = JSON.parse(np.images)[0]; const g = await fetch(base + up); ok(g.status === 200 && g.headers.get('content-type').includes('image'), '上传图片可访问'); await adm.post('/admin/products/' + np.id + '/delete'); }
 
-  console.log('== 云商卡兑换审核通过 ==');
-  const cg = new C(); await cg.login('13800000001', '123456');
-  const ptsBefore = db.get('SELECT points FROM users WHERE phone=?', '13800000001').points;
-  await cg.get('/me/cloud');
-  r = await cg.post('/me/cloud/redeem', { points: '150', note: 'flows兑换' });
-  const pending = db.get("SELECT * FROM cloud_redeem_requests WHERE user_id=1 AND status='pending' ORDER BY id DESC LIMIT 1");
-  ok(!!pending && pending.points === 150, '兑换申请入库');
-  ok(db.get('SELECT points FROM users WHERE id=1').points === ptsBefore, '申请阶段未扣积分');
-  r = await adm.post('/admin/cloud-redeems/' + pending.id + '/handle', { action: 'approve', admin_note: 'flows通过', back: 'pending' });
-  ok(db.get('SELECT status FROM cloud_redeem_requests WHERE id=?', pending.id).status === 'approved', '后台通过兑换');
-  ok(db.get('SELECT points FROM users WHERE id=1').points === ptsBefore - 150, '通过后扣减积分');
-  const expired = require('../lib/cloud').dailyReturn(3, require('../lib/svc').addPoints);
-  ok(!expired.ok, '过期/未生效卡不可领取每日返积分', expired.msg);
+  console.log('== 单级邀请:首单完成 + 观察期后发放 ==');
+  const svc = require('../lib/svc');
+  const buyOne = async (cli, pid) => {
+    let rr = await cli.post('/checkout', { sku_id: db.get('SELECT id FROM skus WHERE product_id=? ORDER BY id LIMIT 1', pid).id, qty: 1 });
+    rr = await cli.post('/order/create', { items: itemsRaw(rr.text), address_id: (rr.text.match(/name="address_id" value="(\d+)"/) || [])[1], no7_confirm: '1' });
+    const id = rr.loc.match(/order\/(\d+)/)[1]; await cli.post('/order/' + id + '/pay', { method: 'wechat' });
+    await adm.post('/admin/orders/' + id + '/ship', { company: '中通快递', tracking_no: 'ZT' + String(id).padStart(10, '0') });
+    await cli.get('/order/' + id); await cli.post('/order/' + id + '/confirm'); return +id;
+  };
+  const mkInvitee = async tag => {
+    const c = new C(); const ph = '133' + String(Date.now()).slice(-8);
+    await c.get('/register'); await c.post('/register', { phone: ph, password: 'abc12345', password2: 'abc12345', nickname: tag, agree: '1', ref: '100001' }); await c.get('/me');
+    await c.post('/me/addresses', { name: tag, phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '邀请路 1 号' });
+    return { c, uid: db.get('SELECT id FROM users WHERE phone=?', ph).id };
+  };
+  const refPts = () => db.get('SELECT points FROM users WHERE id=1').points;
+  const rp0 = refPts();
+  const inv1 = await mkInvitee('邀一');
+  ok(db.get('SELECT referrer_id FROM users WHERE id=?', inv1.uid).referrer_id === 1, '邀请关系建立');
+  ok(refPts() === rp0, '注册不给邀请人奖励');
+  const o1 = await buyOne(inv1.c, 9);
+  ok(db.get('SELECT status FROM orders WHERE id=?', o1).status === 'completed', '被邀请人首单已确认收货');
+  let ir = db.get('SELECT * FROM invite_rewards WHERE invitee_id=?', inv1.uid);
+  ok(ir && ir.status === 'pending' && ir.points === 100 && ir.order_id === o1, '首单完成后进入观察期(待发放)');
+  svc.settleInvites(); ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir.id).status === 'pending' && refPts() === rp0, '观察期内不发放');
+  db.prepare("UPDATE invite_rewards SET due_at='2000-01-01 00:00:00' WHERE id=?").run(ir.id);
+  svc.settleInvites();
+  ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir.id).status === 'granted' && refPts() === rp0 + 100, '观察期满后一次性发放 100 积分');
+  const o1b = await buyOne(inv1.c, 9);
+  ok(db.all('SELECT * FROM invite_rewards WHERE invitee_id=?', inv1.uid).length === 1, '第二单不再奖励(仅首单)');
+  // 观察期内退款 → 取消
+  const inv2 = await mkInvitee('邀二');
+  const o2 = await buyOne(inv2.c, 9);
+  const ir2 = db.get('SELECT * FROM invite_rewards WHERE invitee_id=?', inv2.uid); ok(ir2 && ir2.status === 'pending', '第二位好友首单进入观察期');
+  svc.refundOrder(o2, '测试全额退款', false, { aftersale: true });
+  ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir2.id).status === 'cancelled', '观察期内退款,奖励取消');
+  const rp1 = refPts(); db.prepare("UPDATE invite_rewards SET due_at='2000-01-01 00:00:00' WHERE id=?").run(ir2.id); svc.settleInvites(); ok(refPts() === rp1, '已取消的奖励不会发放');
+
+  console.log('== 云商卡加赠积分到期作废 ==');
+  const cloud = require('../lib/cloud');
+  ok(cloud.isCardActive(db.get('SELECT * FROM users WHERE id=1')), '演示会员云商卡生效中');
+  db.prepare("DELETE FROM signins WHERE user_id=1 AND day=?").run(require('../lib/util').today());
+  const lotBefore = db.get('SELECT points FROM users WHERE id=1').points;
+  const ex = cloud.signinExtra(1, svc.addPoints); ok(ex > 0, '会员签到加赠 ' + ex);
+  const lot = db.get('SELECT * FROM point_lots WHERE user_id=1 ORDER BY id DESC LIMIT 1'); ok(lot && lot.remaining === ex && lot.expire_at > require('../lib/util').now(), '加赠积分记为限期积分');
+  db.prepare("UPDATE point_lots SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(lot.id);
+  svc.expirePointLots();
+  ok(db.get('SELECT points FROM users WHERE id=1').points === lotBefore && db.get('SELECT remaining FROM point_lots WHERE id=?', lot.id).remaining === 0, '到期未用的加赠积分自动作废');
+  // 先使用后到期:只作废剩余部分
+  const ex2 = cloud.signinExtra(1, svc.addPoints) || (svc.addPoints(1, 5, 'test lot', { expireAt: '2099-01-01 00:00:00' }), 5);
+  const lot2 = db.get('SELECT * FROM point_lots WHERE user_id=1 ORDER BY id DESC LIMIT 1');
+  svc.addPoints(1, -2, '测试消费'); ok(db.get('SELECT remaining FROM point_lots WHERE id=?', lot2.id).remaining === lot2.points - 2, '消费积分优先扣减限期积分');
+  const ptsNow = db.get('SELECT points FROM users WHERE id=1').points;
+  db.prepare("UPDATE point_lots SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(lot2.id); svc.expirePointLots();
+  ok(db.get('SELECT points FROM users WHERE id=1').points === ptsNow - (lot2.points - 2), '仅作废未使用的部分');
+  // 非会员:签到无加赠
+  ok(cloud.signinExtra(3, svc.addPoints) === 0, '过期/未开通会员无签到加赠');
+  ok(!db.get("SELECT name FROM sqlite_master WHERE name IN ('commissions','cloud_referral_log','cloud_daily_log','cloud_redeem_requests')"), '分销/推三返一/每日返积分/兑换申请表已归档');
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
