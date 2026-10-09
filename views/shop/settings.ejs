@@ -1,0 +1,21 @@
+<div class="me"><%- include("_menu",{cur:"settings"}) %><div>
+<div class="card"><h3 style="margin-top:0">设置</h3>
+  <h4 class="muted" style="margin:6px 0 2px;font-size:13px;font-weight:500">个人信息</h4>
+  <div class="setlist">
+    <a href="/me/profile">个人资料<span class="muted"><%= user.nickname %> ›</span></a>
+    <a href="/me/addresses">收货地址<span class="muted">›</span></a>
+  </div>
+  <h4 id="security" class="muted" style="margin:16px 0 2px;font-size:13px;font-weight:500">账号与安全</h4>
+  <div class="setlist">
+    <a href="/me/profile#password">手机号<span class="muted"><%= U.maskPhone(user.phone) %></span></a>
+    <a href="/me/profile#password">修改密码<span class="muted">›</span></a>
+    <a href="/me/cancel">注销账号<span class="muted">›</span></a>
+  </div>
+  <h4 class="muted" style="margin:16px 0 2px;font-size:13px;font-weight:500">隐私</h4>
+  <div class="setlist">
+    <a href="/privacy">隐私政策<span class="muted"><%= user.consent_at ? '已同意 v' + (user.consent_version||'') : '' %> ›</span></a>
+    <a href="/terms">用户协议<span class="muted">›</span></a>
+    <a href="/me/history">管理浏览记录<span class="muted">›</span></a>
+  </div>
+</div>
+</div></div>

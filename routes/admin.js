@@ -378,17 +378,18 @@ module.exports = function (r, { filesOf }) {
     validate: row => (!['silver', 'gold'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null)
   }, ctx);
 
-  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_step', 'cloud_extra_expire_days'];
+  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_step', 'cloud_signin_extra_max', 'cloud_extra_expire_days'];
   r.get('/cloud-settings', need('member'), (req, res) => { svc.cloud.ensureDefaults(); res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings() }); });
   r.post('/cloud-settings', need('member'), (req, res) => {
     const b = req.body;
-    const d = int(b.cloud_discount, 0), ex = int(b.cloud_signin_extra, -1), step = int(b.cloud_signin_extra_step, -1), exp = int(b.cloud_extra_expire_days, 0);
+    const d = int(b.cloud_discount, 0), ex = int(b.cloud_signin_extra, -1), step = int(b.cloud_signin_extra_step, -1), mx = int(b.cloud_signin_extra_max, -1), exp = int(b.cloud_extra_expire_days, 0);
     if (d < 50 || d > 100) { flash(req, 'error', '会员价折扣需在 50~100 之间(100=不打折)'); return res.redirect('/admin/cloud-settings'); }
     if (ex < 0 || ex > 1000) { flash(req, 'error', '连续签到第 1 天加赠积分需为 0~1000'); return res.redirect('/admin/cloud-settings'); }
     if (step < 0 || step > 100) { flash(req, 'error', '每连续 1 天递增积分需为 0~100'); return res.redirect('/admin/cloud-settings'); }
+    if (mx < ex || mx > 1000) { flash(req, 'error', '每天加赠封顶需不小于第 1 天加赠积分,且不超过 1000'); return res.redirect('/admin/cloud-settings'); }
     if (exp < 1 || exp > 365) { flash(req, 'error', '加赠积分有效期需为 1~365 天'); return res.redirect('/admin/cloud-settings'); }
     svc.setSetting('cloud_discount', d); svc.setSetting('cloud_free_shipping', b.cloud_free_shipping ? '1' : '0');
-    svc.setSetting('cloud_signin_extra', ex); svc.setSetting('cloud_signin_extra_step', step); svc.setSetting('cloud_extra_expire_days', exp);
+    svc.setSetting('cloud_signin_extra', ex); svc.setSetting('cloud_signin_extra_step', step); svc.setSetting('cloud_signin_extra_max', mx); svc.setSetting('cloud_extra_expire_days', exp);
     log(req, '修改云商卡配置', CLOUD_KEYS.map(k => k + '=' + svc.S(k)).join(' '));
     flash(req, 'success', '云商卡配置已保存'); res.redirect('/admin/cloud-settings');
   });

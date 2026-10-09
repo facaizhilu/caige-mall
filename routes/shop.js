@@ -296,6 +296,12 @@ module.exports = function (app, { filesOf }) {
     flash(req, n ? 'success' : 'error', n ? (pts ? `评价已提交,已发放 ${pts * n} 积分;评价经审核后展示` : '评价已提交,经审核后展示') : '请至少填写一条评价内容');
     res.redirect(n ? '/me/reviews' : '/order/' + o.id + '/review');
   });
+  // 用户删除自己的评价:彻底删除(商品页与评价数同步更新);已发放的评价积分不扣回;订单商品保持「已评价」,不可重复评价领积分
+  app.post('/me/reviews/:id/delete', needLogin, (req, res) => {
+    const r = db.exec1('DELETE FROM reviews WHERE id=? AND user_id=?', int(req.params.id), req.user.id);
+    flash(req, r.changes ? 'success' : 'error', r.changes ? '评价已删除' : '评价不存在');
+    res.redirect('/me/reviews');
+  });
   app.get('/me/reviews', needLogin, (req, res) => {
     const rows = db.all('SELECT r.*, p.name pname, p.images pimages FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.user_id=? ORDER BY r.id DESC', req.user.id).map(r => ({ ...r, pimg: U.firstImg(r.pimages) }));
     res.page('shop/me-reviews', { title: '我的评价', rows });
@@ -424,6 +430,8 @@ module.exports = function (app, { filesOf }) {
     flash(req, 'success', '资料已保存'); res.redirect('/me/profile');
   });
   app.get('/me/profile', needLogin, (req, res) => res.page('shop/profile', { title: '个人资料' }));
+  // 我的 - 设置(含「账号与安全」:修改密码、注销账号)
+  app.get('/me/settings', needLogin, (req, res) => res.page('shop/settings', { title: '设置' }));
   app.post('/me/password', needLogin, (req, res) => {
     const { old_password, password, password2 } = req.body;
     if (!bcrypt.compareSync(String(old_password || ''), req.user.password_hash)) flash(req, 'error', '原密码错误');
@@ -538,7 +546,7 @@ module.exports = function (app, { filesOf }) {
     const days = []; const signed = new Set(db.all('SELECT day FROM signins WHERE user_id=?', req.user.id).map(r => r.day));
     for (let i = 6; i >= 0; i--) { const d = U.offset(-i * 86400000).slice(0, 10); days.push({ d, signed: signed.has(d), today: i === 0 }); }
     const expiring = svc.expiringPoints(req.user.id);
-    res.page('shop/me-points', { title: '我的积分', pg, days, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudActive: svc.cloud.isCardActive(req.user) });
+    res.page('shop/me-points', { title: '我的积分', pg, days, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudSeries: svc.cloud.extraSeries(), cloudActive: svc.cloud.isCardActive(req.user) });
   });
   app.post('/me/signin', needLogin, (req, res) => {
     const today = U.today(), yest = U.offset(-86400000).slice(0, 10);
@@ -550,7 +558,7 @@ module.exports = function (app, { filesOf }) {
       db.exec1('INSERT INTO signins(user_id,day,points,streak) VALUES(?,?,?,?)', u.id, today, pts, streak);
       db.exec1('UPDATE users SET signin_streak=?, last_signin=? WHERE id=?', streak, today, u.id);
       svc.addPoints(u.id, pts, `每日签到(连续${streak}天)`); svc.addGrowth(u.id, 2);
-      // 云商卡会员:仅在主动签到时加赠,按连续签到天数递增(不设上限),限期有效
+      // 云商卡会员:仅在主动签到时加赠,按连续签到天数递增、每天封顶,限期有效
       const extra = svc.cloud.signinExtra(u.id, svc.addPoints, streak);
       if (extra) db.exec1('UPDATE signins SET extra=? WHERE user_id=? AND day=?', extra, u.id, today);
       const msg = extra
@@ -604,7 +612,7 @@ module.exports = function (app, { filesOf }) {
       .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration }));
     const month = U.today().slice(0, 7);
     const extraUsed = db.get('SELECT COALESCE(SUM(extra),0) n FROM signins WHERE user_id=? AND day LIKE ?', req.user.id, month + '%').n;
-    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), extraUsed, card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
+    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), cloudSeries: cloud.extraSeries(), extraUsed, card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
   });
 
   // ---------------- 积分商城 ----------------

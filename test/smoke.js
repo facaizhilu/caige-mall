@@ -38,9 +38,10 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok(r.status === 302 && r.loc === '/me', '注册成功并登录', r.status + ' ' + r.loc);
   r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('会员中心'), '会员中心(新注册用户已同意协议,无需再次确认)');
   ok(r.text.includes('href="/privacy"'), '我的菜单含隐私政策');
-  r = await shop.get('/me/profile'); ok(!r.text.includes('生日') && !r.text.includes('birthday') && r.text.includes('href="/me/cancel"'), '个人资料无生日字段,底部含注销入口');
+  ok(r.text.includes('href="/me/settings"'), '我的页面有「设置」入口');
+  r = await shop.get('/me/profile'); ok(!r.text.includes('生日') && !r.text.includes('birthday') && !r.text.includes('href="/me/cancel"'), '个人资料无生日字段,不再放注销链接');
   ok(!r.text.includes('name="gender"') && !r.text.includes('性别'), 'A1:个人资料不再收集性别');
-  ok(r.text.lastIndexOf('href="/me/cancel"') > r.text.lastIndexOf('href="/me/history"'), '注销入口位于设置页底部');
+  r = await shop.get('/me/settings'); { const i = r.text.indexOf('账号与安全'), j = r.text.indexOf('href="/me/cancel"'); ok(r.status === 200 && i > 0 && j > i && /<a href="\/me\/cancel">注销账号<span class="muted">/.test(r.text), '设置 - 账号与安全 中有常规的「注销账号」行'); }
   ok((await shop.get('/me/coupons')).text.includes('新人专享券'), '新人券已发放');
   r = await shop.post('/me/addresses', { name: '张三', phone: '13812345678', province: '广东省', city: '深圳市', district: '南山区', detail: '科技园 1 号' });
   ok(r.status === 302, '新增收货地址');

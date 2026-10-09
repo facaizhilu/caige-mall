@@ -5,7 +5,8 @@
     <div class="form-row"><label>会员价折扣(%)</label><input type="number" name="cloud_discount" min="50" max="100" value="<%= s.cloud_discount %>" required><div class="help">98 = 售价的 98%;与会员等级折扣取更优,不叠加;秒杀/拼团不参与</div></div>
     <div class="form-row"><label>会员包邮</label><label class="chk"><input type="checkbox" name="cloud_free_shipping" value="1" <%= String(s.cloud_free_shipping)==='1'?'checked':'' %>> 会员订单免运费</label></div>
     <div class="form-row"><label>签到加赠:连续签到第 1 天(积分)</label><input type="number" name="cloud_signin_extra" min="0" max="1000" value="<%= s.cloud_signin_extra %>" required><div class="help">仅在会员主动签到时发放;中断签到后从该值重新计算</div></div>
-    <div class="form-row"><label>签到加赠:每连续 1 天递增(积分)</label><input type="number" name="cloud_signin_extra_step" min="0" max="100" value="<%= s.cloud_signin_extra_step %>" required><div class="help">如 25 / 2:第 1 天 25、第 2 天 27、第 3 天 29……不设每日或每月上限</div></div>
+    <div class="form-row"><label>签到加赠:每连续 1 天递增(积分)</label><input type="number" name="cloud_signin_extra_step" min="0" max="100" value="<%= s.cloud_signin_extra_step %>" required><div class="help">如 25 / 2 / 封顶 35:第 1 天 25、第 2 天 27……第 6 天起每天 35</div></div>
+    <div class="form-row"><label>签到加赠:每天封顶(积分)</label><input type="number" name="cloud_signin_extra_max" min="0" max="1000" value="<%= s.cloud_signin_extra_max %>" required><div class="help">递增到该值后不再增加;不得小于第 1 天加赠积分;中断签到后从第 1 天重新计算</div></div>
     <div class="form-row"><label>加赠积分有效期(天)</label><input type="number" name="cloud_extra_expire_days" min="1" max="365" value="<%= s.cloud_extra_expire_days %>" required><div class="help">到期未使用自动作废;使用积分时优先扣减即将到期的部分</div></div>
   </div>
 </div>

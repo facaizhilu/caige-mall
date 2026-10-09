@@ -8,7 +8,7 @@ const ejs = require('ejs');
 const db = require('./lib/db');
 const U = require('./lib/util');
 const svc = require('./lib/svc');
-const { RETURN_HELP, CLOUD_HELP, SEED_DESC_EDITS, CLOUD_HELP_EDIT } = require('./lib/seed-texts');
+const { RETURN_HELP, CLOUD_HELP, SEED_DESC_EDITS, CLOUD_HELP_EDIT, CLOUD_HELP_EDIT2 } = require('./lib/seed-texts');
 const banned = require('./lib/banned');
 const SqliteStore = require('./lib/session-store');
 
@@ -70,6 +70,13 @@ svc.cloud.ensureDefaults();
       if (changed && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('协议已修订,版本号提升为 v' + svc.S('policy_version')); }
       mark('v11_compliance');
     })();
+  }
+  if (!done('v11b_policy')) { // v1.1 补充修订:供应商代发标注、头像昵称说明(v1.1 尚未被确认,原地更新、不提升版本号;对 v1.0 旧库在上一步之后执行)
+    require('./lib/policies').applyV11bEdits(db);
+    // 店主要求:云商卡签到加赠每天封顶 35(25 起每连续 1 天 +2)
+    svc.setSetting('cloud_signin_extra_max', '35');
+    db.exec1("UPDATE articles SET content=REPLACE(content,?,?) WHERE category='help' AND instr(content,?)>0", CLOUD_HELP_EDIT2[0], CLOUD_HELP_EDIT2[1], CLOUD_HELP_EDIT2[0]);
+    mark('v11b_policy');
   }
 })();
 

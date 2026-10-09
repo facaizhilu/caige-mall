@@ -9,7 +9,7 @@
   <ul class="cloud-ben">
     <li><b>会员价</b><span>商品按售价 <%= (c.discount/10).toFixed(1).replace(/\.0$/,'') %> 折结算(与会员等级折扣取更优,不叠加;秒杀/拼团除外)</span></li>
     <% if (c.freeShipping) { %><li><b>包邮</b><span>会员下单免运费</span></li><% } %>
-    <li><b>签到加赠</b><span>每日<b>主动签到</b>时额外加赠积分:连续签到第 1 天加赠 <%= c.signinExtra %> 积分,此后每连续签到 1 天多加赠 <%= c.signinStep %> 积分(<%= [1,2,3].map(d=>c.signinExtra+c.signinStep*(d-1)).join('、') %>……),不设每日或每月上限;中断签到后从 <%= c.signinExtra %> 积分重新计算。加赠积分自发放起 <%= c.expireDays %> 天内有效,逾期作废<% if (status.active) { %>(本月已加赠 <%= extraUsed %>)<% } %></span></li>
+    <li><b>签到加赠</b><span>每日<b>主动签到</b>时额外加赠积分:连续签到第 1 天加赠 <%= c.signinExtra %> 积分,此后每连续签到 1 天多加赠 <%= c.signinStep %> 积分(<%= cloudSeries.join('、') %>……),最高每天 <%= Math.max(c.signinMax, c.signinExtra) %> 积分,达到后不再增加;中断签到后从 <%= c.signinExtra %> 积分重新计算。加赠积分自发放起 <%= c.expireDays %> 天内有效,逾期作废<% if (status.active) { %>(本月已加赠 <%= extraUsed %>)<% } %></span></li>
   </ul>
   <p class="muted" style="font-size:12px;margin-bottom:0">云商卡仅为本商城的消费会员权益,不涉及任何推荐奖励或返现;积分不可购买、转让或提现,详见<a href="/points-rules">《积分规则》</a>。</p>
   <% if (status.active) { %><p class="mt" style="margin-bottom:0"><a class="btn gold" href="/me/points">去签到</a></p><% } %>

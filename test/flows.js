@@ -179,9 +179,11 @@ class C { constructor() { this.k = {}; this.t = ''; }
   {
     const U2 = require('../lib/util');
     const ok2 = ok;
-    ok2(cloud.extraForStreak(1) === 25 && cloud.extraForStreak(2) === 27 && cloud.extraForStreak(3) === 29 && cloud.extraForStreak(40) === 103, '云商卡签到加赠:25、27、29……逐日递增');
+    ok2(cloud.extraForStreak(1) === 25 && cloud.extraForStreak(2) === 27 && cloud.extraForStreak(5) === 33 && cloud.extraForStreak(6) === 35 && cloud.extraForStreak(40) === 35, '云商卡签到加赠:25、27……封顶 35');
+    ok2(cloud.extraSeries().join(',') === '25,27,29,31,33,35', '加赠序列说明到封顶为止');
     db.prepare("DELETE FROM signins WHERE user_id=1 AND day=?").run(U2.today());
-    let tot = 0; for (let i = 0; i < 5; i++) tot += cloud.signinExtra(1, svc.addPoints, 30); ok2(tot === 5 * 83, '云商卡签到加赠不设每月上限', tot);
+    let tot = 0; for (let i = 0; i < 5; i++) tot += cloud.signinExtra(1, svc.addPoints, 30); ok2(tot === 5 * 35, '云商卡签到加赠每天封顶 35,不设每月上限', tot);
+    ok2(cloud.signinExtra(1, svc.addPoints, 1) === 25, '中断后从 25 重新计算');
     const c1 = new C(); await c1.login('13800000001', '123456');
     // C2:久远的已完成订单仍有质量问题售后入口
     const o1 = db.get("SELECT id FROM orders WHERE user_id=1 AND status='completed' AND type='normal' AND id NOT IN (SELECT order_id FROM aftersales WHERE status IN ('pending','approved_return','returned')) ORDER BY id LIMIT 1");
@@ -204,11 +206,14 @@ class C { constructor() { this.k = {}; this.t = ''; }
     ok2(['全国联保', '假一赔十', '财哥严选'].every(w => require('../lib/banned').words().includes(w)), 'G6:违禁词表含全国联保/假一赔十/财哥严选');
     // 协议
     ok2(svc.S('policy_version') === '1.1', '协议版本 1.1');
-    r = await c1.get('/privacy'); ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '【公司全称】', '【联系邮箱】', '【生效日期】', '版本号:1.1'].every(x => r.text.includes(x)), '隐私政策补充 A2/A3/A4/A11,保留占位符');
+    r = await c1.get('/privacy'); ok2(r.text.includes('如后续由供应商直接发货,我们会在订单页标注') && r.text.includes('头像使用默认头像,昵称由您自行填写') && !r.text.includes('头像昵称与手机号') && !r.text.includes('以商品页或订单页标注为准'), '隐私政策:供应商标注与头像昵称说明');
+    ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '【公司全称】', '【联系邮箱】', '【生效日期】', '版本号:1.1'].every(x => r.text.includes(x)), '隐私政策补充 A2/A3/A4/A11,保留占位符');
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
-    r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('不设每日或每月上限') && !r.text.includes('{{'), '积分规则:评价积分与云商卡递增加赠');
-    r = await c1.get('/me/cloud'); ok2(r.text.includes('25、27、29') && !r.text.includes('每月最多'), '云商卡页:递增加赠说明');
+    r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 35 积分') && !r.text.includes('{{'), '积分规则:评价积分与云商卡递增加赠');
+    r = await c1.get('/me/cloud'); ok2(r.text.includes('25、27、29、31、33、35') && r.text.includes('最高每天 35 积分') && !r.text.includes('每月最多'), '云商卡页:递增加赠封顶说明');
+    r = await c1.get('/me/points'); ok2(r.text.includes('最高每天 35 积分'), '签到页:封顶说明');
+    r = await c1.get('/privacy'); ok2(r.text.includes('我的 - 设置 - 账号与安全 - 注销账号'), '隐私政策:注销路径');
     // A1:性别不再保存
     db.prepare("UPDATE users SET gender='保密' WHERE id=1").run();
     await c1.get('/me/profile'); await c1.post('/me/profile', { nickname: '财哥粉丝', gender: '男' }); ok2(db.get('SELECT gender FROM users WHERE id=1').gender === '保密', 'A1:提交 gender 不被保存');
@@ -224,6 +229,16 @@ class C { constructor() { this.k = {}; this.t = ''; }
       const p1 = db.get('SELECT points FROM users WHERE id=1').points; ok2(p1 === p0 + 10, 'D2:一星差评发表即得 10 积分', p1 - p0);
       const rvId = db.get("SELECT id FROM reviews WHERE content='差评测试:不太满意'").id;
       await adm.post('/admin/reviews/' + rvId + '/approve'); ok2(db.get('SELECT points FROM users WHERE id=1').points === p1, 'D2:审核通过不重复发放');
+      // 用户删除自己的评价:商品页移除、计数更新、积分不扣回、不能删除他人评价
+      const pid = db.get('SELECT product_id FROM reviews WHERE id=?', rvId).product_id;
+      const cnt = t => +((t.match(/用户评价\((\d+)\)/) || [])[1]);
+      r = await c1.get('/product/' + pid); const n0 = cnt(r.text); ok2(r.text.includes('差评测试:不太满意'), '删除前商品页展示该评价');
+      r = await c1.get('/me/reviews'); ok2(r.text.includes('/me/reviews/' + rvId + '/delete') && r.text.includes('删除我的评价') && r.text.includes('data-confirm'), '我的评价有「删除我的评价」及确认');
+      const other = db.get('SELECT id FROM reviews WHERE user_id<>1 LIMIT 1');
+      if (other) { await c1.post('/me/reviews/' + other.id + '/delete'); ok2(!!db.get('SELECT 1 FROM reviews WHERE id=?', other.id), '不能删除他人评价'); }
+      await c1.post('/me/reviews/' + rvId + '/delete');
+      r = await c1.get('/product/' + pid); ok2(!r.text.includes('差评测试:不太满意') && cnt(r.text) === n0 - 1 && !db.get('SELECT 1 FROM reviews WHERE id=?', rvId), '删除后商品页移除且评价数减一');
+      ok2(db.get('SELECT points FROM users WHERE id=1').points === p1, '删除评价不扣回积分');
     }
     // H1:待付款订单不阻止注销,注销时自动取消
     const h = new C(); const hp = '137' + String(Date.now()).slice(-8);
