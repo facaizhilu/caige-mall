@@ -6,11 +6,11 @@
     <h1><% if (brand) { %><span class="tag gold"><%= brand.name %></span><% } %><%= p.name %></h1>
     <div class="subt"><%= p.subtitle %></div>
     <div class="pricebox">
-      <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 限时秒杀</span><span><%= seckill.live?'距结束':'距开始' %> <span class="cd" data-countdown="<%= seckill.live?seckill.end_at:seckill.start_at %>" data-reload="1"></span></span></div><% } %>
+      <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 活动专区</span><span class="muted"><%= seckill.live?'活动进行中':'活动即将开始' %></span></div><% } %>
       <span class="price"><big id="price"><%= (seckill&&seckill.live?seckill.price:p.price) %></big></span>
       <% if (showMkt(p.market_price, p.price)) { %><span class="mkt"><%= p.market_price %></span><% } %>
-      <% if (seckill && seckill.live) { %><span class="muted"> 秒杀价,每人限购 <%= seckill.limit_per_user %> 件,剩余 <%= seckill.stock-seckill.sold %> 件</span><% } %>
-      <% if (seckill && !seckill.live) { %><span class="muted sk-pre"> 秒杀价 <b style="color:var(--red)">¥<%= seckill.price %></b>,<%= seckill.start_at.slice(5,16) %> 开抢,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
+      <% if (seckill && seckill.live) { %><span class="muted"> 活动价,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
+      <% if (seckill && !seckill.live) { %><span class="muted sk-pre"> 活动价 <b style="color:var(--red)">¥<%= seckill.price %></b>,<%= seckill.start_at.slice(5,16) %> 开始,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
     <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货</dd>
@@ -22,7 +22,7 @@
     <% const canGroup = groupbuy, canSk = seckill && seckill.live; %>
     <div class="flex wrapf mt">
       <% if (canSk) { %>
-        <button class="btn primary lg" onclick="buy('seckill')">⚡ 立即抢购</button>
+        <button class="btn primary lg" onclick="buy('seckill')">⚡ 活动价购买</button>
       <% } else { %>
         <button class="btn gold lg" onclick="addCart()">加入购物车</button>
         <button class="btn primary lg" onclick="buy('')">立即购买</button>
@@ -31,7 +31,7 @@
       <button class="btn lg" id="favBtn" onclick="fav()"><%= faved?'★ 已收藏':'☆ 收藏' %></button>
     </div>
     <% if (!noReason) { %><label class="agree no7-ack"><input type="checkbox" id="no7ok"> 本商品不支持7天无理由退货,我已知晓</label><% } %>
-    <% if (openGroups.length) { %><div class="card mt" style="background:#fffaf0;padding:12px 16px"><b>正在拼团,可直接参团:</b><% openGroups.forEach(g=>{ %><div class="flex between" style="margin-top:6px"><span><%= g.nickname.slice(0,1) %>** 发起的团,还差 <b style="color:var(--red)"><%= g.need-g.joined %></b> 人</span><span class="flex"><span class="muted">剩余 <span class="cd" data-countdown="<%= g.expire_at %>"></span></span><a class="btn primary sm" href="/group/<%= g.id %>">去参团</a></span></div><% }) %></div><% } %>
+    <% if (openGroups.length) { %><div class="card mt" style="background:#fffaf0;padding:12px 16px"><b>正在拼团,可直接参团:</b><% openGroups.forEach(g=>{ %><div class="flex between" style="margin-top:6px"><span><%= g.nickname.slice(0,1) %>** 发起的团,还差 <b style="color:var(--red)"><%= g.need-g.joined %></b> 人</span><span class="flex"><span class="muted"><%= g.expire_at.slice(5,16) %> 截止</span><a class="btn primary sm" href="/group/<%= g.id %>">去参团</a></span></div><% }) %></div><% } %>
   </div>
 </div>
 <form id="buyForm" method="post" action="/checkout" class="hide"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="sku_id"><input name="qty"><input name="promo_type"><input name="promo_id"><input name="group_id"></form>
@@ -64,10 +64,10 @@
   document.querySelectorAll('.chip').forEach(function(c){c.onclick=function(){c.parentNode.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on')});c.classList.add('on');refresh()}});
   var q=document.getElementById('qty');
   document.getElementById('qm').onclick=function(){q.value=Math.max(1,(+q.value||1)-1)};document.getElementById('qp').onclick=function(){var s=cur();q.value=Math.min(s?s.stock:1,(+q.value||1)+1)};
-  function guard(){if(!LOGGED){location.href='/login?next='+encodeURIComponent(location.pathname);return null}var s=cur();if(!s||s.stock<=0){toast('该规格暂时缺货');return null}var n=Math.max(1,parseInt(q.value)||1);if(n>s.stock){toast('库存不足,仅剩 '+s.stock+' 件');return null}if(!no7())return null;return {s:s,n:n}}
+  function guard(){if(!LOGGED){location.href='/login?next='+encodeURIComponent(location.pathname);return null}var s=cur();if(!s||s.stock<=0){toast('该规格暂时缺货');return null}var n=Math.max(1,parseInt(q.value)||1);if(n>s.stock){toast('库存不足,当前库存 '+s.stock+' 件');return null}if(!no7())return null;return {s:s,n:n}}
   window.addCart=function(){var g=guard();if(!g)return;postJSON('/cart/add',{sku_id:g.s.id,qty:g.n,no7_ok:NO7?'1':''}).then(function(r){toast(r.msg);if(r.ok){var b=document.getElementById('cartBadge');if(b){b.textContent=r.count;b.classList.remove('hide')}}})};
   window.buy=function(type){var g=guard();if(!g)return;var f=document.getElementById('buyForm');
-    if(type==='seckill'){if(SK.sku!==g.s.id){toast('请选择秒杀规格');return}if(g.n>SK.limit){toast('每人限购'+SK.limit+'件');return}f.promo_type.value='seckill';f.promo_id.value=SK.id}
+    if(type==='seckill'){if(SK.sku!==g.s.id){toast('请选择活动规格');return}if(g.n>SK.limit){toast('每人限购'+SK.limit+'件');return}f.promo_type.value='seckill';f.promo_id.value=SK.id}
     else if(type==='group'){if(GB.sku!==g.s.id){toast('拼团仅限默认规格,请选择第一个规格');return}f.promo_type.value='group';f.promo_id.value=GB.id}
     f.sku_id.value=g.s.id;f.qty.value=g.n;f.submit()};
   window.fav=function(){if(!LOGGED){location.href='/login?next='+encodeURIComponent(location.pathname);return}postJSON('/favorite/'+PID,{}).then(function(r){document.getElementById('favBtn').textContent=r.faved?'★ 已收藏':'☆ 收藏';toast(r.faved?'已加入收藏':'已取消收藏')})};

@@ -113,7 +113,7 @@ module.exports = function (app, { filesOf }) {
     if (!svc.noReasonOf(sku.product_id) && req.body.no7_ok !== '1') return wantsJson(req) ? res.json({ ok: false, no7: true, msg: '本商品不支持7天无理由退货,请确认知晓后再加入购物车' }) : fail('本商品不支持7天无理由退货,请勾选「我已知晓」后再加入购物车');
     const cur = db.get('SELECT qty FROM cart WHERE user_id=? AND sku_id=?', req.user.id, skuId);
     const nq = (cur ? cur.qty : 0) + qty;
-    if (nq > sku.stock) return fail(`库存不足,当前仅剩 ${sku.stock} 件`);
+    if (nq > sku.stock) return fail(`库存不足,当前库存 ${sku.stock} 件`);
     db.exec1('INSERT INTO cart(user_id,sku_id,qty,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id,sku_id) DO UPDATE SET qty=?', req.user.id, skuId, qty, now(), nq);
     const count = db.get('SELECT COALESCE(SUM(qty),0) n FROM cart WHERE user_id=?', req.user.id).n;
     if (wantsJson(req)) return res.json({ ok: true, count, msg: '已加入购物车' });
