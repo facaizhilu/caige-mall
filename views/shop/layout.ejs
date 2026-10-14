@@ -31,7 +31,7 @@
 <nav class="nav"><div class="wrap">
   <a class="all" href="/products">☰ 全部商品</a><a href="/">首页</a>
   <% navCats.forEach(c=>{ %><a href="/products?cat=<%= c.id %>"><%= c.name %></a><% }) %>
-  <a href="/seckill">⚡限时秒杀</a><a href="/groupbuy">👥拼团</a><a href="/coupons">领券中心</a><a href="/points-mall">积分商城</a><a href="/me/cloud">云商卡</a>
+  <a href="/seckill">⚡活动专区</a><a href="/groupbuy">👥拼团</a><a href="/coupons">领券中心</a><a href="/points-mall">积分商城</a><a href="/me/cloud">云商卡</a>
 </div></nav>
 <div class="wrap"><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %></div>
 <main><div class="wrap"><%- body %></div></main>

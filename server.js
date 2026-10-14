@@ -146,7 +146,7 @@ function pageRenderer(layout) {
       const locals = { ...app.locals, ...res.locals, ...data, req };
       ejs.renderFile(path.join(__dirname, 'views', view + '.ejs'), locals, { views: [path.join(__dirname, 'views')] }, (e, body) => {
         if (e) return next(e);
-        ejs.renderFile(path.join(__dirname, 'views', layout + '.ejs'), { ...locals, body }, (e2, html) => e2 ? next(e2) : res.send(html));
+        ejs.renderFile(path.join(__dirname, 'views', (data.layout || layout) + '.ejs'), { ...locals, body }, (e2, html) => e2 ? next(e2) : res.send(html));
       });
     };
     next();

@@ -20,16 +20,10 @@ module.exports = function (app, { filesOf }) {
 
   // ---------------- 首页 ----------------
   app.get('/', (req, res) => {
-    const t = now();
-    const banners = db.all('SELECT * FROM banners WHERE status=1 ORDER BY sort,id');
-    const seckills = db.all(`SELECT s.*, p.name, p.images, p.market_price FROM seckills s JOIN products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at LIMIT 4`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
-    const hot = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.is_hot=1 ORDER BY p.sales DESC LIMIT 8`));
-    const fresh = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.is_new=1 ORDER BY p.created_at DESC LIMIT 8`));
-    const groups = withImg(db.all(`SELECT g.*, p.name, p.images, p.market_price FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1 LIMIT 4`));
-    const notices = db.all("SELECT * FROM articles WHERE category='notice' AND status=1 ORDER BY id DESC LIMIT 4");
-    const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort LIMIT 8');
-    const coupons = db.all('SELECT * FROM coupons WHERE status=1 AND claimed<total ORDER BY id LIMIT 4');
-    res.page('shop/home', { title: '首页', banners, seckills, hot, fresh, groups, notices, brands, coupons });
+    // 首页「朱漆金韵」:仅入口与专区;横幅只写真实存在的权益(注册积分 / 新人券)
+    const regPts = int(svc.settings().register_points);
+    const newbieCoupon = !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
+    res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon });
   });
 
   // ---------------- 商品列表 ----------------
@@ -646,7 +640,7 @@ module.exports = function (app, { filesOf }) {
   app.get('/seckill', (req, res) => {
     const t = now();
     const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
-    res.page('shop/seckill', { title: '限时秒杀', rows });
+    res.page('shop/seckill', { title: '活动专区', rows });
   });
   app.get('/groupbuy', (req, res) => {
     const rows = withImg(db.all('SELECT g.*, p.name, p.images, p.market_price, p.subtitle FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1'));

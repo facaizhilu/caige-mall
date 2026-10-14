@@ -32,6 +32,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会访问您的相册') && r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(不访问相册、占位符、版本号)');
   r = await shop.get('/terms'); ok(r.text.includes('鲜活易腐') && r.text.includes('不可提现'), '用户协议含七天无理由例外与积分不可提现');
   r = await shop.get('/'); ok(r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '页脚有隐私政策/用户协议链接');
+  ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由退货（鲜活易腐商品除外）') && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
   await shop.get('/register');
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员' });
   ok(r.status === 200 && r.text.includes('请先阅读并勾选同意'), '未勾选协议注册被服务端拒绝');
@@ -120,7 +121,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   // 优惠券领取与使用
   r = await shop.post('/coupons/2/claim', {}, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '领券中心领取');
   // 秒杀
-  r = await shop.get('/seckill'); ok(r.text.includes('抢购中'), '秒杀进行中');
+  r = await shop.get('/seckill'); ok(r.text.includes('进行中') && r.text.includes('活动专区') && !r.text.includes('data-countdown') && !r.text.includes('限时'), '活动专区进行中且无倒计时');
   r = await shop.get('/product/8'); const sk8 = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; const skid = (r.text.match(/SK=\{"sku":\d+,"price":[\d.]+,"id":(\d+)/) || [])[1]; ok(!!skid, '秒杀商品详情');
   r = await shop.post('/checkout', { sku_id: (r.text.match(/SK=\{"sku":(\d+)/) || [])[1], qty: 1, promo_type: 'seckill', promo_id: skid }); ok(r.status === 200 && r.text.includes('确认订单'), '秒杀结算');
   // 积分商城
