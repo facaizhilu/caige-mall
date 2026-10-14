@@ -150,7 +150,7 @@ main{min-height:60vh;min-height:60dvh}
  .header .wrap{flex-wrap:nowrap;gap:10px;padding-top:8px;padding-bottom:8px;min-height:56px}
  .logo{font-size:17px;letter-spacing:1px;gap:8px;flex:none}.logo small{display:none}.logo i{width:36px;height:36px;border-radius:10px}
  .search{order:0;flex:1;min-width:0;flex-basis:auto}
- .search form{border-width:1.5px}.search input{padding:0 14px;height:40px;min-height:40px}.search button{padding:0 16px;min-height:40px;min-width:56px}
+ .search form{border-width:1.5px}.search input{padding:0 14px;height:44px;min-height:44px}.search button{padding:0 16px;min-height:44px;min-width:56px}
  /* 分类导航:白底,减少红色面积 */
  .nav{background:#fff;color:var(--ink);border-bottom:1px solid var(--line)}
  .nav .wrap{height:46px;padding-left:6px;padding-right:6px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
@@ -165,7 +165,7 @@ main{min-height:60vh;min-height:60dvh}
  /* 轮播 */
  .carousel{min-height:0;height:clamp(150px,44vw,210px);border-radius:14px}
  .carr{display:none}.dots{bottom:8px}.dots i{width:7px;height:7px}.dots i.on{width:18px}
- .slide{padding:0 20px}.slide h2{font-size:21px;margin-bottom:6px;letter-spacing:1px}.slide p{font-size:13px;margin-bottom:10px;max-width:70%}.slide .btn{padding:6px 16px;min-height:36px}.slide .bigmark{font-size:64px;right:16px}
+ .slide{padding:0 20px}.slide h2{font-size:21px;margin-bottom:6px;letter-spacing:1px}.slide p{font-size:13px;margin-bottom:10px;max-width:70%}.slide .btn{padding:6px 16px;min-height:44px}.slide .bigmark{font-size:64px;right:16px}
  .slide:before{width:260px;height:260px;right:-60px;top:-70px}.slide:after{display:none}
  .quick{margin-top:12px}.quick a{padding:10px 2px;min-height:64px;font-weight:500}.quick a span{margin-bottom:0}
  /* 按钮/表单:44px 点击区,16px 防 iOS 缩放 */
@@ -384,3 +384,5 @@ textarea{resize:vertical}
 
 /* 320px 窄屏:秒杀标题栏允许换行,避免横向溢出 */
 @media(max-width:360px){.flash-sale .hd{flex-wrap:wrap;row-gap:0}.flash-sale .hd>span{min-width:0}}
+
+.btn.need-no7[disabled]{background:#e7e5e4;border-color:#d6d3d1;color:#78716c;opacity:1;cursor:not-allowed}.no7-tip{color:#b45309;font-size:12px;margin-left:4px}

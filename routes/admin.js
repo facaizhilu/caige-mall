@@ -679,9 +679,10 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points'];
+    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
-    const numeric = ['points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points'];
+    for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
+    const numeric = ['points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     if (!String(req.body.shop_name || '').trim()) { flash(req, 'error', '商城名称不能为空'); return res.redirect('/admin/settings'); }
     for (const k of numeric) if (!(num(req.body[k], -1) >= 0)) { flash(req, 'error', '数值类设置需为非负数字'); return res.redirect('/admin/settings'); }
     if (num(req.body.points_rate) < 1) { flash(req, 'error', '积分抵现比例至少为 1'); return res.redirect('/admin/settings'); }

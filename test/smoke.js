@@ -24,7 +24,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   const phone = '139' + String(Date.now()).slice(-8);
   const shop = new Client(), adm = new Client();
   console.log('== 前台 ==');
-  for (const p of ['/', '/products', '/products?q=手机', '/products?cat=1&sort=price_asc', '/product/1', '/seckill', '/groupbuy', '/coupons', '/points-mall', '/help', '/notices', '/service', '/login', '/register', '/article/1', '/privacy', '/terms']) { const r = await shop.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
+  for (const p of ['/', '/products', '/products?q=手机', '/products?cat=1&sort=price_asc', '/product/1', '/activity', '/groupbuy', '/coupons', '/points-mall', '/help', '/notices', '/service', '/login', '/register', '/article/1', '/privacy', '/terms']) { const r = await shop.get(p); ok(r.status === 200, 'GET ' + p, r.status); }
   ok((await shop.get('/img/gen.svg?t=A&a=ff0000&b=00ff00')).text.includes('<svg'), '占位图 SVG');
   ok((await shop.get('/cart')).status === 302, '未登录访问购物车跳转登录');
   let r = await shop.get('/register');
@@ -121,9 +121,15 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   // 优惠券领取与使用
   r = await shop.post('/coupons/2/claim', {}, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '领券中心领取');
   // 秒杀
-  r = await shop.get('/seckill'); ok(r.text.includes('进行中') && r.text.includes('活动专区') && !r.text.includes('data-countdown') && !r.text.includes('限时'), '活动专区进行中且无倒计时');
+  r = await shop.get('/seckill?x=1'); ok(r.status === 301 && r.loc === '/activity?x=1', '旧地址 /seckill 301 跳转 /activity');
+  r = await shop.get('/points-rules'); ok(r.text.includes('(活动价、拼团商品不可使用)') && !r.text.includes('秒杀'), '积分规则:活动价、拼团商品不可使用');
+  r = await shop.get('/groupbuy'); ok(r.text.includes('发起拼团，成团即发货；超时未成团自动全额退款') && !r.text.includes('邀请好友'), '拼团文案无邀请好友');
+  r = await shop.get('/group/1'); ok(!/<span class="tag gold">[^<*]{2,}<\/span>/.test(r.text) && r.text.includes('**</span>'), '团员昵称脱敏');
+  r = await shop.get('/products'); ok(!r.text.includes('ribbon">热卖'), '无真实销量≥阈值时不显示「热卖」');
+  r = await shop.get('/product/9'); ok(r.text.includes('60S 长绒棉 · 透气亲肤') && !r.text.includes('親'), '商品9副标题修正');
+  r = await shop.get('/activity'); ok(!r.text.includes('class="bar"') && r.text.includes('进行中') && r.text.includes('活动专区') && !r.text.includes('data-countdown') && !r.text.includes('限时'), '活动专区进行中且无倒计时');
   r = await shop.get('/product/8'); const sk8 = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; const skid = (r.text.match(/SK=\{"sku":\d+,"price":[\d.]+,"id":(\d+)/) || [])[1]; ok(!!skid, '秒杀商品详情'); ok(r.text.includes('活动专区') && r.text.includes('活动价') && !/秒杀|限时|倒计时|仅剩|抢购|data-countdown/.test(r.text), '详情页活动专区文案,无倒计时/紧迫用语');
-  r = await shop.post('/checkout', { sku_id: (r.text.match(/SK=\{"sku":(\d+)/) || [])[1], qty: 1, promo_type: 'seckill', promo_id: skid }); ok(r.status === 200 && r.text.includes('确认订单'), '秒杀结算');
+  r = await shop.post('/checkout', { sku_id: (r.text.match(/SK=\{"sku":(\d+)/) || [])[1], qty: 1, promo_type: 'activity', promo_id: skid, no7_ok: '1' }); ok(r.status === 200 && r.text.includes('确认订单'), '秒杀结算');
   // 积分商城
   r = await shop.post('/points-mall/1/exchange'); r = await shop.get('/me/points'); ok(r.status === 200, '积分兑换流程');
   // 后台商品 CRUD
@@ -225,7 +231,9 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/product/9'); ok(r.text.includes('支持7天无理由退货') && !r.text.includes('该商品不支持'), '普通商品显示支持7天无理由');
   r = await cg.post('/cart/add', { sku_id: sku8, qty: 1 }, { accept: 'application/json' }); ok(JSON.parse(r.text).no7, '未确认不能加购不支持7天无理由的商品');
   r = await cg.post('/cart/add', { sku_id: sku8, qty: 1, no7_ok: '1' }, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '确认后可加购');
-  r = await cg.post('/checkout', { sku_id: sku8, qty: 1 }); ok(r.text.includes('name="no7_confirm"'), '结算页再次要求确认');
+  r = await cg.post('/checkout', { sku_id: sku8, qty: 1 }); ok(r.status === 302 && !r.text.includes('确认订单'), '立即购买未勾选「我已知晓」被服务端拒绝');
+  r = await cg.get('/product/8'); ok(!r.text.includes('confirm(') && /class="btn [^"]*need-no7" disabled/.test(r.text) && r.text.includes('id="no7ok" required'), '详情页用必选勾选框,未勾选时购买按钮置灰');
+  r = await cg.post('/checkout', { sku_id: sku8, qty: 1, no7_ok: '1' }); ok(r.text.includes('name="no7_confirm"'), '结算页再次要求确认');
   const i8 = ((r.text.match(/name="items" value='([^']+)'/) || [])[1] || '').replace(/&#34;/g, '"'); const a8 = (r.text.match(/name="address_id" value="(\d+)"/) || [])[1];
   r = await cg.post('/order/create', { items: i8, address_id: a8 }); ok(r.loc === '/cart', '未确认时服务端拒绝创建订单');
   r = await cg.post('/order/create', { items: i8, address_id: a8, no7_confirm: '1' }); const o8 = ((r.loc || '').match(/order\/(\d+)\/pay/) || [])[1]; ok(!!o8, '确认后可下单');

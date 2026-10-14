@@ -78,6 +78,17 @@ svc.cloud.ensureDefaults();
     db.exec1("UPDATE articles SET content=REPLACE(content,?,?) WHERE category='help' AND instr(content,?)>0", CLOUD_HELP_EDIT2[0], CLOUD_HELP_EDIT2[1], CLOUD_HELP_EDIT2[0]);
     mark('v11b_policy');
   }
+  if (!done('v3_compliance')) { // 合规审查 v3:前台文案去「秒杀」、修正繁体字副标题、活动已售数按真实订单重算
+    db.transaction(() => {
+      db.exec1("UPDATE articles SET content=REPLACE(content,'(秒杀、拼团商品不可使用)','(活动价、拼团商品不可使用)') WHERE instr(content,'(秒杀、拼团商品不可使用)')>0");
+      db.exec1("UPDATE banners SET title='活动专区 · 主题活动', subtitle='活动商品与价格以活动页面公示为准' WHERE title LIKE '%秒杀%' OR subtitle LIKE '%手慢无%'");
+      db.exec1("UPDATE banners SET link='/activity' WHERE link='/seckill'");
+      db.exec1("UPDATE products SET subtitle='60S 长绒棉 · 透气亲肤' WHERE subtitle='60S 长绒棉 · 親肤透气 · 亲肤柔软'");
+      db.exec1("UPDATE products SET is_hot=0, is_new=0");
+      db.exec1("UPDATE seckills SET sold=COALESCE((SELECT SUM(oi.qty) FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.type='seckill' AND o.promo_id=seckills.id AND o.status NOT IN ('cancelled','refunded')),0)");
+      mark('v3_compliance');
+    })();
+  }
 })();
 
 const app = express();
@@ -154,6 +165,8 @@ function pageRenderer(layout) {
 }
 app.locals.U = U; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
 // 划线原价:仅在填写且高于售价时展示(《明码标价和禁止价格欺诈规定》)
+// 商品标签自动判定:「新品」按上架时间,「热卖」按真实销量(products.sales 仅由真实订单计算)
+app.locals.prodTag = (p, s) => { const nd = U.int(s.new_days, 30), ht = U.int(s.hot_sales_threshold, 10); if (nd > 0 && p.created_at && p.created_at >= U.offset(-nd * 86400000)) return '新品'; if (ht > 0 && +p.sales >= ht) return '热卖'; return ''; };
 app.locals.showMkt = (mkt, price) => mkt != null && +mkt > 0 && +mkt > +price;
 app.locals.AFTERSALE_STATUS = U.AFTERSALE_STATUS; app.locals.AFTERSALE_TYPE = U.AFTERSALE_TYPE; app.locals.PERMS = U.PERMS; app.locals.regions = require('./lib/regions');
 app.locals.qs = (req, over) => { const q = { ...req.query, ...over }; return '?' + Object.entries(q).filter(([, v]) => v !== '' && v != null).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); };

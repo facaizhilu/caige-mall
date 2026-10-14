@@ -1,5 +1,5 @@
 <a class="pcard" href="/product/<%= p.id %>">
-  <% if (p.is_new) { %><span class="ribbon">新品</span><% } else if (p.is_hot) { %><span class="ribbon">热卖</span><% } %>
+  <% const tag = prodTag(p, shop); if (tag) { %><span class="ribbon"><%= tag %></span><% } %>
   <div class="pic"><img loading="lazy" decoding="async" src="<%= p.img %>" alt="<%= p.name %>"></div>
   <div class="info">
     <div class="name"><%= p.name %></div>

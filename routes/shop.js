@@ -141,7 +141,9 @@ module.exports = function (app, { filesOf }) {
     else if (b.cart_id) { fromCart = true; const ids = [].concat(b.cart_id).map(int); items = ids.map(id => db.get('SELECT sku_id, qty FROM cart WHERE id=? AND user_id=?', id, req.user.id)).filter(Boolean); }
     else if (b.sku_id) items = [{ sku_id: int(b.sku_id), qty: int(b.qty, 1) }];
     if (b.from_cart === '1') fromCart = true;
-    if (b.promo_type === 'seckill' || b.promo_type === 'group') promo = { type: b.promo_type, id: int(b.promo_id), groupId: int(b.group_id) || null };
+    // 前台活动类型为 activity(兼容旧值 seckill);数据库内部仍记为 seckill
+    const pt = b.promo_type === 'activity' || b.promo_type === 'seckill' ? 'seckill' : b.promo_type;
+    if (pt === 'seckill' || pt === 'group') promo = { type: pt, id: int(b.promo_id), groupId: int(b.group_id) || null };
     return { items, fromCart, promo };
   }
   const myAddrs = uid => db.all('SELECT * FROM addresses WHERE user_id=? ORDER BY is_default DESC, id DESC', uid);
@@ -152,6 +154,8 @@ module.exports = function (app, { filesOf }) {
     const a0 = addrs[0];
     const q = svc.quote(req.user.id, { items, promo, address: a0 });
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
+    // 立即购买/参团:不支持7天无理由的商品须在商品页勾选「我已知晓」(服务端校验,购物车加购时已校验)
+    if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, '/cart'); }
     const coupons = svc.userCoupons(req.user.id, 'unused').filter(c => !promo && q.goods >= c.threshold);
     const no7Items = q.lines.filter(l => !svc.noReasonOf(l.product_id));
     res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons, no7Items });
@@ -637,10 +641,11 @@ module.exports = function (app, { filesOf }) {
   });
 
   // ---------------- 秒杀 / 拼团 ----------------
-  app.get('/seckill', (req, res) => {
+  app.get(['/seckill', '/seckill/'], (req, res) => res.redirect(301, '/activity' + (req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '')));
+  app.get('/activity', (req, res) => {
     const t = now();
     const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
-    res.page('shop/seckill', { title: '活动专区', rows });
+    res.page('shop/activity', { title: '活动专区', rows });
   });
   app.get('/groupbuy', (req, res) => {
     const rows = withImg(db.all('SELECT g.*, p.name, p.images, p.market_price, p.subtitle FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1'));
@@ -653,7 +658,7 @@ module.exports = function (app, { filesOf }) {
     const gb = db.get('SELECT * FROM groupbuys WHERE id=?', g.groupbuy_id);
     const p = db.get('SELECT * FROM products WHERE id=?', gb.product_id);
     const members = db.all('SELECT u.nickname FROM group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=?', g.id);
-    res.page('shop/group', { title: '参与拼团', g, gb, p, img: U.firstImg(p.images), members, expired: g.expire_at < now() });
+    res.page('shop/group', { title: '参与拼团', g, gb, p, img: U.firstImg(p.images), members, expired: g.expire_at < now(), noReason: svc.noReasonOf(p.id) });
   });
 
   // ---------------- 内容 / 客服 ----------------

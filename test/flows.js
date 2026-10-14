@@ -37,8 +37,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   ok(db.get('SELECT status FROM groups WHERE id=?', gg).status === 'failed' && db.get('SELECT status FROM orders WHERE id=?', goid).status === 'refunded', '超时未成团自动失败并退款');
   console.log('== 秒杀 ==');
   const sk = db.get('SELECT * FROM seckills WHERE id=2');
-  r = await a.post('/checkout', { sku_id: sk.sku_id, qty: 3, promo_type: 'seckill', promo_id: sk.id }); ok(r.status === 302 && r.loc, '超过限购被拒(限2)');
-  r = await a.post('/checkout', { sku_id: sk.sku_id, qty: 1, promo_type: 'seckill', promo_id: sk.id }); ok(r.text.includes('确认订单') && r.text.includes('19.9'), '秒杀价结算');
+  r = await a.post('/checkout', { sku_id: sk.sku_id, qty: 3, promo_type: 'activity', promo_id: sk.id, no7_ok: '1' }); ok(r.status === 302 && r.loc, '超过限购被拒(限2)');
+  r = await a.post('/checkout', { sku_id: sk.sku_id, qty: 1, promo_type: 'activity', promo_id: sk.id, no7_ok: '1' }); ok(r.text.includes('确认订单') && r.text.includes('19.9'), '秒杀价结算');
   const before = db.get('SELECT sold FROM seckills WHERE id=2').sold;
   r = await a.post('/order/create', { items: itemsRaw(r.text), promo_type: 'seckill', promo_id: sk.id, address_id: addr, no7_confirm: '1' }); const soid = r.loc.match(/order\/(\d+)/)[1];
   ok(db.get('SELECT sold FROM seckills WHERE id=2').sold === before + 1, '秒杀已售数+1'); await a.post('/order/' + soid + '/cancel');
@@ -416,7 +416,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await a.get('/'); ok(!r.text.includes('为你推荐') && !r.text.includes('猜你喜欢'), '首页无「为你推荐/猜你喜欢」');
     // 供应商销量:仅后台
     const SUP = 987654321; db.prepare('UPDATE products SET supplier_sales=? WHERE status=1').run(SUP);
-    let leak = false; for (const u of ['/', '/products', '/products?sort=sales', '/products?page=1&partial=1', '/product/' + target.id, '/seckill', '/groupbuy', '/me/favorites', '/me/history']) { r = await a.get(u); if (r.text.includes(String(SUP))) { leak = u; break; } }
+    let leak = false; for (const u of ['/', '/products', '/products?sort=sales', '/products?page=1&partial=1', '/product/' + target.id, '/activity', '/groupbuy', '/me/favorites', '/me/history']) { r = await a.get(u); if (r.text.includes(String(SUP))) { leak = u; break; } }
     ok(!leak, '供应商销量不出现在前台 HTML', leak);
     r = await adm.get('/admin/products/' + target.id + '/edit'); ok(r.text.includes('name="supplier_sales"') && r.text.includes(String(SUP)), '后台可查看/编辑供应商销量');
     db.prepare('UPDATE products SET supplier_sales=NULL').run();
