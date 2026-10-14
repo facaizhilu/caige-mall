@@ -112,7 +112,7 @@ module.exports = function (r, { filesOf }) {
       const vals = String(spec).split(/[\/|,,]/).map(s => s.trim()).filter(Boolean); const attrs = {}; specNames.forEach((n, k) => attrs[n] = vals[k] || '默认');
       return { id: int(sid[i]), attrs: JSON.stringify(attrs), spec_text: Object.values(attrs).join(' / '), price: round2(num(sprice[i])), stock: Math.max(0, int(sstock[i])), code: String(scode[i] || '').trim() };
     }).filter((s, i) => String(sp[i]).trim() !== '');
-    const row = { name: String(b.name || '').trim(), subtitle: String(b.subtitle || '').trim(), category_id: int(b.category_id), brand_id: int(b.brand_id), market_price: String(b.market_price || '').trim() === '' ? null : round2(num(b.market_price)), description: String(b.description || ''), status: b.status ? 1 : 0, is_hot: b.is_hot ? 1 : 0, is_new: b.is_new ? 1 : 0, template_id: int(b.template_id), weight: num(b.weight, 0.5), spec_names: specNames.join(','), sort: int(b.sort), images: JSON.stringify(images), no_reason_return: b.no_reason_return === '1' ? 1 : b.no_reason_return === '0' ? 0 : null };
+    const row = { name: String(b.name || '').trim(), subtitle: String(b.subtitle || '').trim(), category_id: int(b.category_id), brand_id: int(b.brand_id), market_price: String(b.market_price || '').trim() === '' ? null : round2(num(b.market_price)), description: String(b.description || ''), status: b.status ? 1 : 0, is_hot: b.is_hot ? 1 : 0, is_new: b.is_new ? 1 : 0, template_id: int(b.template_id), weight: num(b.weight, 0.5), spec_names: specNames.join(','), sort: int(b.sort), is_top: b.is_top ? 1 : 0, supplier_sales: String(b.supplier_sales ?? '').trim() === '' ? null : Math.max(0, int(b.supplier_sales)), images: JSON.stringify(images), no_reason_return: b.no_reason_return === '1' ? 1 : b.no_reason_return === '0' ? 0 : null };
     const fail = m => { flash(req, 'error', m); const pp = { ...row, id: id || undefined, price: 0 }; productForm(req, res, pp, skus.length ? skus : [{ attrs: '{}', spec_text: '默认', price: 0, stock: 0, code: '' }], { type: 'error', msg: m }); };
     if (!row.name) return fail('请填写商品名称');
     if (!row.category_id) return fail('请选择商品分类');
@@ -141,6 +141,8 @@ module.exports = function (r, { filesOf }) {
     })();
     const hits = require('../lib/banned').checkProduct(row, skus);
     if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + require('../lib/banned').summarize(hits)); return res.redirect('/admin/products/' + (id || db.get('SELECT MAX(id) n FROM products').n) + '/edit'); }
+    if (!ex || ex.sort !== row.sort || (ex.is_top || 0) !== row.is_top) log(req, '修改推荐排序', `#${id || 'new'} ${row.name}:权重 ${ex ? ex.sort : '-'}→${row.sort},置顶 ${ex ? (ex.is_top ? '是' : '否') : '-'}→${row.is_top ? '是' : '否'}`);
+    if (ex && (ex.supplier_sales ?? null) !== row.supplier_sales) log(req, '修改供应商销量参考', `#${id} ${ex.supplier_sales ?? '空'}→${row.supplier_sales ?? '空'}`);
     flash(req, 'success', '商品已保存'); res.redirect('/admin/products');
   });
   // 违禁词检查:可编辑词表 + 扫描现有商品
@@ -183,6 +185,20 @@ module.exports = function (r, { filesOf }) {
     const B = require('../lib/banned'), hits = B.checkProduct(row, [{ spec_text: spec }]);
     if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + B.summarize(hits)); return res.redirect('/admin/products/' + pid + '/edit'); }
     flash(req, 'success', `商品 #${pid} 已${row.status ? '上架' : '保存为下架状态'};如需多规格或上传图片,可在「编辑」中补充`); res.redirect('/admin/products');
+  });
+  // 推荐排序:列表页直接修改权重 / 置顶(销量不可人工编辑)
+  r.post('/products/:id/rank', need('product'), (req, res) => {
+    const p = db.get('SELECT id, name, sort, is_top FROM products WHERE id=?', int(req.params.id));
+    if (!p) { flash(req, 'error', '商品不存在'); return back(req, res, '/admin/products'); }
+    const sort = req.body.sort === undefined ? p.sort : Math.max(-999999, Math.min(999999, int(req.body.sort)));
+    const topV = req.body.is_top === undefined ? undefined : [].concat(req.body.is_top).pop();
+    const top = topV === undefined ? (p.is_top || 0) : (topV === '1' ? 1 : 0);
+    if (sort !== p.sort || top !== (p.is_top || 0)) {
+      db.exec1('UPDATE products SET sort=?, is_top=? WHERE id=?', sort, top, p.id);
+      log(req, '修改推荐排序', `#${p.id} ${p.name}:权重 ${p.sort}→${sort},置顶 ${p.is_top ? '是' : '否'}→${top ? '是' : '否'}`);
+      flash(req, 'success', `「${p.name}」推荐排序已更新`);
+    }
+    back(req, res, '/admin/products');
   });
   r.post('/products/:id/toggle', need('product'), (req, res) => { db.exec1('UPDATE products SET status=1-status WHERE id=?', int(req.params.id)); log(req, '商品上/下架', '#' + req.params.id); back(req, res, '/admin/products'); });
   r.post('/products/:id/stock', need('product'), (req, res) => {
@@ -664,6 +680,7 @@ module.exports = function (r, { filesOf }) {
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
     const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points'];
+    req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     const numeric = ['points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points'];
     if (!String(req.body.shop_name || '').trim()) { flash(req, 'error', '商城名称不能为空'); return res.redirect('/admin/settings'); }
     for (const k of numeric) if (!(num(req.body[k], -1) >= 0)) { flash(req, 'error', '数值类设置需为非负数字'); return res.redirect('/admin/settings'); }

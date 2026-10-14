@@ -38,14 +38,21 @@
         </div>
       </details>
     </div>
+    <form class="psearch" method="get" action="/products" role="search"><% if (cat) { %><input type="hidden" name="cat" value="<%= cat %>"><% } %><% if (sort) { %><input type="hidden" name="sort" value="<%= sort %>"><% } %><input type="search" name="q" value="<%= q %>" placeholder="在全部商品中搜索" enterkeyhint="search" maxlength="40" aria-label="搜索商品"><button class="btn primary sm">搜索</button></form>
     <div class="sortbar">
-      <a class="<%= !sort?'on':'' %>" href="<%= qs(req,{sort:'',page:''}) %>">综合</a><a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
+      <a class="<%= !sort?'on':'' %>" href="<%= qs(req,{sort:'',page:''}) %>">综合</a>
+      <a class="<%= sort==='price_asc'||sort==='price_desc'?'on':'' %>" href="<%= qs(req,{sort:sort==='price_asc'?'price_desc':'price_asc',page:''}) %>">价格 <%= sort==='price_desc'?'↓':sort==='price_asc'?'↑':'↕' %></a>
+      <a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
       <a class="<%= sort==='new'?'on':'' %>" href="<%= qs(req,{sort:'new',page:''}) %>">新品</a>
-      <a class="<%= sort==='price_asc'?'on':'' %>" href="<%= qs(req,{sort:'price_asc',page:''}) %>">价格 ↑</a><a class="<%= sort==='price_desc'?'on':'' %>" href="<%= qs(req,{sort:'price_desc',page:''}) %>">价格 ↓</a>
     </div>
-    <% if (!pg.rows.length) { %><div class="card empty"><div class="e">🔍</div>没有找到相关商品,换个关键词试试吧<br><br><a class="btn" href="/products">查看全部商品</a></div>
-    <% } else { %><div class="grid g3" style="grid-template-columns:repeat(3,1fr)"><% pg.rows.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div><% } %>
+    <% if (!pg.rows.length) { %><div class="card empty"><div class="e">📦</div>暂无商品<% if (q||cat||brand||min!==''||max!=='') { %><br><br><a class="btn" href="/products">查看全部商品</a><% } %></div>
+    <% } else { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)" data-infinite data-page="<%= pg.page %>" data-pages="<%= pg.pages %>"><%- include('../partials/cards',{rows:pg.rows}) %></div><div class="pmore muted" data-more hidden>加载中…</div><% } %>
     <%- include('../partials/pager') %>
   </section>
 </div>
-<style>@media(max-width:900px){.listing .grid.g3{grid-template-columns:repeat(2,1fr)!important}}</style>
+<style>@media(max-width:900px){.listing .grid.g3{grid-template-columns:repeat(2,1fr)!important}}
+.psearch{display:flex;gap:8px;margin-bottom:10px;min-width:0}.psearch input{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--line);border-radius:999px}.pmore{text-align:center;padding:14px 0}
+.plist{min-width:0}.plist .pcard{min-width:0}</style>
+<script>(function(){var g=document.querySelector('[data-infinite]');if(!g||!('IntersectionObserver' in window)||!window.fetch)return;var page=+g.dataset.page,pages=+g.dataset.pages,busy=false,more=document.querySelector('[data-more]'),pager=document.querySelector('.pager');if(page>=pages)return;if(pager)pager.style.display='none';more.hidden=false;
+var io=new IntersectionObserver(function(es){if(!es[0].isIntersecting||busy||page>=pages)return;busy=true;var u=new URL(location.href);u.searchParams.set('page',page+1);u.searchParams.set('partial','1');
+fetch(u,{headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){g.insertAdjacentHTML('beforeend',d.html);page=d.page;pages=d.pages;busy=false;if(page>=pages){io.disconnect();more.textContent='没有更多了'}}).catch(function(){busy=false;io.disconnect();more.hidden=true;if(pager)pager.style.display=''})},{rootMargin:'600px 0px'});io.observe(more)})();</script>

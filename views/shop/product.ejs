@@ -16,7 +16,7 @@
     <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货</dd>
       <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
       <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><span class="tag green">极速发货</span><% if (!noReason) { %><div class="no7-note">鲜活易腐等商品签收后不支持七天无理由退货;如有质量问题,仍可联系客服退换。</div><% } %></dd>
-      <dt>销量</dt><dd>已售 <%= p.sales %> 件 · <%= rateText %></dd></dl>
+      <% if (shop.show_sales === '1' && +p.sales > 0) { %><dt>销量</dt><dd>已售 <%= p.sales %> 件 · <%= rateText %></dd><% } else { %><dt>评价</dt><dd><%= rateText %></dd><% } %></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>
     <div class="opt"><label>数量</label><div class="flex"><div class="qty"><button type="button" id="qm">−</button><input id="qty" value="1" inputmode="numeric"><button type="button" id="qp">+</button></div><span class="muted">库存 <b id="stock">-</b> 件</span></div></div>
     <% const canGroup = groupbuy, canSk = seckill && seckill.live; %>

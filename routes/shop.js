@@ -38,7 +38,7 @@ module.exports = function (app, { filesOf }) {
     const where = ['p.status=1'], params = [];
     if (q.trim()) {
       where.push('(p.name LIKE ? OR p.subtitle LIKE ? OR b.name LIKE ?)'); const k = '%' + q.trim().replace(/[%_]/g, '') + '%'; params.push(k, k, k);
-      if (db.get('SELECT 1 FROM keywords WHERE word=?', q.trim())) db.exec1('UPDATE keywords SET hits=hits+1 WHERE word=?', q.trim());
+      if (req.query.partial === '1') { /* 无限滚动加载下一页,不重复计入搜索热度 */ } else if (db.get('SELECT 1 FROM keywords WHERE word=?', q.trim())) db.exec1('UPDATE keywords SET hits=hits+1 WHERE word=?', q.trim());
       else if (q.trim().length <= 20) db.exec1('INSERT INTO keywords(word,hits,is_hot) VALUES(?,1,0)', q.trim());
     }
     let curCat = null;
@@ -46,8 +46,10 @@ module.exports = function (app, { filesOf }) {
     if (brand) { where.push('p.brand_id=?'); params.push(int(brand)); }
     if (min !== '') { where.push('p.price>=?'); params.push(num(min)); }
     if (max !== '') { where.push('p.price<=?'); params.push(num(max, 1e9)); }
-    const order = { sales: 'p.sales DESC', price_asc: 'p.price ASC', price_desc: 'p.price DESC', new: 'p.created_at DESC' }[sort] || 'p.sort DESC, p.id ASC';
+    // 综合 = 置顶 → 推荐排序权重(大在前) → 新品在前;销量为订单真实销量
+    const order = { sales: 'p.sales DESC, p.sort DESC, p.id DESC', price_asc: 'p.price ASC, p.id DESC', price_desc: 'p.price DESC, p.id DESC', new: 'p.created_at DESC, p.id DESC' }[sort] || 'p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC';
     const pg = U.paginate(`${prodCard} WHERE ${where.join(' AND ')} ORDER BY ${order}`, params, req.query.page, 12);
+    if (req.query.partial === '1') { pg.rows = withImg(pg.rows); return require('ejs').renderFile(require('path').join(__dirname, '..', 'views', 'partials', 'cards.ejs'), { ...app.locals, ...res.locals, rows: pg.rows, req }, (e, html) => e ? res.status(500).end() : res.json({ html, page: pg.page, pages: pg.pages })); }
     pg.rows = withImg(pg.rows);
     const subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');

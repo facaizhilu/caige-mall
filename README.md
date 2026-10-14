@@ -60,7 +60,7 @@ server.js            入口(双会话、CSRF、占位图、上传)
 lib/                 db.js(建表) seed.js(演示数据) svc.js(下单/支付/退款/拼团等业务) crud.js chart.js regions.js util.js
 routes/shop.js       前台路由        routes/admin.js   后台路由
 views/shop|admin     EJS 模板         public/css|js     样式与脚本
-test/smoke.js        冒烟测试(119 项)  test/flows.js     进阶流程测试(27 项)
+test/smoke.js        冒烟测试(119 项)  test/flows.js     进阶流程测试
 scripts/screenshots.js  截图脚本(playwright-core + 系统 Chrome)
 ```
 

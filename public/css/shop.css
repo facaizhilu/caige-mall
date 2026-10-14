@@ -381,3 +381,6 @@ textarea{resize:vertical}
 .cloud-ben li:first-child{border-top:none}
 .cloud-ben li>b{flex:0 0 64px;color:var(--red)}
 .ban-warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+
+/* 320px 窄屏:秒杀标题栏允许换行,避免横向溢出 */
+@media(max-width:360px){.flash-sale .hd{flex-wrap:wrap;row-gap:0}.flash-sale .hd>span{min-width:0}}

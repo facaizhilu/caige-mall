@@ -365,5 +365,62 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     srv.close();
   }
 
+  console.log('== 真实销量 / 推荐排序 / 全部商品 / 供应商销量 ==');
+  {
+    const real = pid => db.get("SELECT COALESCE(SUM(oi.qty),0) n FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=? AND o.status IN ('paid','shipped','completed')", pid).n;
+    const bad = db.all('SELECT id, sales FROM products').filter(p => p.sales !== real(p.id));
+    ok(!bad.length, '所有商品销量 = 真实订单件数(无预置/虚构销量)', JSON.stringify(bad.slice(0, 3)));
+    const sku = db.get("SELECT s.* FROM skus s JOIN products p ON p.id=s.product_id WHERE p.status=1 AND s.stock>=5 AND p.id NOT IN (SELECT product_id FROM seckills) AND p.id NOT IN (SELECT product_id FROM groupbuys) ORDER BY s.id LIMIT 1");
+    const s0 = db.get('SELECT sales FROM products WHERE id=?', sku.product_id).sales;
+    r = await a.post('/checkout', { sku_id: sku.id, qty: 2 });
+    r = await a.post('/order/create', { items: itemsRaw(r.text), address_id: (r.text.match(/name="address_id" value="(\d+)"/) || [])[1], no7_confirm: '1' });
+    const noid = +(r.loc || '').match(/order\/(\d+)/)[1];
+    ok(db.get('SELECT sales FROM products WHERE id=?', sku.product_id).sales === s0, '未支付订单不计销量');
+    await a.post('/order/' + noid + '/pay', { method: 'alipay' });
+    ok(db.get('SELECT sales FROM products WHERE id=?', sku.product_id).sales === s0 + 2, '支付后销量 +2');
+    require('../lib/svc').refundOrder(noid, '测试退款');
+    ok(db.get('SELECT sales FROM products WHERE id=?', sku.product_id).sales === s0, '整单退款后销量扣回');
+    r = await adm.get('/admin/products/' + sku.product_id + '/edit'); ok(r.status === 200 && !/name="sales"/.test(r.text), '后台商品表单无销量输入框');
+    r = await adm.get('/admin/products'); ok(!/name="sales"/.test(r.text) && r.text.includes('/rank'), '后台商品列表无销量输入,可改推荐排序');
+    r = await adm.get('/admin/products/quick'); ok(!/name="sales"/.test(r.text), '快速上架无销量输入框');
+    // 前台显示销量开关(默认关闭)
+    ok(db.get("SELECT value FROM settings WHERE key='show_sales'").value === '0', '「前台显示销量」默认关闭');
+    const sold = db.get('SELECT id FROM products WHERE status=1 AND sales>0 ORDER BY sales DESC LIMIT 1'), zero = db.get('SELECT id FROM products WHERE status=1 AND sales=0 LIMIT 1');
+    for (const u of ['/', '/products', '/products?sort=sales', '/product/' + sold.id]) { r = await a.get(u); ok(!r.text.includes('已售'), '关闭时不显示已售:' + u); }
+    const st = await adm.get('/admin/settings'); ok(st.text.includes('前台显示销量'), '站点设置含「前台显示销量」');
+    const form = {}; for (const m of st.text.matchAll(/<input[^>]*name="([a-z_]+)"[^>]*value="([^"]*)"/g)) form[m[1]] = m[2]; delete form._csrf;
+    await adm.post('/admin/settings', { ...form, show_sales: '1' });
+    r = await a.get('/product/' + sold.id); ok(r.text.includes('已售 ' + db.get('SELECT sales FROM products WHERE id=?', sold.id).sales + ' 件'), '开启后显示真实销量');
+    if (zero) { r = await a.get('/product/' + zero.id); ok(!r.text.includes('<dt>销量</dt>') && !r.text.includes('已售 0'), '销量为 0 时不显示'); }
+    r = await a.get('/products'); ok(!r.text.includes('已售 0'), '列表不显示「已售 0」');
+    await adm.post('/admin/settings', { ...form, show_sales: '0' }); r = await a.get('/product/' + sold.id); ok(!r.text.includes('已售'), '再次关闭后隐藏');
+    // 推荐排序
+    const target = db.get('SELECT id, sort, name FROM products WHERE status=1 ORDER BY sort ASC, id DESC LIMIT 1');
+    await adm.get('/admin/products');
+    await adm.post('/admin/products/' + target.id + '/rank', { sort: '99999', is_top: '1' });
+    let pr = db.get('SELECT sort, is_top FROM products WHERE id=?', target.id); ok(pr.sort === 99999 && pr.is_top === 1, '列表页修改推荐权重与置顶');
+    ok(db.get("SELECT 1 FROM admin_logs WHERE action='修改推荐排序' AND detail LIKE ?", '#' + target.id + ' %'), '推荐排序变更写入操作日志');
+    r = await a.get('/products'); ok((r.text.match(/href="\/product\/(\d+)"/) || [])[1] === String(target.id), '综合排序:置顶/权重高的在最前');
+    await adm.post('/admin/products/' + target.id + '/rank', { sort: String(target.sort), is_top: '0' }); pr = db.get('SELECT sort, is_top FROM products WHERE id=?', target.id); ok(pr.sort === target.sort && !pr.is_top, '恢复推荐排序');
+    // 全部商品页
+    const ids = t => [...t.matchAll(/class="pcard" href="\/product\/(\d+)"/g)].map(m => +m[1]);
+    const prices = t => ids(t).map(i => db.get('SELECT price FROM products WHERE id=?', i).price);
+    const asc = prices((await a.get('/products?sort=price_asc')).text), desc = prices((await a.get('/products?sort=price_desc')).text);
+    ok(asc.length && asc.every((v, i) => !i || asc[i - 1] <= v), '价格升序'); ok(desc.length && desc.every((v, i) => !i || desc[i - 1] >= v), '价格降序');
+    r = await a.get('/products?sort=price_asc'); ok(r.text.includes('sort=price_desc'), '价格按钮可切换升/降序');
+    const sl = ids((await a.get('/products?sort=sales')).text).map(i => db.get('SELECT sales FROM products WHERE id=?', i).sales); ok(sl.every((v, i) => !i || sl[i - 1] >= v), '销量排序按真实销量');
+    r = await a.get('/products'); ok(r.text.includes('综合') && r.text.includes('新品') && r.text.includes('class="psearch"') && r.text.includes('mchip'), '全部商品页:分类标签、搜索框、排序');
+    r = await a.get('/products?q=' + encodeURIComponent('不存在的商品zzq')); ok(r.text.includes('暂无商品'), '空状态「暂无商品」');
+    r = await a.req('GET', '/products?page=2&partial=1', null, {}); let js = {}; try { js = JSON.parse(r.text); } catch (e) {} ok(js.page === 2 && js.html.includes('pcard'), '无限滚动分页接口');
+    // 首页不再有个性化推荐
+    r = await a.get('/'); ok(!r.text.includes('为你推荐') && !r.text.includes('猜你喜欢'), '首页无「为你推荐/猜你喜欢」');
+    // 供应商销量:仅后台
+    const SUP = 987654321; db.prepare('UPDATE products SET supplier_sales=? WHERE status=1').run(SUP);
+    let leak = false; for (const u of ['/', '/products', '/products?sort=sales', '/products?page=1&partial=1', '/product/' + target.id, '/seckill', '/groupbuy', '/me/favorites', '/me/history']) { r = await a.get(u); if (r.text.includes(String(SUP))) { leak = u; break; } }
+    ok(!leak, '供应商销量不出现在前台 HTML', leak);
+    r = await adm.get('/admin/products/' + target.id + '/edit'); ok(r.text.includes('name="supplier_sales"') && r.text.includes(String(SUP)), '后台可查看/编辑供应商销量');
+    db.prepare('UPDATE products SET supplier_sales=NULL').run();
+  }
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
