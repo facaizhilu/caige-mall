@@ -42,12 +42,29 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   await adm.get('/admin/login'); await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); await adm.get('/admin/password'); await adm.post('/admin/password/skip'); await adm.get('/admin');
   await a.login('13800000002', '123456');
 
+  console.log('== 演示环境启动自动导入(mock + DEMO_MODE=1) ==');
+  const seedDone = await waitFor(() => /^done/.test((db.get("SELECT value FROM settings WHERE key='jdvop_demo_seed'") || {}).value || ''), 30000);
+  ok(seedDone, '服务启动后异步自动导入 mock 商品(不阻塞启动)', (db.get("SELECT value FROM settings WHERE key='jdvop_demo_seed'") || {}).value);
+  const seeded = db.all("SELECT * FROM products WHERE supplier='jdvop'");
+  ok(seeded.filter(p => p.status === 1 && p.supplier_state === 'ok').length >= 10, '自动导入的合规商品已上架', seeded.length);
+  ok(!db.get("SELECT 1 FROM skus WHERE supplier_sku IN ('900010001','900011001','900004001','900004002','900004003')"), '自动导入同样执行禁售类目拦截(药品/酒类/3C家电未导入)');
+  const seededMouse = seeded.find(p => p.name.includes('鼠标'));
+  ok(seededMouse && seededMouse.status === 0 && seededMouse.supplier_state === 'pending_review', '自动导入的违禁词商品为待审核/下架', JSON.stringify(seededMouse));
+  ok(seeded.some(p => p.name === '轻量缓震跑步鞋') && seeded.some(p => p.name === '女士系带短袖衬衫 雪纺'), '多规格商品名去掉规格值(颜色/尺码)', seeded.map(p => p.name).join('|'));
+  ok(new Set(seeded.map(p => p.supplier_spu)).size === seeded.length && db.get("SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier='jdvop'").n === db.get("SELECT COUNT(DISTINCT supplier_sku) n FROM skus WHERE supplier_sku IS NOT NULL").n, '每个商品(SPU)只导入一次,SKU 不重复', seeded.length);
+  let r = await g.get('/products'); ok(r.text.includes('class="tag demo">演示'), '新部署打开「全部商品」即可看到供应商演示商品');
+  const again = await J.demoSeed(); ok(again && again.skipped, '已有供应商商品时不再自动导入(重启不重复)', JSON.stringify(again));
+  const m0 = process.env.JDVOP_MODE; process.env.JDVOP_MODE = 'live'; ok(!J.demoSeedEnabled(), 'live 模式绝不自动导入'); process.env.JDVOP_MODE = m0 === undefined ? '' : m0; if (m0 === undefined) delete process.env.JDVOP_MODE;
+  const d0 = process.env.DEMO_MODE; process.env.DEMO_MODE = '0'; ok(!J.demoSeedEnabled(), '非演示环境不自动导入'); process.env.DEMO_MODE = d0;
+
   console.log('== 选品浏览 / 导入 ==');
-  let r = await adm.get('/admin/jdvop');
+  r = await adm.get('/admin/jdvop');
   ok(r.status === 200 && r.text.includes('导入所选') && r.text.includes('卷纸'), '「供应商商品」页可浏览商品', r.status);
   ok(r.text.includes('禁售:药品') && r.text.includes('禁售:酒类') && r.text.includes('禁售:需3C认证类'), '禁售类目在选品页标记(药品/酒类/3C)');
   r = await adm.get('/admin/jdvop?cat1=1315'); ok(r.text.includes('衬衫') && !r.text.includes('卷纸'), '按分类筛选');
   r = await adm.post('/admin/jdvop/import', { sku: ['900001001', '900001002', '900005101', '900003001', '900009001', '900010001', '900011001', '900004001', '900006001'] });
+  ok(db.get("SELECT COUNT(*) n FROM skus WHERE supplier_sku='900001001'").n === 1 && db.get("SELECT COUNT(*) n FROM skus WHERE supplier_sku='900005101'").n === 1, '重复导入不会产生重复商品');
+  const impMsg = r.loc ? (await adm.get(r.loc)).text : ''; ok(impMsg.includes('已导入'), '重复导入提示「已导入」');
   const roll = prodOf('900001001'), shirt = prodOf('900005101'), apple = prodOf('900003001'), mouse = prodOf('900009001');
   ok(roll && roll.supplier === 'jdvop' && roll.status === 1 && roll.supplier_state === 'ok', '导入:supplier=jdvop,已上架', JSON.stringify(roll));
   const rs = skuOf('900001001'); const pct = 10;
@@ -61,7 +78,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(!(roll.description || '').includes('京东') && (roll.description || '').includes('包装清单'), '详情文案已去除「京东」字样');
   console.log('== 合规:禁售类目 / 违禁词 ==');
   ok(!prodOf('900010001') && !prodOf('900011001') && !prodOf('900004001'), '禁售类目(药品/酒类/需3C家电)不能导入');
-  ok(r.loc && (await adm.get(r.loc)).text.includes('禁售类目'), '导入结果提示禁售原因');
+  ok(impMsg.includes('禁售类目'), '导入结果提示禁售原因');
   ok(mouse && mouse.status === 0 && mouse.supplier_state === 'pending_review' && /第一/.test(mouse.supplier_review_note), '违禁词命中 → 导入为待审核/下架,并记录原因', JSON.stringify(mouse));
   r = await adm.get('/admin/jdvop/products'); ok(r.text.includes('待审核') && r.text.includes('第一'), '后台已导入列表显示审核原因');
   await adm.post('/admin/products/' + mouse.id + '/toggle'); ok(db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '待审核商品不能直接上架');

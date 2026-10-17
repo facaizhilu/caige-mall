@@ -183,6 +183,8 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | `PUBLIC_BASE_URL` | 售后问题图片的公网地址前缀(供应商要求图片 URL) |
 | `JDVOP_TICK_MS` | 定时任务检查间隔,默认 60000 |
 
+**演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。
+
 回调地址:`POST https://你的域名/api/suppliers/jdvop/callback?token=<JDVOP_CALLBACK_TOKEN>`(需在来一票后台配置)。
 回调只推一次、不重试,系统另有轮询兜底(间隔在后台「供应商设置」);所有状态变化都会回查查询接口确认后才改账,顾客退款只在供应商退款确认后发生。
 

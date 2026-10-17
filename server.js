@@ -231,5 +231,5 @@ app.use((err, req, res, next) => { console.error(err); if (res.headersSent) retu
 setInterval(svc.sweep, 60000).unref(); svc.sweep();
 // 供应商定时任务:待推送订单、状态轮询兜底(回调只推一次不重试)、价格/可售定时刷新
 setInterval(() => jdvop.tick(), Math.max(5000, U.int(process.env.JDVOP_TICK_MS, 60000))).unref();
-if (require.main === module) app.listen(PORT, () => console.log(`\n🛒 财哥商城已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`));
+if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 财哥商城已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e))); });
 module.exports = app;
