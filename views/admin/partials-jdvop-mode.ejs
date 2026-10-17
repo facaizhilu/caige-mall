@@ -1,0 +1,1 @@
+<div class="flash <%= mi.cfg.mode==='live' ? (mi.missing.length?'error':'success') : 'info' %>">当前模式:<b><%= mi.cfg.mode==='live'?'正式(live)':'模拟(mock)' %></b><% if(mi.cfg.mode==='mock'){ %> —— 使用内置演示数据,不会调用真实供应商接口,不会产生真实扣款<% } else if(mi.missing.length){ %> —— 缺少配置:<%= mi.missing.join('、') %><% } %><% if(mi.demo){ %> · 演示环境:导入的商品前台显示「演示」标签<% } %></div>

@@ -5,6 +5,8 @@ const svc = require('../lib/svc');
 const chart = require('../lib/chart');
 const crud = require('../lib/crud');
 const { now, int, num, round2, esc, money } = U;
+const jdvop = require('../lib/suppliers/jdvop');
+const J_cfgMode = () => jdvop.config.cfg().mode;
 
 const COMPANIES = ['顺丰速运', '中通快递', '圆通速递', '韵达快递', '申通快递', '京东物流', '极兔速递', 'EMS'];
 
@@ -32,7 +34,7 @@ module.exports = function (r, { filesOf }) {
   const ctx = { need, flash, log, filesOf };
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').includes('/admin') ? req.get('referer') : fb);
   const sendCSV = (res, name, header, rows) => { res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}-${U.today()}.csv`); res.send(U.toCSV(header, rows)); };
-  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n }; } next(); });
+  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n, supAlerts: db.get('SELECT COUNT(*) n FROM supplier_alerts WHERE resolved=0').n }; } next(); });
 
   // ================= 登录 =================
   const fails = new Map();
@@ -122,6 +124,14 @@ module.exports = function (r, { filesOf }) {
     if (!skus.length) return fail('至少需要一个规格(SKU)');
     if (skus.some(s => s.price <= 0)) return fail('每个规格的价格需大于 0');
     if (!specNames.length) return fail('请填写规格名称,如:颜色,尺码');
+    // 供应商商品:价格按加价规则自动维护、库存跟随供应商可售,不能在此改价/增删规格;不展示划线价
+    const isSup = ex && ex.supplier;
+    if (isSup) {
+      row.market_price = null;
+      const cur = db.all('SELECT * FROM skus WHERE product_id=?', id);
+      for (const s of skus) { const c = cur.find(x => x.id === s.id); if (c) { s.price = c.price; s.stock = c.stock; } }
+      skus.splice(0, skus.length, ...skus.filter(s => cur.some(x => x.id === s.id)), ...cur.filter(c => !skus.some(s => s.id === c.id)).map(c => ({ ...c })));
+    }
     db.transaction(() => {
       let pid = id;
       row.price = Math.min(...skus.map(s => s.price));
@@ -139,6 +149,12 @@ module.exports = function (r, { filesOf }) {
       db.exec1('UPDATE products SET stock=(SELECT COALESCE(SUM(stock),0) FROM skus WHERE product_id=?), price=(SELECT MIN(price) FROM skus WHERE product_id=?) WHERE id=?', pid, pid, pid);
       log(req, ex ? '编辑商品' : '新增商品', `#${pid} ${row.name}`);
     })();
+    if (isSup) {
+      const ok = jdvop.recheckReview(id); const why = jdvop.listBlockReason(id);
+      if (why && row.status) db.exec1('UPDATE products SET status=0 WHERE id=?', id);
+      if (ok === true) log(req, '供应商商品审核通过', `#${id} ${row.name}`);
+      if (why) { flash(req, 'warn', '商品已保存,但仍不能上架:' + why); return res.redirect('/admin/products/' + id + '/edit'); }
+    }
     const hits = require('../lib/banned').checkProduct(row, skus);
     if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + require('../lib/banned').summarize(hits)); return res.redirect('/admin/products/' + (id || db.get('SELECT MAX(id) n FROM products').n) + '/edit'); }
     if (!ex || ex.sort !== row.sort || (ex.is_top || 0) !== row.is_top) log(req, '修改推荐排序', `#${id || 'new'} ${row.name}:权重 ${ex ? ex.sort : '-'}→${row.sort},置顶 ${ex ? (ex.is_top ? '是' : '否') : '-'}→${row.is_top ? '是' : '否'}`);
@@ -156,9 +172,11 @@ module.exports = function (r, { filesOf }) {
   r.post('/products/batch', need('product'), (req, res) => {
     const ids = [...new Set([].concat(req.body.ids || []).map(x => int(x)).filter(x => x > 0))].slice(0, 500), st = req.body.action === 'on' ? 1 : req.body.action === 'off' ? 0 : null;
     if (st === null || !ids.length) { flash(req, 'error', '请先勾选商品并选择批量操作'); return back(req, res, '/admin/products'); }
-    const n = db.prepare(`UPDATE products SET status=? WHERE status>=0 AND id IN (${ids.map(() => '?').join(',')})`).run(st, ...ids).changes;
-    log(req, st ? '批量上架商品' : '批量下架商品', `${n} 件:#${ids.join(',#')}`.slice(0, 300));
-    flash(req, 'success', `已${st ? '上架' : '下架'} ${n} 件商品`); back(req, res, '/admin/products');
+    const blocked = st ? ids.map(id => jdvop.listBlockReason(id)).filter(Boolean) : [];
+    const okIds = st ? ids.filter(id => !jdvop.listBlockReason(id)) : ids;
+    const n = okIds.length ? db.prepare(`UPDATE products SET status=? WHERE status>=0 AND id IN (${okIds.map(() => '?').join(',')})`).run(st, ...okIds).changes : 0;
+    log(req, st ? '批量上架商品' : '批量下架商品', `${n} 件:#${okIds.join(',#')}`.slice(0, 300));
+    flash(req, blocked.length ? 'warn' : 'success', `已${st ? '上架' : '下架'} ${n} 件商品` + (blocked.length ? `;${blocked.length} 件不能上架:${blocked.join(';')}`.slice(0, 400) : '')); back(req, res, '/admin/products');
   });
   // 快速上架:单规格商品一页填完(名称/分类/运费模板/价格/库存),同样做违禁词检查
   r.get('/products/quick', need('product'), (req, res) => res.page('admin/product-quick', { title: '快速上架', cats: catOptions(), tpls: db.all('SELECT * FROM shipping_templates ORDER BY id'), brands: db.all('SELECT * FROM brands ORDER BY sort'), b: {} }));
@@ -200,7 +218,7 @@ module.exports = function (r, { filesOf }) {
     }
     back(req, res, '/admin/products');
   });
-  r.post('/products/:id/toggle', need('product'), (req, res) => { db.exec1('UPDATE products SET status=1-status WHERE id=?', int(req.params.id)); log(req, '商品上/下架', '#' + req.params.id); back(req, res, '/admin/products'); });
+  r.post('/products/:id/toggle', need('product'), (req, res) => { const tp = db.get('SELECT status FROM products WHERE id=?', int(req.params.id)); const why = tp && !tp.status && jdvop.listBlockReason(int(req.params.id)); if (why) { flash(req, 'error', why); return back(req, res, '/admin/products'); } db.exec1('UPDATE products SET status=1-status WHERE id=?', int(req.params.id)); log(req, '商品上/下架', '#' + req.params.id); back(req, res, '/admin/products'); });
   r.post('/products/:id/stock', need('product'), (req, res) => {
     const s = db.get('SELECT * FROM skus WHERE id=?', int(req.body.sku_id)); if (s) { db.exec1('UPDATE skus SET stock=? WHERE id=?', Math.max(0, int(req.body.stock)), s.id); db.exec1('UPDATE products SET stock=(SELECT SUM(stock) FROM skus WHERE product_id=?) WHERE id=?', s.product_id, s.product_id); log(req, '调整库存', `SKU#${s.id} → ${int(req.body.stock)}`); }
     back(req, res, '/admin/inventory');
@@ -266,6 +284,8 @@ module.exports = function (r, { filesOf }) {
     if (!o) { flash(req, 'error', '订单不存在'); return res.redirect('/admin/orders'); }
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     res.locals.asInfo = asInfo(o);
+    const so = db.get('SELECT * FROM supplier_orders WHERE order_id=?', o.id);
+    res.locals.sup = { so, packages: db.all('SELECT * FROM order_packages WHERE order_id=? ORDER BY id', o.id).map(p => ({ ...p, nos: U.jsonArr(p.tracking_nos), its: U.jsonArr(p.items) })), items: db.all('SELECT * FROM order_items WHERE order_id=? AND supplier IS NOT NULL', o.id), ownCount: db.get('SELECT COUNT(*) n FROM order_items WHERE order_id=? AND supplier IS NULL', o.id).n, mock: J_cfgMode() === 'mock', alerts: db.all('SELECT * FROM supplier_alerts WHERE order_id=? ORDER BY id DESC LIMIT 10', o.id) };
     res.page('admin/order', { title: '订单详情', o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id), traces: db.all('SELECT * FROM traces WHERE order_id=? ORDER BY id DESC', o.id), aftersale: db.get('SELECT * FROM aftersales WHERE order_id=? ORDER BY id DESC LIMIT 1', o.id), invoice: db.get('SELECT * FROM invoices WHERE order_id=?', o.id), group });
   });
   r.post('/orders/:id/ship', need('order'), (req, res) => {
@@ -278,6 +298,15 @@ module.exports = function (r, { filesOf }) {
   r.post('/orders/:id/cancel', need('order'), (req, res) => {
     const o = db.get('SELECT * FROM orders WHERE id=?', int(req.params.id)); if (!o) return res.redirect('/admin/orders');
     const reason = String(req.body.reason || '商家取消').slice(0, 100);
+    const so = db.get('SELECT * FROM supplier_orders WHERE order_id=?', o.id);
+    if (so && ['submitted', 'confirmed', 'cancelling'].includes(so.status)) { flash(req, 'error', '该订单含已推送供应商的商品,请先在「供应商发货」面板取消供应商订单(取消成功后自动退款)'); return res.redirect('/admin/orders/' + o.id); }
+    if (so && so.status === 'pending') db.exec1("UPDATE supplier_orders SET status='cancelled', error='商家取消订单(未推送)', refunded_customer=sale_amount, updated_at=? WHERE id=?", now(), so.id);
+    if (so && ['failed', 'cancelled'].includes(so.status) && so.refunded_customer > 0 && o.status !== 'unpaid') {
+      const left = round2(o.pay_amount - so.refunded_customer);
+      const x = left > 0 ? svc.refundOrder(o.id, '商家取消:' + reason, false, { amount: left }) : { ok: true, cash: 0 };
+      if (x.ok) { db.exec1("UPDATE orders SET status='refunded', cancelled_at=?, cancel_reason=? WHERE id=?", now(), '商家取消:' + reason, o.id); log(req, '取消订单并退款', `#${o.id} ${reason}(供应商部分此前已退)`); }
+      flash(req, x.ok ? 'success' : 'error', x.ok ? `订单已取消,退款 ¥${(x.cash || 0).toFixed(2)}(供应商部分此前已退)` : x.msg); return res.redirect('/admin/orders/' + o.id);
+    }
     const x = o.status === 'unpaid' ? svc.cancelOrder(o.id, reason) : svc.refundOrder(o.id, '商家取消:' + reason);
     if (x.ok) log(req, o.status === 'unpaid' ? '取消订单' : '取消订单并退款', `#${o.id} ${reason}`);
     flash(req, x.ok ? 'success' : 'error', x.ok ? (o.status === 'unpaid' ? '订单已取消' : '订单已取消,款项原路退回' + (x.points ? `,退回积分 ${x.points}` : '')) : x.msg); res.redirect('/admin/orders/' + o.id);
@@ -304,6 +333,7 @@ module.exports = function (r, { filesOf }) {
     const a = db.get('SELECT a.*, o.order_no, o.pay_amount, o.points_used, o.points_discount, o.points_awarded, o.status ostatus, o.completed_at, o.no7_confirmed, u.phone, u.nickname, u.cancelled_at ucancel FROM aftersales a JOIN orders o ON o.id=a.order_id JOIN users u ON u.id=a.user_id WHERE a.id=?', int(req.params.id));
     if (!a) return res.redirect('/admin/aftersales');
     a.estPoints = a.pay_amount > 0 ? Math.round((a.points_used || 0) * Math.min(1, a.amount / a.pay_amount)) : (a.points_used || 0);
+    if (a.supplier) { try { a.sup = JSON.parse(a.supplier_status || 'null'); } catch (e) { a.sup = null; } a.mock = J_cfgMode() === 'mock'; }
     res.page('admin/aftersale', { title: '售后详情', a, items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
   });
   const asNotify = (a, text) => svc.notifyService(a.user_id, 'staff', `【售后通知】售后单 #${a.id}:${text} 进度可在「我的 - 退款/售后」查看。`);
@@ -318,6 +348,7 @@ module.exports = function (r, { filesOf }) {
     const a = db.get('SELECT * FROM aftersales WHERE id=?', int(req.params.id)); if (!a) return res.redirect('/admin/aftersales');
     const act = req.body.action, note = String(req.body.admin_note || '').slice(0, 200);
     const done = (m, ok = true) => { flash(req, ok ? 'success' : 'error', m); res.redirect('/admin/aftersales/' + a.id); };
+    if (a.supplier) return done('供应商售后单由供应商审核/退款,请使用页面上的「供应商售后」操作;顾客退款会在供应商确认退款后自动完成', false);
     const split = x => `退现金 ¥${x.cash.toFixed(2)}(原路退回)/ 退积分 ${x.points}`;
     if (act === 'reject' && ['pending', 'returned'].includes(a.status)) { db.exec1("UPDATE aftersales SET status='rejected', admin_note=?, updated_at=? WHERE id=?", note || '不符合售后条件', now(), a.id); asNotify(a, '审核未通过,原因:' + (note || '不符合售后条件') + '。'); log(req, '拒绝售后', '#' + a.id); return done('已拒绝该申请'); }
     if (act === 'approve' && a.status === 'pending') {
@@ -634,7 +665,7 @@ module.exports = function (r, { filesOf }) {
   const asInfo = o => {
     const items = db.all('SELECT product_id FROM order_items WHERE order_id=?', o.id);
     const active = db.get("SELECT id, status FROM aftersales WHERE order_id=? AND status IN ('pending','approved_return','returned') ORDER BY id DESC", o.id);
-    const refunded = db.get("SELECT COALESCE(SUM(refund_cash),0) c FROM aftersales WHERE order_id=? AND status='refunded'", o.id).c;
+    const refunded = round2(db.get("SELECT COALESCE(SUM(refund_cash),0) c FROM aftersales WHERE order_id=? AND status='refunded'", o.id).c + ((db.get('SELECT refunded_customer FROM supplier_orders WHERE order_id=?', o.id) || {}).refunded_customer || 0));
     const noReason = items.every(i => !i.product_id || svc.noReasonOf(i.product_id));
     const daysSince = o.completed_at ? Math.floor((Date.now() - U.parseDate(o.completed_at)) / 86400000) : null;
     return { active, refunded, maxAmount: round2(Math.max(0, o.pay_amount - refunded)), noReason, daysSince, can7: noReason && o.status === 'completed' && daysSince !== null && daysSince <= 7 && o.type !== 'points', canCreate: ['paid', 'shipped', 'completed'].includes(o.status) && o.type !== 'points' && !active };
@@ -749,4 +780,5 @@ module.exports = function (r, { filesOf }) {
     res.page('admin/logs', { title: '操作日志', pg: U.paginate(`SELECT * FROM admin_logs WHERE ${where.join(' AND ')} ORDER BY id DESC`, params, req.query.page, 25), q });
   });
   r.get('/logs/export', need('system'), (req, res) => void log(req, '导出操作日志CSV', '') || sendCSV(res, '操作日志', ['时间', '管理员', '操作', '详情', 'IP'], db.all('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 5000').map(l => [l.created_at, l.admin_name, l.action, l.detail, l.ip])));
+  require('./admin-jdvop')(r, ctx);
 };

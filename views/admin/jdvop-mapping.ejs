@@ -1,0 +1,7 @@
+<div class="card"><p class="help">导入商品时按供应商三级分类自动建议本站分类与「生鲜(不支持7天无理由)」标记;请逐条确认。勾选「同步到已导入商品」会更新这些商品的分类和生鲜标记。</p>
+<div class="tbl-wrap"><table class="t"><tr><th>供应商分类</th><th>本站分类 / 生鲜</th><th>商品数</th></tr>
+<% rows.forEach(m=>{ %><tr><td><%= m.supplier_path %><br><span class="muted" style="font-size:12px">ID <%= m.supplier_cat_id %> · <%= m.reviewed?'已确认':'待确认' %></span><% if(m.blocked){ %> <span class="tag">禁售:<%= m.blocked.group %></span><% } %></td>
+ <td><form method="post" action="/admin/jdvop/mapping/<%= encodeURIComponent(m.supplier_cat_id) %>" class="flex wrapf"><input type="hidden" name="_csrf" value="<%= csrf %>"><select name="category_id"><% cats.forEach(c=>{ %><option value="<%= c.id %>" <%= c.id===m.category_id?'selected':'' %>><%= c.pname %> / <%= c.name %></option><% }) %></select>
+  <label style="font-size:13px"><input type="checkbox" name="perishable" value="1" <%= m.perishable?'checked':'' %> style="width:auto"> 生鲜</label><label style="font-size:13px"><input type="checkbox" name="apply" value="1" checked style="width:auto"> 同步到已导入商品</label><button class="btn sm primary">保存</button></form></td>
+ <td><%= m.n %></td></tr><% }) %>
+<% if(!rows.length){ %><tr><td colspan="3" class="muted" style="text-align:center;padding:30px">导入商品后会出现分类映射</td></tr><% } %></table></div></div>

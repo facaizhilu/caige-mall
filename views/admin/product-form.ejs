@@ -1,6 +1,7 @@
 <% const imgs = U.jsonArr(p.images); %>
 <% if (typeof bannedHits !== 'undefined' && bannedHits && !(flash && flash.type === 'warn')) { %><div class="flash warn">⚠️ 违禁/敏感词提示:<%= bannedHits %>。请核实并修改相关文案(<a href="/admin/banned-words">管理违禁词表</a>)。</div><% } %>
 <form method="post" action="/admin/products/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id||'' %>">
+<% if (p.supplier) { %><div class="flash <%= p.supplier_state==='pending_review'||p.supplier_state==='blocked' ? 'warn' : 'info' %>">🏭 供应商商品(SKU 由供应商同步):售价按「供应商设置」中的加价规则自动维护,库存跟随供应商可售状态,此处修改价格/库存/规格不生效;不展示划线价。<% if (p.supplier_review_note) { %><br><b>导入审核:</b><%= p.supplier_review_note %>(修改名称/副标题/详情并保存后自动复检,通过后才可上架)<% } %></div><% } %>
 <div class="card"><h3>基本信息</h3><div class="form-grid">
  <div class="form-row" style="grid-column:1/-1"><label>商品名称 *</label><input type="text" name="name" value="<%= p.name %>" required maxlength="80"></div>
  <div class="form-row" style="grid-column:1/-1"><label>副标题/卖点</label><input type="text" name="subtitle" value="<%= p.subtitle %>" maxlength="100"></div>

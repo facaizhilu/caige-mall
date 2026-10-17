@@ -1,8 +1,8 @@
 <a class="pcard" href="/product/<%= p.id %>">
   <% const tag = prodTag(p, shop); if (tag) { %><span class="ribbon"><%= tag %></span><% } %>
-  <div class="pic"><img loading="lazy" decoding="async" src="<%= p.img %>" alt="<%= p.name %>"></div>
+  <div class="pic"><img loading="lazy" decoding="async" src="<%= p.img %>" alt="<%= p.name %>" onerror="<%= U.IMG_FALLBACK %>"></div>
   <div class="info">
-    <div class="name"><%= p.name %></div>
+    <div class="name"><% if (p.supplier && demo) { %><span class="tag demo">演示</span><% } %><%= p.name %></div>
     <div class="sub"><%= p.subtitle %></div>
     <div class="meta"><span class="price"><big><%= (+p.price).toFixed(p.price%1?2:0) %></big></span><% if (shop.show_sales === '1' && +p.sales > 0) { %><span class="sales">已售 <%= p.sales %></span><% } %></div>
   </div>

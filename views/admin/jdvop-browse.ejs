@@ -1,0 +1,20 @@
+<%- include('partials-jdvop-mode') %>
+<div class="card"><form class="toolbar" method="get">
+ <select name="cat1" onchange="this.form.cat2.value='';this.form.cat3.value='';this.form.submit()"><option value="">全部一级分类</option><% data.cats1.forEach(c=>{ %><option value="<%= c.id %>" <%= f.cat1==c.id?'selected':'' %>><%= c.name %></option><% }) %></select>
+ <select name="cat2" onchange="this.form.cat3.value='';this.form.submit()"><option value="">二级分类</option><% data.cats2.forEach(c=>{ %><option value="<%= c.id %>" <%= f.cat2==c.id?'selected':'' %>><%= c.name %></option><% }) %></select>
+ <select name="cat3" onchange="this.form.submit()"><option value="">三级分类</option><% data.cats3.forEach(c=>{ %><option value="<%= c.id %>" <%= f.cat3==c.id?'selected':'' %>><%= c.name %></option><% }) %></select>
+ <input type="search" name="q" value="<%= f.q %>" placeholder="商品名称"><button class="btn">筛选</button></form>
+ <% if(err){ %><div class="flash error">读取供应商商品失败:<%= err %></div><% } %>
+ <p class="help">勾选后点「导入所选」。导入时会:检查禁售类目、违禁词(命中则导入为待审核/下架)、转存图片到本站、按加价规则定价、按分类映射归类。共 <%= data.count %> 个商品。</p>
+ <form method="post" action="/admin/jdvop/import" id="impForm"><input type="hidden" name="_csrf" value="<%= csrf %>">
+ <div class="sup-grid"><% data.list.forEach(g=>{ %><div class="sup-item<%= g.blocked?' blocked':'' %>">
+  <img loading="lazy" src="<%= g.img %>" referrerpolicy="no-referrer" onerror="<%= U.IMG_FALLBACK %>" alt="">
+  <div class="nm"><%= g.skuName %></div>
+  <div class="muted" style="font-size:12px"><%= g.categoryOneName %> / <%= g.categoryTwoName %> / <%= g.categoryThreeName %></div>
+  <div class="pr">成本 ¥<%= g.sellPrice %> · 参考价 ¥<%= g.retail %><br>本站售价 <b><%= g.sale!=null?'¥'+g.sale.toFixed(2):'-' %></b></div>
+  <% if(g.blocked){ %><span class="tag">禁售:<%= g.blocked.group %></span><% } else if(g.imported){ %><a class="tag green" href="/admin/products/<%= g.imported.id %>/edit">已导入 #<%= g.imported.id %></a><% } else if(g.yn===2){ %><span class="tag gray">不可售</span><% } else { %><label class="pick"><input type="checkbox" name="sku" value="<%= g.skuId %>"> 选择 <span class="muted">SKU <%= g.skuId %></span></label><% } %>
+ </div><% }) %></div>
+ <% if(!data.list.length){ %><p class="muted" style="text-align:center;padding:30px">暂无商品</p><% } %>
+ <div class="flex wrapf mt"><button class="btn primary">📥 导入所选</button><span class="sp"></span>
+  <% if(f.page>1){ %><a class="btn sm" href="<%= qs(req,{page:f.page-1}) %>">上一页</a><% } %><span class="muted">第 <%= f.page %> / <%= pages %> 页</span><% if(f.page<pages){ %><a class="btn sm" href="<%= qs(req,{page:f.page+1}) %>">下一页</a><% } %></div>
+ </form></div>

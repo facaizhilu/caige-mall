@@ -1,21 +1,21 @@
 <div class="crumb"><a href="/">首页</a> › <% if (category&&category.parent_name) { %><a href="/products?cat=<%= category.parent_cid %>"><%= category.parent_name %></a> › <% } %><% if (category) { %><a href="/products?cat=<%= category.id %>"><%= category.name %></a> › <% } %><%= p.name %></div>
 <div class="card pd">
-  <div class="gallery"><div class="main"><img id="mainImg" src="<%= images[0] %>" alt=""></div>
-    <div class="thumbs"><% images.forEach((im,i)=>{ %><img loading="lazy" decoding="async" src="<%= im %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
+  <div class="gallery"><div class="main"><img id="mainImg" src="<%= images[0] || U.PLACEHOLDER %>" alt="" onerror="<%= U.IMG_FALLBACK %>"></div>
+    <div class="thumbs"><% images.forEach((im,i)=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
   <div>
-    <h1><% if (brand) { %><span class="tag gold"><%= brand.name %></span><% } %><%= p.name %></h1>
+    <h1><% if (p.supplier && demo) { %><span class="tag demo">演示</span><% } %><% if (brand) { %><span class="tag gold"><%= brand.name %></span><% } %><%= p.name %></h1>
     <div class="subt"><%= p.subtitle %></div>
     <div class="pricebox">
       <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 活动专区</span><span class="muted"><%= seckill.live?'活动进行中':'活动即将开始' %></span></div><% } %>
       <span class="price"><big id="price"><%= (seckill&&seckill.live?seckill.price:p.price) %></big></span>
-      <% if (showMkt(p.market_price, p.price)) { %><span class="mkt"><%= p.market_price %></span><% } %>
+      <% if (!p.supplier && showMkt(p.market_price, p.price)) { %><span class="mkt"><%= p.market_price %></span><% } %>
       <% if (seckill && seckill.live) { %><span class="muted"> 活动价,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
       <% if (seckill && !seckill.live) { %><span class="muted sk-pre"> 活动价 <b style="color:var(--red)">¥<%= seckill.price %></b>,<%= seckill.start_at.slice(5,16) %> 开始,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
-    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd>深圳发货</dd>
+    <dl class="kv" style="margin:12px 0"><dt>配送</dt><dd><% if (p.supplier) { %><span class="sup-ship">由供应商发货</span><% } else { %>深圳发货<% } %></dd>
       <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
-      <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><span class="tag green">极速发货</span><% if (!noReason) { %><div class="no7-note">鲜活易腐等商品签收后不支持七天无理由退货;如有质量问题,仍可联系客服退换。</div><% } %></dd>
+      <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><% if (p.supplier) { %><span class="tag gray">由供应商发货</span><% } else { %><span class="tag green">极速发货</span><% } %><% if (!noReason) { %><div class="no7-note"><%= p.supplier && !p.is_perishable ? '该商品按供应商规则签收后不支持七天无理由退货' : '鲜活易腐等商品签收后不支持七天无理由退货' %>;如有质量问题,仍可联系客服退换。</div><% } %></dd>
       <% if (shop.show_sales === '1' && +p.sales > 0) { %><dt>销量</dt><dd>已售 <%= p.sales %> 件 · <%= rateText %></dd><% } else { %><dt>评价</dt><dd><%= rateText %></dd><% } %></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>
     <div class="opt"><label>数量</label><div class="flex"><div class="qty"><button type="button" id="qm">−</button><input id="qty" value="1" inputmode="numeric"><button type="button" id="qp">+</button></div><span class="muted">库存 <b id="stock">-</b> 件</span></div></div>
@@ -38,7 +38,7 @@
 <form id="buyForm" method="post" action="/checkout" class="hide"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="sku_id"><input name="qty"><input name="promo_type"><input name="promo_id"><input name="group_id"><input name="no7_ok"></form>
 <div class="card sec">
   <div class="tabs"><a href="#detail" class="on">商品详情</a><a href="#reviews">用户评价(<%= rs.n %>)</a><a href="#after">售后保障</a></div>
-  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% images.slice(1).forEach(im=>{ %><img loading="lazy" decoding="async" src="<%= im %>" style="border-radius:10px"><% }) %></div></div>
+  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% images.slice(1).forEach(im=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" style="border-radius:10px;width:100%;object-fit:cover"><% }) %></div></div>
 </div>
 <div class="card sec" id="reviews">
   <div class="sec-h"><h2>用户评价</h2><span class="muted"><% if (!rs.n) { %>暂无评价<% } else if (rs.n < RATE_MIN) { %>共 <%= rs.n %> 条评价 · 综合 <%= (+rs.avg).toFixed(1) %> 分<% } else { %>好评率 <b class="price" style="color:var(--red)"><%= Math.round((rs.good||0)/rs.n*100) %>%</b>(共 <%= rs.n %> 条评价)· 综合 <%= (+rs.avg).toFixed(1) %> 分<% } %></span></div>
@@ -47,7 +47,7 @@
   <% reviews.forEach(r=>{ %><div class="review"><div class="avatar" style="width:40px;height:40px;font-size:16px"><%= r.nickname.slice(0,1) %></div><div style="flex:1"><div class="flex between"><b><%= r.nick %></b><span class="muted"><%= r.created_at.slice(0,10) %></span></div><div class="stars"><%= '★'.repeat(r.rating)+'☆'.repeat(5-r.rating) %></div><div><%= r.content %></div>
     <% if (r.reply) { %><div class="reply"><b>商家回复:</b><%= r.reply %></div><% } %></div></div><% }) %>
 </div>
-<div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc"><% if (noReason) { %>正品保障;本商品支持七天无理由退货,签收后 7 天内可申请退货退款(商品需保持完好);商品存在质量问题的,超过 7 天仍可联系客服申请售后;<% } else { %>本商品属于鲜活易腐类,不支持七天无理由退货;如商品存在质量问题(如坏果、变质),请于签收后联系客服,核实后为您退款或补发。<% } %>发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>
+<div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc"><% if (noReason) { %>正品保障;本商品支持七天无理由退货,签收后 7 天内可申请退货退款(商品需保持完好);商品存在质量问题的,超过 7 天仍可联系客服申请售后;<% } else if (p.supplier && !p.is_perishable) { %>本商品按供应商售后规则不支持七天无理由退货;如商品存在质量问题,请于签收后联系客服处理;<% } else { %>本商品属于鲜活易腐类,不支持七天无理由退货;如商品存在质量问题(如坏果、变质),请于签收后联系客服,核实后为您退款或补发。<% } %>发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>
 <% if (related.length) { %><div class="sec"><div class="sec-h"><h2>相关推荐</h2></div><div class="grid"><% related.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div><% } %>
 <script>
 (function(){

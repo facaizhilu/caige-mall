@@ -386,3 +386,13 @@ textarea{resize:vertical}
 @media(max-width:360px){.flash-sale .hd{flex-wrap:wrap;row-gap:0}.flash-sale .hd>span{min-width:0}}
 
 .btn.need-no7[disabled]{background:#e7e5e4;border-color:#d6d3d1;color:#78716c;opacity:1;cursor:not-allowed}.no7-tip{color:#b45309;font-size:12px;margin-left:4px}
+/* 供应商商品 */
+.tag.demo{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}
+.sup-ship{color:var(--ink2)}
+.pkgs{display:flex;flex-direction:column;gap:8px}
+.pkg{border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
+.pk-items{font-size:12px;margin:4px 0;overflow-wrap:anywhere}
+.pk-nos{font-size:13px;overflow-wrap:anywhere}.pk-no{display:inline-block;background:#f6f7f9;border-radius:4px;padding:0 6px;margin:2px 4px 2px 0;font-family:monospace;word-break:break-all}
+.sup-err{background:#fff4e5;border:1px solid #fcd9a8;color:#92400e;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;overflow-wrap:anywhere}
+.sup-err ul{margin:4px 0 0;padding-left:18px}
+.oi .tag.gray{white-space:nowrap}

@@ -1,0 +1,12 @@
+<% const ST={ok:['正常','green'],pending_review:['待审核','gold'],auto_delisted:['供应商不可售(已自动下架)','gray'],blocked:['禁售类目','']}; %>
+<div class="card"><form class="toolbar" method="get"><select name="state" onchange="this.form.submit()"><option value="">全部状态</option><% Object.entries(ST).forEach(([k,v])=>{ %><option value="<%= k %>" <%= st===k?'selected':'' %>><%= v[0] %></option><% }) %></select><span class="sp"></span>
+ <span class="muted" style="font-size:12px">上次自动刷新:<%= lastSync ? lastSync.slice(0,19) : '尚未执行' %></span></form>
+ <form method="post" action="/admin/jdvop/refresh" class="mb"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary">🔄 立即刷新全部价格/可售</button> <span class="help">定时刷新间隔在「供应商设置」中配置;不可售自动下架,恢复后自动上架</span></form>
+ <div class="tbl-wrap"><table class="t"><tr><th>商品</th><th>分类</th><th>规格 / 成本 / 售价 / 库存</th><th>状态</th><th>操作</th></tr>
+ <% pg.rows.forEach(p=>{ const s=ST[p.supplier_state]||[p.supplier_state||'-','gray']; %><tr>
+  <td><div class="flex"><img class="thumb" src="<%= p.img %>" onerror="<%= U.IMG_FALLBACK %>"><div style="min-width:0">#<%= p.id %> <%= p.name %><br><span class="muted" style="font-size:12px">SPU <%= p.supplier_spu %> · <%= p.no_reason_return===0?'不支持7天无理由':p.no_reason_return===1?'支持7天无理由':'7天无理由跟随分类' %><%= p.is_perishable?' · 生鲜':'' %></span></div></div></td>
+  <td><%= p.cname %></td>
+  <td style="font-size:12px"><% p.skus.forEach(k=>{ %><div><%= k.spec_text %>:成本 <%= k.cost_price!=null?'¥'+k.cost_price:'-' %> / 售价 ¥<%= k.price %> / 库存 <%= k.stock %></div><% }) %></td>
+  <td><span class="tag <%= s[1] %>"><%= s[0] %></span><br><span class="muted" style="font-size:12px"><%= p.status?'已上架':'已下架' %></span><% if(p.supplier_review_note){ %><div style="font-size:12px;color:#9a3412;overflow-wrap:anywhere"><%= p.supplier_review_note %></div><% } %></td>
+  <td><a class="btn sm" href="/admin/products/<%= p.id %>/edit">编辑</a> <form method="post" action="/admin/jdvop/refresh" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="ids" value="<%= p.id %>"><button class="btn sm">刷新</button></form></td></tr><% }) %>
+ <% if(!pg.rows.length){ %><tr><td colspan="5" class="muted" style="text-align:center;padding:30px">暂无已导入商品,去「供应商商品」选品导入</td></tr><% } %></table></div><%- include('../partials/apager') %></div>

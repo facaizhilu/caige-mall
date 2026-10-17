@@ -1,0 +1,28 @@
+<%- include('partials-jdvop-mode') %>
+<div class="grid g2">
+<div class="card"><h3>连接配置(只读,来自环境变量)</h3>
+ <dl class="kv"><% Object.entries(mi.cfg).forEach(([k,v])=>{ %><dt><%= k %></dt><dd style="overflow-wrap:anywhere"><%= v===''||v==null?'(未设置)':v %></dd><% }) %></dl>
+ <p class="help">密钥只通过服务器环境变量 JDVOP_BASE_URL / JDVOP_TENANT / JDVOP_APPKEY / JDVOP_APPSECRET / JDVOP_MODE 配置,后台不显示、不保存。</p>
+ <h3 class="mt">预存款余额</h3><% if(balance!=null){ %><p style="font-size:20px"><b>¥<%= (+balance).toFixed(2) %></b></p><% } else { %><p class="muted">查询失败:<%= balErr %></p><% } %>
+ <div class="flex wrapf"><form method="post" action="/admin/jdvop/poll"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">🔄 立即轮询订单/售后</button></form><form method="post" action="/admin/jdvop/refresh"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">💲 立即刷新价格</button></form></div>
+ <p class="help">上次轮询:<%= s.jdvop_last_poll||'-' %>;上次价格刷新:<%= (s.jdvop_last_sync||'-').slice(0,19) %></p>
+</div>
+<div class="card"><h3>定价与同步</h3><form method="post" action="/admin/jdvop/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
+ <div class="form-row"><label>加价规则</label><select name="jdvop_markup_mode"><option value="max_retail_cost" <%= s.jdvop_markup_mode!=='cost_plus'?'selected':'' %>>max(供应商参考价, 成本×(1+加价率))</option><option value="cost_plus" <%= s.jdvop_markup_mode==='cost_plus'?'selected':'' %>>成本×(1+加价率)</option></select><div class="help">售价即真实售价;供应商参考价不会作为划线价展示给顾客</div></div>
+ <div class="grid g2"><div class="form-row"><label>加价率(%)</label><input type="number" name="jdvop_markup_pct" step="0.1" min="0" max="500" value="<%= s.jdvop_markup_pct %>"></div>
+ <div class="form-row"><label>价格刷新间隔(小时,0=关闭)</label><input type="number" name="jdvop_sync_hours" step="0.5" min="0" value="<%= s.jdvop_sync_hours %>"></div>
+ <div class="form-row"><label>订单轮询间隔(分钟)</label><input type="number" name="jdvop_poll_minutes" min="1" value="<%= s.jdvop_poll_minutes %>"></div>
+ <div class="form-row"><label>可售库存显示(虚拟)</label><input type="number" name="jdvop_virtual_stock" min="1" value="<%= s.jdvop_virtual_stock %>"></div>
+ <div class="form-row"><label>推单最多重试次数</label><input type="number" name="jdvop_max_push_attempts" min="1" max="10" value="<%= s.jdvop_max_push_attempts %>"></div></div>
+ <% if(mi.cfg.mode==='mock'){ %><label class="form-row" style="display:block"><input type="checkbox" name="jdvop_mock_auto" value="1" <%= s.jdvop_mock_auto==='1'?'checked':'' %> style="width:auto"> 演示订单随轮询自动推进(拆单→发货→签收→完成)</label><% } %>
+ <div class="form-row"><label>禁售类目(每行「分组:关键词,关键词」;匹配供应商分类名称,命中则不能导入/上架)</label><textarea name="jdvop_blocklist" rows="8"><%= s.jdvop_blocklist %></textarea></div>
+ <button class="btn primary">保存设置</button></form></div>
+</div>
+<div class="card"><div class="flex between"><h3 style="margin:0">待处理告警(<%= alerts.length %>)</h3><% if(alerts.length){ %><form method="post" action="/admin/jdvop/alerts/resolve-all"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">全部标记已处理</button></form><% } %></div>
+ <div class="tbl-wrap mt"><table class="t"><tr><th>时间</th><th>订单</th><th>内容</th><th></th></tr><% alerts.forEach(a=>{ %><tr><td class="muted" style="white-space:nowrap"><%= a.created_at %></td><td><% if(a.order_id){ %><a href="/admin/orders/<%= a.order_id %>"><%= a.order_no %></a><% } %></td><td style="overflow-wrap:anywhere"><span class="tag <%= a.level==='error'?'':'gold' %>"><%= a.level %></span><%= a.message %></td><td><form method="post" action="/admin/jdvop/alerts/<%= a.id %>/resolve"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">已处理</button></form></td></tr><% }) %>
+ <% if(!alerts.length){ %><tr><td colspan="4" class="muted" style="text-align:center">暂无告警</td></tr><% } %></table></div></div>
+<% if(mockSkus.length){ %><div class="card"><h3>模拟供应商商品变化(mock)</h3><form method="post" action="/admin/jdvop/mock/sku" class="flex wrapf"><input type="hidden" name="_csrf" value="<%= csrf %>">
+ <select name="sku"><% mockSkus.forEach(m=>{ %><option value="<%= m.id %>"><%= m.id %> <%= m.name.slice(0,16) %>(成本 <%= m.now.sellPrice %><%= m.now.removed?',已移出':'' %>)</option><% }) %></select>
+ <input type="number" step="0.01" name="sellPrice" placeholder="新成本价" style="width:110px"><input type="number" step="0.01" name="retail" placeholder="新参考价" style="width:110px">
+ <select name="saleState"><option value="">可售不变</option><option value="1">可售</option><option value="0">不可售</option></select><select name="removed"><option value="">商品池不变</option><option value="1">移出商品池</option><option value="0">恢复</option></select>
+ <button class="btn sm">应用</button></form></div><% } %>

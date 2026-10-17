@@ -1,0 +1,34 @@
+<% const so=sup.so; const SO_ST={pending:'待推送',submitted:'已预下单(待确认)',confirmed:'已确认',failed:'下单失败(已退款)',cancelling:'取消中',cancelled:'已取消'}; %>
+<div class="card" id="supplier"><h3>🏭 供应商发货 <% if(so){ %><span class="tag <%= so.status==='confirmed'?'green':(['failed','cancelled'].includes(so.status)?'gray':'gold') %>"><%= SO_ST[so.status]||so.status %></span><% } %></h3>
+ <% if(!so){ %><p class="muted">订单支付后将自动向供应商下单。</p><% } else { %>
+ <dl class="kv"><dt>供应商订单号</dt><dd><%= so.order_sn||'-' %></dd><dt>我方单号</dt><dd><%= so.out_order_sn %></dd>
+  <dt>供应商扣款</dt><dd><%= so.deduction_price!=null?money(so.deduction_price):'-' %><% if(so.settlement_price!=null){ %> <span class="muted">(结算 <%= money(so.settlement_price) %>)</span><% } %></dd>
+  <dt>顾客实付(供应商部分)</dt><dd><%= money(so.sale_amount) %><% if(so.refunded_customer>0){ %> <span class="tag">已退顾客 <%= money(so.refunded_customer) %></span><% } %></dd>
+  <% if(so.error){ %><dt>错误</dt><dd style="color:var(--red);overflow-wrap:anywhere"><%= so.error %></dd><% } %>
+  <dt>推送次数</dt><dd><%= so.attempts %><% if(so.next_try_at){ %> · 下次重试 <%= so.next_try_at %><% } %></dd><dt>最近同步</dt><dd><%= so.last_polled_at||'-' %></dd></dl>
+ <h4 style="margin:12px 0 6px">包裹(<%= sup.packages.length %>)</h4>
+ <% if(!sup.packages.length){ %><p class="muted" style="font-size:12px">暂无包裹信息(供应商拆单/发货后显示)</p><% } %>
+ <div class="tbl-wrap"><table class="t"><tr><th>来源/子单号</th><th>商品</th><th>运单号</th><th>状态</th></tr><% sup.packages.forEach(p=>{ %><tr><td><%= p.source==='own'?'自营':'供应商' %><br><span class="muted" style="font-size:12px"><%= p.child_order_sn %></span></td><td style="font-size:12px"><%= p.its.map(x=>(x.name||x.skuId)+'×'+x.num).join(';') %></td><td><%= p.company||'' %><br><%= p.nos.join('、')||'-' %></td><td><%= p.delivered?'已签收':(p.nos.length?'已发货':({cancelled:'已取消'}[p.status]||'待发货')) %></td></tr><% }) %></table></div>
+ <div class="flex wrapf mt">
+  <% if(['pending','submitted','confirmed','cancelling'].includes(so.status)){ %><form method="post" action="/admin/jdvop/orders/<%= so.id %>/retry"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm"><%= ['pending','submitted'].includes(so.status)?'🔁 重试推送':'🔄 同步状态' %></button></form><% } %>
+  <% if(['pending','submitted','confirmed'].includes(so.status)){ %><form method="post" action="/admin/jdvop/orders/<%= so.id %>/cancel" data-confirm="确定取消供应商订单?取消成功后自动退还顾客该部分款项"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="reason" value="商家取消"><button class="btn sm danger">取消供应商订单</button></form><% } %>
+ </div>
+ <% if(sup.mock && so.status==='confirmed'){ %><div class="flex wrapf mt"><span class="muted" style="font-size:12px">模拟(mock):</span><% [['split','拆单'],['ship','发货'],['deliver','签收'],['complete','完成']].forEach(([a,t])=>{ %><form method="post" action="/admin/jdvop/orders/<%= so.id %>/simulate"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="<%= a %>"><button class="btn sm">▶ <%= t %></button></form><% }) %></div><% } %>
+ <% if(sup.alerts.length){ %><h4 style="margin:12px 0 6px">告警</h4><ul style="font-size:12px;padding-left:18px;margin:0"><% sup.alerts.forEach(a=>{ %><li style="overflow-wrap:anywhere"><%= a.created_at %> <%= a.message %><%= a.resolved?'(已处理)':'' %></li><% }) %></ul><% } %>
+ <% const pk = sup.packages.filter(p=>p.source!=='own' && p.status!=='cancelled'); %>
+ <% if(so.status==='confirmed' && pk.length && ['paid','shipped','completed'].includes(o.status) && !aftersale_active){ %>
+ <details class="fold mt"><summary class="btn sm primary">为供应商商品申请售后</summary>
+  <form method="post" action="/admin/orders/<%= o.id %>/jdvop-aftersale" enctype="multipart/form-data" class="as-form"><input type="hidden" name="_csrf" value="<%= csrf %>">
+   <div class="form-row"><label>包裹 / 商品</label><select name="pk_sku" required onchange="var v=this.value.split('|');this.form.package_id.value=v[0];this.form.sku.value=v[1]"><% pk.forEach(p=>p.its.forEach(x=>{ %><option value="<%= p.id %>|<%= x.skuId %>">包裹 <%= p.child_order_sn %> · <%= x.name||x.skuId %> ×<%= x.num %></option><% })) %></select>
+    <input type="hidden" name="package_id" value="<%= pk[0].id %>"><input type="hidden" name="sku" value="<%= pk[0].its[0] && pk[0].its[0].skuId %>"></div>
+   <div class="grid g2"><div class="form-row"><label>数量</label><input type="number" name="qty" min="1" value="1"></div>
+    <div class="form-row"><label>类型</label><select name="afs_type"><option value="1">退货退款</option><option value="2">换货</option></select></div></div>
+   <div class="form-row"><label>取件方式</label><select name="pick_type"><option value="1">上门取件</option><option value="3">客户发货</option><option value="2">客户送货</option></select></div>
+   <div class="form-row"><label>原因</label><input name="reason" required maxlength="50" placeholder="如:商品破损"></div>
+   <div class="form-row"><label>退款给顾客(供应商确认退款后才退)</label><input type="number" name="amount" step="0.01" min="0" placeholder="默认按商品单价×数量"></div>
+   <div class="form-row"><label>问题图片(必填,供应商要求)</label><input type="file" name="images" accept="image/*" multiple><div class="help">或填写公网图片链接(空格分隔):</div><input name="image_urls" placeholder="https://..."></div>
+   <div class="form-row"><label>说明(选填)</label><textarea name="note" rows="2" maxlength="200"></textarea></div>
+   <button class="btn primary">检查可售后并提交供应商</button></form></details>
+ <% } %>
+ <% } %>
+</div>

@@ -4,6 +4,7 @@ const U = require('../lib/util');
 const svc = require('../lib/svc');
 const regions = require('../lib/regions');
 const { now, int, num, round2 } = U;
+const jdvop = require('../lib/suppliers/jdvop');
 
 module.exports = function (app, { filesOf }) {
   const flash = (req, type, msg) => { req.session.flash = { type, msg }; };
@@ -80,6 +81,7 @@ module.exports = function (app, { filesOf }) {
       if (base <= 0 || (tpl.free_over > 0 && tpl.free_over <= 0.01)) freight = { free: true, text: '包邮' + (remote && +r.remote_fee > 0 ? `(${remote}运费 ¥${+r.remote_fee})` : '') };
       else freight = { free: false, base, text: `运费 ¥${base}` + (tpl.free_over > 0 ? `,单笔满 ¥${tpl.free_over} 包邮` : '') + (remote && +r.remote_fee > 0 ? `;${remote}运费 ¥${+r.remote_fee}` : '') };
     }
+    if (p.supplier) freight = { free: false, text: '运费按收货地址实时计算' };
     let faved = false;
     if (req.user) {
       faved = !!db.get('SELECT 1 FROM favorites WHERE user_id=? AND product_id=?', req.user.id, p.id);
@@ -147,26 +149,36 @@ module.exports = function (app, { filesOf }) {
     return { items, fromCart, promo };
   }
   const myAddrs = uid => db.all('SELECT * FROM addresses WHERE user_id=? ORDER BY is_default DESC, id DESC', uid);
-  app.post('/checkout', needLogin, (req, res) => {
+  // 含供应商发货商品:按收货地址实时校验(四级地址、可售区域、库存、实时价格)并查询供应商运费
+  async function supplierQuote(uid, opts) {
+    let q = svc.quote(uid, opts);
+    if (q.error || !q.hasSupplier) return { q, sup: null };
+    const sup = await jdvop.checkout(q.lines, opts.address);
+    q = svc.quote(uid, { ...opts, supplierFreight: sup.freight, supplierArea: sup.area });
+    return { q, sup };
+  }
+  const aw = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+  app.post('/checkout', needLogin, aw(async (req, res) => {
     const { items, fromCart, promo } = parseCheckout(req);
     if (!items.length) { flash(req, 'error', '请先选择要结算的商品'); return res.redirect('/cart'); }
     const addrs = myAddrs(req.user.id);
     const a0 = addrs[0];
-    const q = svc.quote(req.user.id, { items, promo, address: a0 });
+    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a0 });
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
     // 立即购买/参团:不支持7天无理由的商品须在商品页勾选「我已知晓」(服务端校验,购物车加购时已校验)
     if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, '/cart'); }
     const coupons = svc.userCoupons(req.user.id, 'unused').filter(c => !promo && q.goods >= c.threshold);
     const no7Items = q.lines.filter(l => !svc.noReasonOf(l.product_id));
-    res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons, no7Items });
-  });
-  app.post('/api/quote', needLogin, (req, res) => {
+    res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons, no7Items, sup });
+  }));
+  app.post('/api/quote', needLogin, aw(async (req, res) => {
     const { items, promo } = parseCheckout(req);
-    const a = db.get('SELECT * FROM addresses WHERE id=? AND user_id=?', int(req.body.address_id), req.user.id) || (req.body.province ? { province: req.body.province } : null);
-    const q = svc.quote(req.user.id, { items, promo, address: a, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points) });
+    const b = req.body;
+    const a = db.get('SELECT * FROM addresses WHERE id=? AND user_id=?', int(b.address_id), req.user.id) || (b.province ? { province: b.province, city: b.city, district: b.district, detail: String(b.detail || '').slice(0, 100) } : null);
+    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a, couponId: int(b.coupon_id), usePoints: int(b.use_points) });
     if (q.error) return res.json({ ok: false, msg: q.error });
-    res.json({ ok: true, goods: q.goods, freight: q.freight, levelDiscount: q.levelDiscount, couponDiscount: q.couponDiscount, pointsDiscount: q.pointsDiscount, pointsUsed: q.pointsUsed, pay: q.pay, maxPoints: q.maxPoints });
-  });
+    res.json({ ok: true, goods: q.goods, freight: q.freight, levelDiscount: q.levelDiscount, couponDiscount: q.couponDiscount, pointsDiscount: q.pointsDiscount, pointsUsed: q.pointsUsed, pay: q.pay, maxPoints: q.maxPoints, supplierErrors: sup ? sup.errors : [] });
+  }));
   function readAddress(req) {
     const b = req.body;
     if (b.address_id && b.address_id !== 'new') return db.get('SELECT * FROM addresses WHERE id=? AND user_id=?', int(b.address_id), req.user.id);
@@ -178,7 +190,7 @@ module.exports = function (app, { filesOf }) {
     if (!regions[a.province] || !regions[a.province][a.city] || !regions[a.province][a.city].includes(a.district)) return null;
     return a;
   }
-  app.post('/order/create', needLogin, (req, res) => {
+  app.post('/order/create', needLogin, aw(async (req, res) => {
     const { items, fromCart, promo } = parseCheckout(req);
     const addr = readAddress(req);
     if (!addr) { flash(req, 'error', '请选择或正确填写收货地址(姓名、手机号、省市区、详细地址)'); return back(req, res, '/cart'); }
@@ -186,11 +198,18 @@ module.exports = function (app, { filesOf }) {
       const has = db.get('SELECT COUNT(*) n FROM addresses WHERE user_id=?', req.user.id).n;
       db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,?)', req.user.id, addr.name, addr.phone, addr.province, addr.city, addr.district, addr.detail, has ? 0 : 1);
     }
-    const r = svc.createOrder(req.user.id, { items, promo, address: addr, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' });
+    const base = { items, promo, address: addr, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' };
+    const pre = svc.quote(req.user.id, base);
+    if (!pre.error && pre.hasSupplier) {
+      const sup = await jdvop.checkout(pre.lines, addr);
+      if (!sup.ok) { flash(req, 'error', sup.errors.join(';')); return res.redirect('/cart'); }
+      base.supplierFreight = sup.freight; base.supplierArea = sup.area;
+    }
+    const r = svc.createOrder(req.user.id, base);
     if (!r.ok) { flash(req, 'error', r.msg); return res.redirect('/cart'); }
     if (fromCart) for (const i of items) db.exec1('DELETE FROM cart WHERE user_id=? AND sku_id=?', req.user.id, i.sku_id);
     res.redirect('/order/' + r.id + '/pay');
-  });
+  }));
 
   // ---------------- 订单 ----------------
   const myOrder = (req, id) => db.get('SELECT * FROM orders WHERE id=? AND user_id=?', int(id), req.user.id);
@@ -230,8 +249,12 @@ module.exports = function (app, { filesOf }) {
     const invoice = db.get('SELECT * FROM invoices WHERE order_id=?', o.id);
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     const expireAt = o.status === 'unpaid' ? U.fmtDate(new Date(U.parseDate(o.created_at).getTime() + int(svc.S('unpaid_cancel_minutes'), 30) * 60000)) : null;
-    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o), afterInfo: aftersaleInfo(o) });
+    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o), afterInfo: aftersaleInfo(o), packages: shopperPackages(o) });
   });
+  // 分包裹(自营 / 供应商)展示:多个运单号;供应商物流统一显示为「供应商物流」
+  function shopperPackages(o) {
+    return db.all("SELECT * FROM order_packages WHERE order_id=? AND status<>'cancelled' ORDER BY id", o.id).map((p, i) => ({ n: i + 1, source: p.source, company: p.source === 'own' ? p.company : '供应商物流', nos: U.jsonArr(p.tracking_nos), items: U.jsonArr(p.items).map(x => ({ name: jdvop.compliance.stripJd(x.name), num: x.num })), delivered: !!p.delivered, shipped: U.jsonArr(p.tracking_nos).length > 0 }));
+  }
   app.get('/order/:id/pay', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id);
     if (!o) return res.redirect('/orders');
@@ -264,7 +287,7 @@ module.exports = function (app, { filesOf }) {
   app.get('/order/:id/logistics', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id); if (!o) return res.redirect('/orders');
     const traces = db.all('SELECT * FROM traces WHERE order_id=? ORDER BY id DESC', o.id);
-    res.page('shop/logistics', { title: '物流跟踪', o, traces, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id) });
+    res.page('shop/logistics', { title: '物流跟踪', o, traces, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id), packages: shopperPackages(o) });
   });
   app.post('/order/:id/logistics/simulate', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id); if (o) svc.advanceTrace(o.id);

@@ -1,0 +1,7 @@
+<div class="pkgs">
+  <% packages.forEach(pk=>{ %><div class="pkg">
+    <div class="flex between wrapf"><b>包裹 <%= pk.n %> · <%= pk.source==='own' ? '商家发货' : '由供应商发货' %></b><span class="tag <%= pk.delivered?'green':(pk.shipped?'':'gray') %>"><%= pk.delivered?'已签收':(pk.shipped?'运输中':'待发货') %></span></div>
+    <div class="muted pk-items"><%= pk.items.map(x=>x.name+(x.num>1?' ×'+x.num:'')).join(';') %></div>
+    <% if (pk.nos.length) { %><div class="pk-nos"><%= pk.company %> 运单号:<% pk.nos.forEach(n=>{ %><span class="pk-no"><%= n %></span><% }) %></div><% } %>
+  </div><% }) %>
+</div>

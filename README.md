@@ -60,7 +60,9 @@ server.js            入口(双会话、CSRF、占位图、上传)
 lib/                 db.js(建表) seed.js(演示数据) svc.js(下单/支付/退款/拼团等业务) crud.js chart.js regions.js util.js
 routes/shop.js       前台路由        routes/admin.js   后台路由
 views/shop|admin     EJS 模板         public/css|js     样式与脚本
-test/smoke.js        冒烟测试(119 项)  test/flows.js     进阶流程测试
+test/smoke.js        冒烟测试          test/flows.js     进阶流程测试      test/jdvop.js  供应商对接测试
+lib/suppliers/jdvop/ 京东货盘(来一票 VOP)对接:config sign limiter client mock service schema compliance images
+routes/admin-jdvop.js 后台供应商页面
 scripts/screenshots.js  截图脚本(playwright-core + 系统 Chrome)
 ```
 
@@ -69,6 +71,8 @@ scripts/screenshots.js  截图脚本(playwright-core + 系统 Chrome)
 npm start &                  # 先在全新数据库上启动
 npm test                     # 冒烟测试:注册→登录→加购→下单→支付→后台发货→收货→评价审核→售后退款→后台商品/会员管理 等
 node test/flows.js           # 拼团成团/失败、秒杀、券+积分抵扣、运费、客服创建售后+积分/现金按比例退款、七天无理由、前台禁止上传
+node test/jdvop.js           # 供应商(京东货盘 mock):签名向量、导入、全部商品/分类/搜索、合规、结算校验、推单、回调幂等、售后、混合订单
+node scripts/mobile-audit-jdvop.js http://localhost:3000 /tmp/m   # 跑完 jdvop 测试后:供应商相关页面 320/375/430 横向溢出检查
 ```
 (测试会写入数据库,可用 `npm run seed` 重置。)
 
@@ -160,3 +164,34 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 - **退款**:现金「原路退回」(记录状态,真实微信退款接口后续接入);订单使用的积分按退款比例退回(`points_log`「售后退回积分」),并按比例扣回该订单奖励的积分/成长值;后台与用户售后页显示「退积分 X / 退现金 ¥Y」。积分不可转让、不可提现。
 - **七天无理由**:商品默认支持;分类可标记「鲜活易腐类(不支持7天无理由)」,其商品默认不支持(商品编辑可单独覆盖);不支持的商品在加购/立即购买与结算时须勾选「本商品不支持7天无理由退货,我已知晓」,服务端无确认拒绝下单,确认记录在 `orders.no7_confirmed`(后台可见)。
 
+
+## 供应商对接:京东货盘(来一票 VOP)
+
+接口文档:`来一票 接口中心 / JD货盘(无测试环境)`。代码在 `lib/suppliers/jdvop/`,**默认 mock 模式**(内置演示商品与订单流程,不调用真实接口、不需要任何密钥)。
+
+### 配置(只读环境变量,不要提交到仓库)
+| 变量 | 说明 |
+|---|---|
+| `JDVOP_MODE` | `mock`(默认)或 `live` |
+| `JDVOP_BASE_URL` | 接口域名(live 模式要求 https,除非 `JDVOP_ALLOW_HTTP=1`) |
+| `JDVOP_TENANT` / `JDVOP_APPKEY` / `JDVOP_APPSECRET` | 来一票分配的租户号 / AppKey / AppSecret |
+| `JDVOP_API_TYPE` | data.type,默认 `V2` |
+| `JDVOP_CALLBACK_TOKEN` | 回调地址带 `?token=` 校验(live 模式必须配置它或下一项) |
+| `JDVOP_CALLBACK_TENANT_APP_ID` | 校验回调报文中的 tenantAppId |
+| `JDVOP_SIGN_CODE_FIELD` | 签名歧义开关:留空=签名用接口类型 `jd_mall_interface`;`code`=用接口编码 |
+| `JDVOP_MIN_INTERVAL_MS` | 全局限流间隔,live 默认 1000(1 次/秒),mock 默认 50 |
+| `PUBLIC_BASE_URL` | 售后问题图片的公网地址前缀(供应商要求图片 URL) |
+| `JDVOP_TICK_MS` | 定时任务检查间隔,默认 60000 |
+
+回调地址:`POST https://你的域名/api/suppliers/jdvop/callback?token=<JDVOP_CALLBACK_TOKEN>`(需在来一票后台配置)。
+回调只推一次、不重试,系统另有轮询兜底(间隔在后台「供应商设置」);所有状态变化都会回查查询接口确认后才改账,顾客退款只在供应商退款确认后发生。
+
+### 后台
+「供应商」菜单:供应商商品(浏览/选品导入)、已导入商品(审核原因、手动刷新价格)、分类映射、供应商设置(模式、加价规则、刷新/轮询间隔、禁售类目、余额、告警、mock 模拟)、供应商对账、接口日志。
+订单详情页有「供应商发货」面板(供应商单号、包裹/运单号、重试/取消、mock 模拟拆单/发货/签收、为供应商商品申请售后)。
+
+### 合规
+- 禁售类目(药品、医疗器械、保健食品、酒类、图书/出版物、烟草、需3C认证类)默认开启、后台可改,命中不可导入/上架。
+- 前台只显示本站售价;供应商参考价(京东价)仅用于加价规则,不作划线价、不做比价。
+- 标题/副标题/详情走违禁词检查,命中则导入为「待审核」下架,人工修改后复检通过才能上架;前台文案与物流轨迹去除「京东/京东自营/京东物流」等字样,快递公司显示为「供应商物流」。
+- 商品图片转存到本站 `public/uploads/supplier/`,下载失败使用设计稿占位图。

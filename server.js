@@ -163,7 +163,7 @@ function pageRenderer(layout) {
     next();
   };
 }
-app.locals.U = U; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
+app.locals.U = U; app.locals.demo = process.env.DEMO_MODE === '1'; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
 // 划线原价:仅在填写且高于售价时展示(《明码标价和禁止价格欺诈规定》)
 // 商品标签自动判定:「新品」按上架时间,「热卖」按真实销量(products.sales 仅由真实订单计算)
 app.locals.prodTag = (p, s) => { const nd = U.int(s.new_days, 30), ht = U.int(s.hot_sales_threshold, 10); if (nd > 0 && p.created_at && p.created_at >= U.offset(-nd * 86400000)) return '新品'; if (ht > 0 && +p.sales >= ht) return '热卖'; return ''; };
@@ -185,6 +185,16 @@ adminRouter.use((req, res, next) => { res.locals.admin = req.session.admin || nu
 require('./routes/admin')(adminRouter, { filesOf });
 app.use('/admin', adminRouter);
 app.use('/admin', (req, res) => res.status(404).send('后台页面不存在'));
+
+// ================= 供应商回调(无会话/CSRF;按文档校验并回查接口确认) =================
+const jdvop = require('./lib/suppliers/jdvop');
+app.post('/api/suppliers/jdvop/callback', async (req, res) => {
+  try {
+    const r = await jdvop.handleCallback(req.body, { query: req.query });
+    if (!r.ok) return res.status(r.status || 400).json({ code: r.status || 400, msg: r.msg });
+    res.json({ code: 200, msg: 'success' }); // TODO(文档未说明):回调应答格式待确认
+  } catch (e) { console.error('[jdvop] callback', e); res.status(500).json({ code: 500, msg: 'error' }); }
+});
 
 // ================= 前台 =================
 app.use(session({ name: 'cg.sid', secret, resave: false, saveUninitialized: false, store: new SqliteStore('s:'), cookie: cookieBase }));
@@ -219,5 +229,7 @@ app.use((req, res) => res.status(404).page('shop/error', { title: '页面不存�
 app.use((err, req, res, next) => { console.error(err); if (res.headersSent) return next(err); res.status(500).send('<meta charset="utf-8"><h3>服务器开小差了:' + U.esc(err.message) + '</h3><a href="/">返回首页</a>'); });
 
 setInterval(svc.sweep, 60000).unref(); svc.sweep();
+// 供应商定时任务:待推送订单、状态轮询兜底(回调只推一次不重试)、价格/可售定时刷新
+setInterval(() => jdvop.tick(), Math.max(5000, U.int(process.env.JDVOP_TICK_MS, 60000))).unref();
 if (require.main === module) app.listen(PORT, () => console.log(`\n🛒 财哥商城已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`));
 module.exports = app;
