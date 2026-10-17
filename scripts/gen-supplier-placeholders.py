@@ -48,8 +48,27 @@ def keyboard(d, c=G):
     d.rounded_rectangle((140, 320, 660, 520), 24, fill=c)
     for r in range(3):
         for k in range(10): d.rounded_rectangle((165 + k * 49, 345 + r * 55, 205 + k * 49, 385 + r * 55), 6, fill=G3)
-SHAPES = {'roll': roll, 'box': box, 'carton': carton, 'fruit': fruit, 'shrimp': shrimp, 'pot': pot, 'kettle': kettle, 'fryer': fryer, 'shirt': shirt, 'bottle': bottle, 'tube': tube, 'nuts': nuts, 'chips': chips, 'shoe': shoe, 'mouse': mouse, 'keyboard': keyboard}
-VARIANTS = {'shirt-blue': ('shirt', tint(G, (120, 160, 210))), 'carton-2': ('carton', tint(G, (220, 210, 170)))}
+def bag(d, c=G):  # 双肩包
+    d.rounded_rectangle((260, 250, 540, 620), 70, fill=c); d.rounded_rectangle((300, 430, 500, 560), 24, fill=G2); d.arc((330, 180, 470, 300), 180, 360, fill=G2, width=18)
+def cable(d, c=G):  # 数据线
+    d.arc((220, 260, 580, 600), 200, 520, fill=c, width=22); d.rounded_rectangle((180, 380, 250, 470), 12, fill=G2); d.rounded_rectangle((550, 380, 620, 470), 12, fill=G2)
+def wok(d, c=G):  # 炒锅
+    d.ellipse((170, 330, 530, 560), fill=c); d.ellipse((190, 340, 510, 470), fill=G2); d.rounded_rectangle((520, 410, 680, 450), 18, fill=G2)
+def pen(d, c=G):  # 中性笔
+    for i, x in enumerate((300, 400, 500)):
+        d.rounded_rectangle((x - 22, 220, x + 22, 560), 18, fill=c if i != 1 else G2); d.polygon([(x - 22, 560), (x + 22, 560), (x, 620)], fill=G2); d.rectangle((x + 22, 240, x + 32, 360), fill=G2)
+def jar(d, c=G):  # 面霜
+    d.rounded_rectangle((250, 360, 550, 580), 40, fill=c); d.rounded_rectangle((240, 300, 560, 370), 20, fill=G2)
+def bowl(d, c=G):  # 碗
+    d.pieslice((200, 220, 600, 620), 0, 180, fill=c); d.rectangle((200, 410, 600, 425), fill=G2); d.rounded_rectangle((330, 610, 470, 640), 10, fill=G2)
+def earbuds(d, c=G):  # 耳机
+    d.rounded_rectangle((260, 360, 540, 580), 60, fill=G3, outline=G2, width=6)
+    for x in (340, 460): d.ellipse((x - 45, 250, x + 45, 340), fill=c); d.rounded_rectangle((x - 14, 320, x + 14, 420), 10, fill=c)
+def powerbank(d, c=G):  # 充电宝
+    d.rounded_rectangle((280, 200, 520, 620), 40, fill=c); d.rounded_rectangle((370, 230, 430, 250), 8, fill=G2)
+    for i in range(4): d.ellipse((330 + i * 40, 540, 350 + i * 40, 560), fill=G3)
+SHAPES = {'roll': roll, 'box': box, 'carton': carton, 'fruit': fruit, 'shrimp': shrimp, 'pot': pot, 'kettle': kettle, 'fryer': fryer, 'shirt': shirt, 'bottle': bottle, 'tube': tube, 'nuts': nuts, 'chips': chips, 'shoe': shoe, 'mouse': mouse, 'keyboard': keyboard, 'bag': bag, 'cable': cable, 'wok': wok, 'pen': pen, 'jar': jar, 'bowl': bowl, 'earbuds': earbuds, 'powerbank': powerbank}
+VARIANTS = {'shirt-blue': ('shirt', tint(G, (120, 160, 210))), 'carton-2': ('carton', tint(G, (220, 210, 170))), 'bag-grey': ('bag', tint(G, (120, 125, 135)))}
 for n, f in SHAPES.items():
     im, d = canvas(); f(d); im.save(os.path.join(OUT, n + '.png'), optimize=True)
 for n, (s, c) in VARIANTS.items():

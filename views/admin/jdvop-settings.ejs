@@ -15,7 +15,7 @@
  <div class="form-row"><label>可售库存显示(虚拟)</label><input type="number" name="jdvop_virtual_stock" min="1" value="<%= s.jdvop_virtual_stock %>"></div>
  <div class="form-row"><label>推单最多重试次数</label><input type="number" name="jdvop_max_push_attempts" min="1" max="10" value="<%= s.jdvop_max_push_attempts %>"></div></div>
  <% if(mi.cfg.mode==='mock'){ %><label class="form-row" style="display:block"><input type="checkbox" name="jdvop_mock_auto" value="1" <%= s.jdvop_mock_auto==='1'?'checked':'' %> style="width:auto"> 演示订单随轮询自动推进(拆单→发货→签收→完成)</label><% } %>
- <div class="form-row"><label>禁售类目(每行「分组:关键词,关键词」;匹配供应商分类名称,命中则不能导入/上架)</label><textarea name="jdvop_blocklist" rows="8"><%= s.jdvop_blocklist %></textarea></div>
+ <div class="form-row"><label>禁售类目(每行「分组:关键词,关键词」;匹配供应商分类名称,命中则不能导入/上架;关键词前加「=」表示分类名称完全相同才命中)</label><textarea name="jdvop_blocklist" rows="8"><%= s.jdvop_blocklist %></textarea></div>
  <button class="btn primary">保存设置</button></form></div>
 </div>
 <div class="card"><div class="flex between"><h3 style="margin:0">待处理告警(<%= alerts.length %>)</h3><% if(alerts.length){ %><form method="post" action="/admin/jdvop/alerts/resolve-all"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">全部标记已处理</button></form><% } %></div>
