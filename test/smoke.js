@@ -34,6 +34,10 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.get('/'); ok(r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '页脚有隐私政策/用户协议链接');
   ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由退货（鲜活易腐商品除外）') && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
   ok(r.text.includes('韵农甄选') && r.text.includes('<span class="seal">韵</span>') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页店名/印章/公告/页脚,无旧品牌名');
+  { const ids = [...r.text.matchAll(/class="pk" href="\/product\/(\d+)"/g)].map(m => m[1]);
+    ok(r.text.includes('好物精选') && /href="\/products">更多 ›<\/a>/.test(r.text) && ids.length >= 3 && !r.text.includes('示例商品'), '首页「好物精选」展示真实商品(' + ids.length + ' 个)及「更多 ›」');
+    ok(!/已售|销量|月销|已抢|京东价|<del|<s>/.test(r.text) && /class="pk-p">¥\d/.test(r.text), '首页商品仅显示本店价,无销量/划线价');
+    let onShelf = true; for (const id of ids) { const pr = await shop.get('/product/' + id); if (pr.status !== 200 || /已下架/.test(pr.text)) onShelf = false; } ok(onShelf, '首页商品均为在售商品'); }
   for (const u of ['/privacy', '/terms', '/notices', '/service', '/products']) { const x = await shop.get(u); ok(!x.text.includes('财哥商城'), '无旧品牌名:' + u); }
   await shop.get('/register');
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员' });

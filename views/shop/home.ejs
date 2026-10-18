@@ -25,6 +25,16 @@
   <a class="bc b2" href="/points-mall"><h3>积分专区</h3><p>好礼兑换</p><%- pic('card-points') %></a>
   <a class="bc b3" href="/me/cloud"><h3>云商卡</h3><p>会员权益</p><%- pic('card-yunshang') %></a>
 </nav>
+<section class="picks" aria-labelledby="picks-t">
+  <div class="pk-h"><h3 id="picks-t">好物精选</h3><a href="/products">更多 ›</a></div>
+  <div class="pk-g">
+  <% if (picks.length) { picks.forEach(function (g, i) { %>
+    <a class="pk" href="/product/<%= g.id %>"><span class="pk-i"><img src="<%= g.img %>" alt="" width="200" height="200"<%- i < 3 ? '' : ' loading="lazy"' %> decoding="async" onerror="<%= IMG_FALLBACK %>"></span><span class="pk-n"><%= g.name %></span><span class="pk-p">¥<%= Number(g.price).toFixed(2) %></span></a>
+  <% }) } else { for (let i = 0; i < 6; i++) { %>
+    <div class="pk ph" aria-hidden="true"><span class="pk-i"><img src="<%= PH %>" alt="" width="200" height="200" decoding="async"></span><span class="pk-n">示例商品</span></div>
+  <% } } %>
+  </div>
+</section>
 <div class="svc"><div><i>退</i>7天无理由退货（鲜活易腐商品除外）</div><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
 <footer class="zq-foot"><nav><a href="/help">帮助中心</a><a href="/service">联系客服</a><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a></nav><div>© 2026 <%= shop.shop_name %><% if (shop.icp) { %> · <%= shop.icp %><% } %> · 本站为演示站点,支付为模拟支付</div></footer>
 <nav class="tab" aria-label="底部导航">
