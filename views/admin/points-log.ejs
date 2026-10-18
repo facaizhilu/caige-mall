@@ -1,5 +1,5 @@
 <div class="card">
- <p class="muted" style="margin-top:0">积分只能通过购物、签到、评价、邀请等规则获得,用于下单抵扣;不可购买、提现或转赠。退款时订单使用的积分按比例退回。人工调整请在会员详情页操作(必须填写原因)。<a href="/admin/settings">积分规则设置 ›</a></p>
+ <p class="muted" style="margin-top:0">积分只能通过购物、签到、评价、邀请等规则获得,用于下单抵扣;不可购买、提现或转赠。退款时订单使用的积分按比例退回。人工调整请在会员详情页操作(必须填写原因)。<% if(can('system')){ %><a href="/admin/settings">积分规则设置 ›</a><% } %></p>
  <% if(member){ %><p><b><a href="/admin/members/<%= member.id %>"><%= member.nickname||'会员' %></a></b> <span class="muted"><%= member.phone %></span> · 当前积分 <b><%= member.points %></b> <a class="btn sm" href="/admin/points-log">查看全站</a></p><% } %>
  <form class="toolbar" method="get"><% if(uid){ %><input type="hidden" name="uid" value="<%= uid %>"><% } %>
   <input type="search" name="q" value="<%= q %>" placeholder="手机号/昵称/原因">

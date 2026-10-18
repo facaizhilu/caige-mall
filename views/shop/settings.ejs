@@ -9,13 +9,15 @@
   <div class="setlist">
     <a href="/me/profile#password">手机号<span class="muted"><%= U.maskPhone(user.phone) %></span></a>
     <a href="/me/profile#password">修改密码<span class="muted">›</span></a>
-    <a href="/me/cancel">注销账号<span class="muted">›</span></a>
   </div>
   <h4 class="muted" style="margin:16px 0 2px;font-size:13px;font-weight:500">隐私</h4>
   <div class="setlist">
     <a href="/privacy">隐私政策<span class="muted"><%= user.consent_at ? '已同意 v' + (user.consent_version||'') : '' %> ›</span></a>
     <a href="/terms">用户协议<span class="muted">›</span></a>
     <a href="/me/history">管理浏览记录<span class="muted">›</span></a>
+  </div>
+  <div class="setlist" style="margin-top:16px">
+    <a href="/me/cancel">注销账号<span class="muted">›</span></a>
   </div>
 </div>
 </div></div>

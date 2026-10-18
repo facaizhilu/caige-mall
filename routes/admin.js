@@ -32,6 +32,17 @@ module.exports = function (r, { filesOf }) {
     next();
   };
   const ctx = { need, flash, log, filesOf };
+  // 页面内跨模块链接(如会员详情→订单、客服→会员):当前角色无该模块权限时去掉 href,避免点进 403 页面(菜单已按权限过滤)
+  const PERM_OF = [[/^\/admin\/(orders|members|points-log)\/export|^\/admin\/export\//, 'stats'], [/^\/admin\/jdvop\/settings/, 'system'], [/^\/admin\/jdvop\/(logs|reconcile)/, 'stats'], [/^\/admin\/(products|categories|brands|shipping|banned-words|inventory|jdvop)(\/|$|\?)/, 'product'], [/^\/admin\/(orders|aftersales|invoices)(\/|$|\?|#)/, 'order'], [/^\/admin\/reviews/, 'review'], [/^\/admin\/(members|points-log|levels|invites|cloud-)/, 'member'], [/^\/admin\/service/, 'service'], [/^\/admin\/(coupons|seckills|groupbuys|groups|points-goods|banners|keywords)/, 'marketing'], [/^\/admin\/(notices|help-articles|pages|policies)/, 'content'], [/^\/admin\/stats/, 'stats'], [/^\/admin\/(settings|admins|roles|logs)(\/|$|\?)/, 'system']];
+  r.use((req, res, next) => {
+    const a = req.session.admin; if (!a || a.perms === 'all') return next();
+    const send = res.send.bind(res);
+    res.send = body => {
+      if (typeof body === 'string' && req.session.admin && req.session.admin.perms !== 'all' && /^\s*<!doctype html/i.test(body)) body = body.replace(/<a\b([^>]*?)\shref="(\/admin\/[^"]*)"([^>]*)>/g, (m, pre, href, post) => { const x = PERM_OF.find(([re]) => re.test(href)); return x && !can(req.session.admin, x[1]) ? `<a${pre}${post} aria-disabled="true" title="当前角色无此模块权限" style="pointer-events:none;opacity:.6">` : m; });
+      return send(body);
+    };
+    next();
+  });
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').includes('/admin') ? req.get('referer') : fb);
   const sendCSV = (res, name, header, rows) => { res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}-${U.today()}.csv`); res.send(U.toCSV(header, rows)); };
   r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n, supAlerts: db.get('SELECT COUNT(*) n FROM supplier_alerts WHERE resolved=0').n }; } next(); });
@@ -58,15 +69,21 @@ module.exports = function (r, { filesOf }) {
   });
   r.post('/logout', (req, res) => { if (req.session.admin) log(req, '退出后台', ''); req.session.regenerate(() => res.redirect('/admin/login')); });
 
+  // 销售额口径:有效订单(已付款/已发货/已完成)实付金额,扣除已完成的部分退款(售后退款、供应商部分退款);整单退款的订单状态为已退款,不计入
+  const NET_PAY = "o.pay_amount - COALESCE((SELECT SUM(a.refund_cash) FROM aftersales a WHERE a.order_id=o.id AND a.status='refunded'),0) - COALESCE((SELECT so.refunded_customer FROM supplier_orders so WHERE so.order_id=o.id),0)";
+  const netSales = (where, ...p) => { const x = db.get(`SELECT COALESCE(SUM(${NET_PAY}),0) a, COUNT(*) n FROM orders o WHERE ${where}`, ...p); x.a = round2(x.a); return x; };
   // ================= 数据概览 =================
+  // 无「数据概览」权限的角色:登录后落到其第一个有权限的页面,而不是 403
+  const LANDING = [['order', '/admin/orders'], ['product', '/admin/products'], ['member', '/admin/members'], ['service', '/admin/service'], ['review', '/admin/reviews'], ['marketing', '/admin/coupons'], ['content', '/admin/notices'], ['stats', '/admin/stats'], ['system', '/admin/settings']];
+  r.get('/', need(null), (req, res, next) => { if (can(req.session.admin, 'dashboard')) return next(); const l = LANDING.find(([p]) => can(req.session.admin, p)); if (l) return res.redirect(l[1]); res.status(403).page('admin/forbidden', { title: '无权限' }); });
   r.get('/', need('dashboard'), (req, res) => {
     const today = U.today(), valid = "status NOT IN ('cancelled','unpaid','refunded')";
-    const sum = (where, ...p) => db.get(`SELECT COALESCE(SUM(pay_amount),0) a, COUNT(*) n FROM orders WHERE ${where}`, ...p);
+    const sum = netSales;
     const t = sum(`${valid} AND paid_at LIKE ?`, today + '%'), all = sum(valid);
     const stats = {
       todaySales: t.a, todayOrders: db.get('SELECT COUNT(*) n FROM orders WHERE created_at LIKE ?', today + '%').n, totalSales: all.a, totalOrders: db.get('SELECT COUNT(*) n FROM orders').n,
       members: db.get('SELECT COUNT(*) n FROM users').n, todayMembers: db.get('SELECT COUNT(*) n FROM users WHERE created_at LIKE ?', today + '%').n,
-      products: db.get('SELECT COUNT(*) n FROM products WHERE status=1').n, toShip: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid'").n, unpaid: db.get("SELECT COUNT(*) n FROM orders WHERE status='unpaid'").n,
+      products: db.get('SELECT COUNT(*) n FROM products WHERE status=1').n, toShip: res.locals.pending.orders, unpaid: db.get("SELECT COUNT(*) n FROM orders WHERE status='unpaid'").n,
       pendingAS: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, pendingReview: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, unitPrice: all.n ? all.a / all.n : 0
     };
     const days = [], labels = [], sales = [], orders = [];
@@ -419,7 +436,7 @@ module.exports = function (r, { filesOf }) {
     if (!u) { flash(req, 'error', '会员不存在'); return res.redirect('/admin/members'); }
     res.page('admin/member', { title: '会员详情', u, addrs: db.all('SELECT * FROM addresses WHERE user_id=?', u.id), orders: db.all('SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10', u.id), plog: db.all('SELECT * FROM points_log WHERE user_id=? ORDER BY id DESC LIMIT 10', u.id), aftersales: db.all('SELECT a.*, o.order_no FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.user_id=? ORDER BY a.id DESC LIMIT 10', u.id), levels: db.all('SELECT * FROM member_levels ORDER BY min_growth'), favs: db.get('SELECT COUNT(*) n FROM favorites WHERE user_id=?', u.id).n, invitees: db.get('SELECT COUNT(*) n FROM users WHERE referrer_id=?', u.id).n, cloudStatus: svc.cloud.cardStatus(u), cardTypes: db.all('SELECT * FROM cloud_card_types WHERE status=1 ORDER BY sort,id'), cloudSales: db.all('SELECT s.*, c.name card_name FROM cloud_card_sales s LEFT JOIN cloud_card_types c ON c.id=s.card_type_id WHERE s.user_id=? ORDER BY s.id DESC LIMIT 10', u.id), today: U.today(), coupons: svc.userCoupons(u.id, 'unused').length, db_coupons: db.all('SELECT id,name FROM coupons WHERE status=1') });
   });
-  r.post('/members/:id/status', need('member'), (req, res) => { const u = db.get('SELECT * FROM users WHERE id=?', int(req.params.id)); if (u && u.cancelled_at) { flash(req, 'error', '该账号已注销,不可启用'); return back(req, res, '/admin/members'); } if (u) { db.exec1('UPDATE users SET status=1-status WHERE id=?', u.id); if (u.status) db.exec1('DELETE FROM sessions WHERE sess LIKE ?', `%"uid":${u.id}%`); log(req, u.status ? '禁用会员' : '启用会员', `#${u.id} ${u.phone}`); } back(req, res, '/admin/members'); });
+  r.post('/members/:id/status', need('member'), (req, res) => { const u = db.get('SELECT * FROM users WHERE id=?', int(req.params.id)); if (u && u.cancelled_at) { flash(req, 'error', '该账号已注销,不可启用'); return back(req, res, '/admin/members'); } if (u) { db.exec1('UPDATE users SET status=1-status WHERE id=?', u.id); if (u.status) db.exec1("DELETE FROM sessions WHERE sid LIKE 's:%' AND (sess LIKE ? OR sess LIKE ?)", `%"uid":${u.id},%`, `%"uid":${u.id}}%`); log(req, u.status ? '禁用会员' : '启用会员', `#${u.id} ${u.phone}`); } back(req, res, '/admin/members'); });
   r.post('/members/:id/points', need('member'), (req, res) => {
     const uid = int(req.params.id), d = int(req.body.delta), reason = String(req.body.reason || '').trim().slice(0, 50);
     const u = db.get('SELECT id, points, phone FROM users WHERE id=?', uid), go = (t, m) => { flash(req, t, m); res.redirect('/admin/members/' + uid + '#points'); };
@@ -507,7 +524,8 @@ module.exports = function (r, { filesOf }) {
       { name: 'remark', label: '备注' },
       { name: 'status', label: '启用', type: 'checkbox', def: 1 }
     ],
-    validate: row => (!['silver', 'gold'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null)
+    validate: row => (!['silver', 'gold'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null),
+    canDelete: x => db.get('SELECT 1 FROM users WHERE cloud_card_type_id=?', x.id) || db.get('SELECT 1 FROM cloud_card_sales WHERE card_type_id=?', x.id) ? '该卡类型已有会员开通或销售记录,不能删除,请改为停用' : null
   }, ctx);
 
   const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_step', 'cloud_signin_extra_max', 'cloud_extra_expire_days'];
@@ -553,7 +571,7 @@ module.exports = function (r, { filesOf }) {
     fields: [{ name: 'name', label: '优惠券名称', required: true, help: '名称以「新人」开头的启用券会自动发给新注册会员' }, { name: 'amount', label: '优惠金额(元)', type: 'number', min: 0.01, required: true }, { name: 'threshold', label: '使用门槛(元,0=无门槛)', type: 'number', min: 0 }, { name: 'total', label: '发行总量', type: 'number', int: true, min: 1, def: 100 }, { name: 'per_limit', label: '每人限领', type: 'number', int: true, min: 1, def: 1 }, { name: 'valid_days', label: '领取后有效天数', type: 'number', int: true, min: 1, def: 30 }, { name: 'category_id', label: '适用分类', type: 'select', numeric: true, options: () => [{ v: 0, t: '全场通用' }, ...catOptions()] }, { name: 'description', label: '说明' }, { name: 'status', label: '启用', type: 'checkbox', def: 1 }],
     validate: row => row.amount > row.threshold && row.threshold > 0 ? '优惠金额不能大于使用门槛' : null, extraInsert: () => ({ created_at: now(), claimed: 0 }),
     canDelete: x => db.get('SELECT 1 FROM user_coupons WHERE coupon_id=?', x.id) ? '已有会员领取,不能删除,请停用' : null }, ctx);
-  crud(r, { path: 'banners', table: 'banners', perm: 'marketing', title: 'Banner 管理', singular: 'Banner', order: 'sort,id', toggle: 'status',
+  crud(r, { path: 'banners', table: 'banners', perm: 'marketing', title: 'Banner 管理', singular: 'Banner', order: 'sort,id', toggle: 'status', note: '提示:当前首页为固定设计(顶部横幅只展示注册积分/新人券等真实权益),不读取此处的 Banner;此处配置暂不在前台展示,保留供后续页面使用。',
     cols: [{ label: 'ID', f: x => x.id }, { label: '预览', f: x => x.image ? `<img src="${esc(x.image)}" style="height:40px;border-radius:6px">` : `<span style="display:inline-block;width:120px;height:40px;border-radius:6px;background:linear-gradient(120deg,${esc(x.bg1)},${esc(x.bg2)})"></span>` }, { label: '标题', f: x => '<b>' + esc(x.title) + '</b><br><span class="muted">' + esc(x.subtitle) + '</span>' }, { label: '链接', f: x => esc(x.link) }, { label: '排序', f: x => x.sort }, { label: '状态', f: stBadge }],
     fields: [{ name: 'title', label: '标题', required: true }, { name: 'subtitle', label: '副标题' }, { name: 'image', label: '图片(可选,不传则使用渐变背景)', type: 'image' }, { name: 'link', label: '跳转链接', def: '/products', pattern: /^(\/|https?:\/\/)/, patternMsg: '链接需以 / 或 http(s):// 开头' }, { name: 'bg1', label: '渐变色 1', def: '#d4202a', pattern: /^#[0-9a-fA-F]{6}$/ }, { name: 'bg2', label: '渐变色 2', def: '#f2a93b', pattern: /^#[0-9a-fA-F]{6}$/ }, { name: 'sort', label: '排序', type: 'number', int: true }, { name: 'status', label: '启用', type: 'checkbox', def: 1 }] }, ctx);
   crud(r, { path: 'seckills', table: 'seckills', perm: 'marketing', title: '限时秒杀', singular: '秒杀活动', toggle: 'status', order: 'start_at DESC',
@@ -691,7 +709,7 @@ module.exports = function (r, { filesOf }) {
     const labels = [], sales = [], orders = [], newUsers = [], uv = [];
     for (let i = range - 1; i >= 0; i--) {
       const d = U.offset(-i * 86400000).slice(0, 10); labels.push(d.slice(5));
-      const x = db.get(`SELECT COALESCE(SUM(pay_amount),0) a, COUNT(*) n FROM orders WHERE ${valid} AND paid_at LIKE ?`, d + '%'); sales.push(round2(x.a)); orders.push(x.n);
+      const x = netSales(`${valid} AND paid_at LIKE ?`, d + '%'); sales.push(round2(x.a)); orders.push(x.n);
       newUsers.push(db.get('SELECT COUNT(*) n FROM users WHERE created_at LIKE ?', d + '%').n);
     }
     const salesChart = chart.trend({ labels, series: [{ name: '销售额(元)', color: '#d4202a', values: sales, type: 'bar' }, { name: '订单数', color: '#f2a93b', values: orders, type: 'line' }], width: 900, height: 280 });
@@ -701,8 +719,8 @@ module.exports = function (r, { filesOf }) {
     const catSales = db.all(`SELECT COALESCE(c.name,'其他') label, SUM(oi.price*oi.qty) value FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN categories c ON c.id=p.category_id WHERE o.status NOT IN ('cancelled','unpaid','refunded') AND o.paid_at>=? GROUP BY c.name ORDER BY value DESC`, since).map(x => ({ label: x.label, value: Math.round(x.value) }));
     const payDist = db.all(`SELECT pay_method label, COUNT(*) value FROM orders WHERE ${valid} AND paid_at>=? GROUP BY pay_method`, since).map(x => ({ label: U.PAY_METHOD[x.label] || x.label, value: x.value }));
     const levelDist = db.all('SELECT l.name label, COUNT(u.id) value FROM member_levels l LEFT JOIN users u ON u.level_id=l.id GROUP BY l.id ORDER BY l.min_growth');
-    const topUsers = db.all(`SELECT u.id, u.nickname, u.phone, SUM(o.pay_amount) amt, COUNT(*) n FROM orders o JOIN users u ON u.id=o.user_id WHERE o.${valid.replace(/status/, 'status')} AND o.paid_at>=? GROUP BY u.id ORDER BY amt DESC LIMIT 8`, since);
-    const sum = db.get(`SELECT COALESCE(SUM(pay_amount),0) a, COUNT(*) n FROM orders WHERE ${valid} AND paid_at>=?`, since);
+    const topUsers = db.all(`SELECT u.id, u.nickname, u.phone, SUM(${NET_PAY}) amt, COUNT(*) n FROM orders o JOIN users u ON u.id=o.user_id WHERE o.${valid.replace(/status/, 'status')} AND o.paid_at>=? GROUP BY u.id ORDER BY amt DESC LIMIT 8`, since);
+    const sum = netSales(`${valid} AND paid_at>=?`, since);
     const conv = { users: db.get('SELECT COUNT(*) n FROM users').n, buyers: db.get(`SELECT COUNT(DISTINCT user_id) n FROM orders WHERE ${valid}`).n, repeat: db.get(`SELECT COUNT(*) n FROM (SELECT user_id FROM orders WHERE ${valid} GROUP BY user_id HAVING COUNT(*)>1)`).n };
     res.page('admin/stats', { title: '统计报表', range, sum, salesChart, userChart, topProducts, catChart: chart.donut(catSales), payChart: chart.donut(payDist), levelChart: chart.hbar(levelDist, { color: '#2a5bd7', unit: '人' }), topUsers, conv });
   });
@@ -724,6 +742,16 @@ module.exports = function (r, { filesOf }) {
   crud(r, { path: 'roles', table: 'roles', perm: 'system', title: '角色权限', singular: '角色',
     cols: [{ label: 'ID', f: x => x.id }, { label: '角色', f: x => '<b>' + esc(x.name) + '</b>' }, { label: '权限', f: x => x.permissions === 'all' ? '<span class="tag">全部权限</span>' : x.permissions.split(',').filter(Boolean).map(p => `<span class="tag gold">${esc(U.PERMS[p] ? U.PERMS[p].split('/')[0] : p)}</span>`).join('') }, { label: '管理员数', f: x => db.get('SELECT COUNT(*) n FROM admins WHERE role_id=?', x.id).n }, { label: '说明', f: x => esc(x.remark) }],
     fields: [{ name: 'name', label: '角色名称', required: true }, { name: 'permissions', label: '权限', type: 'perms' }, { name: 'remark', label: '说明' }],
+    // 权限以勾选项为准(无 JS 时也生效),只保留有效权限键;不能削减自己当前所用角色的权限,避免把自己锁在后台外
+    validate: (row, ex, req) => {
+      const b = req.body, picked = [].concat(b.perm || []).length ? [].concat(b.perm) : String(row.permissions || '').split(',');
+      row.permissions = b.permissions_all === '1' || row.permissions === 'all' ? 'all' : [...new Set(picked.flatMap(x => String(x).split(',')).map(x => x.trim()).filter(k => U.PERMS[k]))].join(',');
+      if (!row.permissions) return '请至少勾选一项权限';
+      const mine = db.get('SELECT role_id FROM admins WHERE id=?', req.session.admin.id);
+      if (ex && mine && mine.role_id === ex.id && row.permissions !== ex.permissions && (ex.permissions === 'all' || !row.permissions.split(',').includes('system'))) return '不能削减自己当前所用角色的权限(请用其他超级管理员账号修改)';
+      if (ex && ex.permissions === 'all' && row.permissions !== 'all' && !db.get("SELECT 1 FROM roles WHERE permissions='all' AND id<>?", ex.id)) return '至少需要保留一个拥有全部权限的角色';
+      return null;
+    },
     canDelete: x => x.permissions === 'all' ? '超级管理员角色不能删除' : (db.get('SELECT 1 FROM admins WHERE role_id=?', x.id) ? '该角色下还有管理员' : null) }, ctx);
   r.get('/admins', need('system'), (req, res) => res.page('admin/admins', { title: '管理员账号', rows: db.all('SELECT a.*, r.name role_name FROM admins a LEFT JOIN roles r ON r.id=a.role_id ORDER BY a.id'), roles: db.all('SELECT * FROM roles'), edit: req.query.edit ? db.get('SELECT * FROM admins WHERE id=?', int(req.query.edit)) : null }));
   r.post('/admins/save', need('system'), (req, res) => {

@@ -1,4 +1,5 @@
 <div class="card">
+  <% if (cfg.note) { %><div class="flash warn" style="margin-bottom:10px"><%= cfg.note %></div><% } %>
   <div class="toolbar"><% if (hasSearch) { %><form class="flex" method="get"><input type="search" name="q" value="<%= q %>" placeholder="搜索…"><button class="btn">搜索</button></form><% } %><span class="sp"></span><a class="btn primary" href="<%= base %>/new">＋ 新增<%= cfg.singular %></a></div>
   <div class="tbl-wrap"><table class="t"><tr><% cfg.cols.forEach(c=>{ %><th><%= c.label %></th><% }) %><th>操作</th></tr>
   <% pg.rows.forEach(x=>{ %><tr><% cfg.cols.forEach(c=>{ %><td><%- c.f(x) %></td><% }) %><td style="white-space:nowrap">

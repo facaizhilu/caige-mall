@@ -129,6 +129,8 @@ app.get('/img/gen.svg', (req, res) => {
 });
 app.get('/favicon.ico', (req, res) => res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#d4202a"/><text x="32" y="46" font-size="38" font-weight="700" text-anchor="middle" fill="#f9d66b" font-family="Noto Sans CJK SC,sans-serif">韵</text></svg>`));
 
+// 查询参数一律为字符串(?q[]=1 / ?q[a]=1 之类的数组/对象取最后一个字符串值或置空),避免列表/搜索页 500
+app.use((req, res, next) => { const q = req.query; for (const k of Object.keys(q)) { const v = q[k]; if (Array.isArray(v)) { const last = v.filter(x => typeof x === 'string').pop(); q[k] = last === undefined ? '' : last; } else if (v && typeof v === 'object') q[k] = ''; } next(); });
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
 

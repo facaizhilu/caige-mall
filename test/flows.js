@@ -422,5 +422,87 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     db.prepare('UPDATE products SET supplier_sales=NULL').run();
   }
 
+  console.log('== 功能审计回归(2026-10) ==');
+  {
+    const svcR = require('../lib/svc');
+    const login2 = async (u, pw) => { const c = new C(); await c.get('/admin/login'); await c.post('/admin/login', { username: u, password: pw }); await c.get('/admin/password'); await c.post('/admin/password/skip'); await c.get('/admin'); return c; };
+    const m = new C(); await m.login('13800000001', '123456');
+    const sk = db.get("SELECT s.id, s.price FROM skus s JOIN products p ON p.id=s.product_id WHERE p.status=1 AND p.supplier IS NULL AND s.stock>10 AND COALESCE(p.no_reason_return,1)=1 ORDER BY s.price DESC LIMIT 1");
+    const ad = db.get('SELECT id FROM addresses WHERE user_id=1 LIMIT 1');
+    db.prepare('UPDATE users SET points=points+5000 WHERE id=1').run();
+    await m.get('/cart'); r = await m.post('/order/create', { sku_id: sk.id, qty: 2, address_id: ad.id, no7_confirm: '1', use_points: '2000' });
+    const ro = +r.loc.match(/order\/(\d+)/)[1]; await m.get(`/order/${ro}/pay`); await m.post(`/order/${ro}/pay`, { method: 'wechat' });
+    await adm.post(`/admin/orders/${ro}/ship`, { company: '中通快递', tracking_no: 'ZT7700000001' }); await m.get('/order/' + ro); await m.post(`/order/${ro}/confirm`, {});
+    const o0 = db.get('SELECT * FROM orders WHERE id=?', ro), u0 = db.get('SELECT points, growth FROM users WHERE id=1');
+    ok(o0.status === 'completed' && o0.points_used > 0, '回归准备:已完成订单(使用积分抵扣)');
+    // 1) 两次部分退款合计等于实付 → 订单变为已退款,积分/奖励累计退回(扣回)正确,销量与销售额不再计入
+    const h1 = Math.round(o0.pay_amount * 40) / 100, h2 = Math.round((o0.pay_amount - h1) * 100) / 100;
+    const dash0 = await adm.get('/admin'); const tot = t => +(t.match(/累计销售额<\/span><b>¥([\d.]+)/) || [])[1];
+    await adm.post(`/admin/orders/${ro}/aftersale`, { type: 'refund', reason: '部分退款1', amount: String(h1) });
+    let as = db.get('SELECT id FROM aftersales WHERE order_id=? ORDER BY id DESC', ro); await adm.post(`/admin/aftersales/${as.id}/handle`, { action: 'approve' });
+    ok(db.get('SELECT status FROM orders WHERE id=?', ro).status === 'completed', '第一次部分退款后订单仍为已完成');
+    const dash1 = await adm.get('/admin'); ok(Math.abs(tot(dash0.text) - tot(dash1.text) - h1) <= 1, `数据概览累计销售额扣除部分退款(${tot(dash0.text)}→${tot(dash1.text)},退 ${h1})`);
+    await adm.post(`/admin/orders/${ro}/aftersale`, { type: 'refund', reason: '部分退款2', amount: String(h2) });
+    as = db.get('SELECT id FROM aftersales WHERE order_id=? ORDER BY id DESC', ro); await adm.post(`/admin/aftersales/${as.id}/handle`, { action: 'approve' });
+    const o1 = db.get('SELECT * FROM orders WHERE id=?', ro), u1 = db.get('SELECT points, growth FROM users WHERE id=1');
+    const rs = db.get("SELECT SUM(refund_cash) c, SUM(refund_points) p FROM aftersales WHERE order_id=? AND status='refunded'", ro);
+    ok(o1.status === 'refunded', '两次部分退款合计等于实付后订单变为「已退款」', o1.status);
+    ok(Math.abs(rs.c - o0.pay_amount) < 0.001 && rs.p === o0.points_used, `累计退现金=实付、退积分=下单抵扣积分(${rs.c}/${rs.p})`, JSON.stringify(rs));
+    ok(u1.points === u0.points + o0.points_used - o0.points_awarded && u1.growth === u0.growth - o0.growth_awarded, '购物奖励积分/成长值全部扣回、抵扣积分全部退回', JSON.stringify({ u0, u1, used: o0.points_used, aw: o0.points_awarded }));
+    ok(db.get('SELECT sales FROM products WHERE id=(SELECT product_id FROM skus WHERE id=?)', sk.id).sales === db.get("SELECT COALESCE(SUM(oi.qty),0) n FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.sku_id=? AND o.status IN ('paid','shipped','completed')", sk.id).n, '整单退完后销量按真实订单重算');
+    r = await adm.post(`/admin/orders/${ro}/aftersale`, { type: 'refund', reason: '再退', amount: '0.01' }); ok(db.get('SELECT COUNT(*) n FROM aftersales WHERE order_id=?', ro).n === 2, '已全额退款的订单不能再创建售后');
+    // 2) 统计报表与数据概览口径一致(有效订单实付 - 部分退款)
+    const NET = "o.pay_amount - COALESCE((SELECT SUM(a.refund_cash) FROM aftersales a WHERE a.order_id=o.id AND a.status='refunded'),0) - COALESCE((SELECT so.refunded_customer FROM supplier_orders so WHERE so.order_id=o.id),0)";
+    const net = db.get(`SELECT COALESCE(SUM(${NET}),0) a FROM orders o WHERE o.status NOT IN ('cancelled','unpaid','refunded')`).a;
+    ok(Math.abs(tot((await adm.get('/admin')).text) - net) <= 1, '数据概览累计销售额 = 有效订单实付 - 部分退款');
+    const st90 = +((await adm.get('/admin/stats?days=90')).text.match(/期间销售额<\/span><b>¥([\d.]+)/) || [])[1];
+    const net90 = db.get(`SELECT COALESCE(SUM(${NET}),0) a FROM orders o WHERE o.status NOT IN ('cancelled','unpaid','refunded') AND o.paid_at>=?`, require('../lib/util').offset(-90 * 86400000).slice(0, 10) + ' 00:00:00').a;
+    ok(Math.abs(st90 - net90) < 0.011, `统计报表期间销售额扣除部分退款(${st90} vs ${net90.toFixed(2)})`);
+    const dt = (await adm.get('/admin')).text; ok(+(dt.match(/待发货订单<\/span><b[^>]*>(\d+)/) || [])[1] === +((dt.match(/订单管理<\/span><span class="dot">(\d+)/) || [])[1] || 0), '待发货数与菜单角标口径一致(未成团拼团不计)');
+    // 3) 禁用会员只踢掉该会员的会话(#1 不应误伤 #10~#19)
+    const victims = [];
+    while (db.get('SELECT MAX(id) n FROM users').n < 10) { const c = new C(); const ph = '1330000' + String(1000 + Math.floor(Math.random() * 8999)); if (db.get('SELECT 1 FROM users WHERE phone=?', ph)) continue; await c.get('/register'); await c.post('/register', { phone: ph, password: '123456', password2: '123456', agree: '1' }); victims.push(c); }
+    const v10 = new C(); const ph10 = '1320000' + String(1000 + Math.floor(Math.random() * 8999)); await v10.get('/register'); await v10.post('/register', { phone: ph10, password: '123456', password2: '123456', agree: '1' });
+    const vid = db.get('SELECT id FROM users WHERE phone=?', ph10).id; ok(String(vid).startsWith('1') && vid >= 10, '回归准备:#' + vid + ' 会员已登录');
+    const m1 = new C(); await m1.login('13800000001', '123456');
+    await adm.get('/admin/members'); await adm.post('/admin/members/1/status', {});
+    ok((await m1.get('/me')).status === 302, '禁用 #1 后 #1 会话失效'); ok((await v10.get('/me')).status === 200, `禁用 #1 不影响 #${vid} 的登录会话`);
+    await adm.post('/admin/members/1/status', {}); ok(db.get('SELECT status FROM users WHERE id=1').status === 1, '恢复 #1');
+    // 4) 角色权限:按勾选保存并过滤无效键;不能削减自己所用角色、不能去掉最后一个全权限角色
+    await adm.get('/admin/roles/new'); await adm.post('/admin/roles/save', { name: '回归角色', perm: ['order', 'bogus', 'member'], permissions: '' });
+    ok((db.get("SELECT permissions FROM roles WHERE name='回归角色'") || {}).permissions === 'order,member', '角色权限按勾选保存(无 JS 也生效)并过滤无效值');
+    await adm.post('/admin/roles/save', { id: '1', name: '超级管理员', permissions: 'order', remark: '' });
+    ok(db.get('SELECT permissions FROM roles WHERE id=1').permissions === 'all', '不能削减自己当前所用角色(超级管理员)的权限');
+    ok((await adm.get('/admin/settings')).status === 200, '超级管理员仍可访问系统设置');
+    // 5) 无「数据概览」权限的角色登录后落到第一个有权限的页面;页面内无权限的跨模块链接不可点
+    const rid = db.get("SELECT id FROM roles WHERE name='回归角色'").id;
+    await adm.post('/admin/roles/save', { id: String(rid), name: '回归角色', perm: ['member'] });
+    await adm.post('/admin/admins/save', { username: 'reg_member', name: '回归会员管理', role_id: String(rid), password: 'Reg#member2026', status: '1' });
+    const rm = new C(); await rm.get('/admin/login'); await rm.post('/admin/login', { username: 'reg_member', password: 'Reg#member2026' }); await rm.get('/admin/password'); await rm.post('/admin/password', { old_password: 'Reg#member2026', password: 'Reg#member2027', password2: 'Reg#member2027' });
+    r = await rm.get('/admin'); ok(r.status === 302 && r.loc === '/admin/members', '无数据概览权限:/admin 跳转到会员管理', r.status + ' ' + r.loc);
+    r = await rm.get('/admin/members/1'); ok(r.status === 200 && !/href="\/admin\/orders/.test(r.text) && r.text.includes('aria-disabled="true"'), '会员详情页:无订单权限时订单链接不可点');
+    ok((await rm.get('/admin/orders')).status === 403, '无订单权限访问订单页仍为 403');
+    const ops = await login2('ops', 'ops123456'); r = await ops.get('/admin');
+    ok(r.status === 200 && !/href="\/admin\/(orders|aftersales|members|logs)/.test(r.text), '运营专员数据概览不出现无权限页面链接');
+    r = await ops.get('/admin/stats'); ok(!/href="\/admin\/(logs\/export|members\/\d)/.test(r.text), '运营专员统计报表不出现操作日志导出/会员详情链接');
+    const kf = await login2('kefu', 'kefu123456');
+    r = await kf.get('/admin/orders'); ok(!r.text.includes('href="/admin/orders/export'), '客服专员订单页不显示导出(需统计/导出权限)');
+    r = await kf.get('/admin/points-log'); ok(!r.text.includes('href="/admin/settings"'), '客服专员积分明细不链接站点设置');
+    r = await kf.get('/admin'); ok(!/href="\/admin\/(inventory|products)/.test(r.text), '客服专员数据概览不链接商品/库存页');
+    // 6) 云商卡类型:已有开通/销售记录不能删除
+    const ctp = db.get('SELECT id FROM cloud_card_types WHERE status=1 LIMIT 1');
+    await adm.post('/admin/members/2/cloud', { card_type_id: String(ctp.id), amount: '0', sale_date: require('../lib/util').today(), staff: '回归' });
+    await adm.post(`/admin/cloud-cards/${ctp.id}/delete`, {}); ok(db.get('SELECT 1 FROM cloud_card_types WHERE id=?', ctp.id), '已有会员开通的云商卡类型不能删除');
+    // 7) 数组/对象形式的查询参数不再导致 500
+    for (const [c, u] of [[a, '/products?q[]=1&q[]=2&cat[]=1&sort[a]=x&page[]=2'], [a, '/orders?status[]=paid&status[]=x'], [adm, '/admin/orders?q[]=1&status[]=paid&from[a]=1'], [adm, '/admin/members?q[]=1&level[]=1'], [adm, '/admin/products?q[a]=1&cat[]=1'], [adm, '/admin/reviews?status[]=a&status[]=b'], [adm, '/admin/cloud-members?q[]=1']]) { r = await c.get(u); ok(r.status === 200, '数组查询参数不报错 ' + u.split('?')[0], r.status); }
+    // 8) 设置页「注销账号」在最下方
+    r = await a.get('/me/settings'); { const i = r.text.indexOf('<div class="card"><h3'); const sl = r.text.slice(i, r.text.indexOf('</div></div>', i)); const ls = [...sl.matchAll(/href="([^"]+)"/g)].map(x => x[1]); ok(ls[ls.length - 1] === '/me/cancel', '设置页「注销账号」位于最下方', ls.join(',')); }
+    // 9) 通用开关切换不跳转到站外 Referer
+    const bn = db.get('SELECT id FROM banners LIMIT 1'); r = await adm.req('POST', `/admin/banners/${bn.id}/toggle`, { _csrf: adm.t }, {}); await adm.get('/admin/banners');
+    const rr = await fetch(base + `/admin/banners/${bn.id}/toggle`, { method: 'POST', redirect: 'manual', headers: { Cookie: Object.entries(adm.k).map(([x, y]) => x + '=' + y).join('; '), 'Content-Type': 'application/x-www-form-urlencoded', Referer: 'https://evil.example/admin/x' }, body: '_csrf=' + adm.t });
+    ok(rr.headers.get('location') === '/admin/banners', '开关切换忽略站外 Referer', rr.headers.get('location'));
+    r = await adm.get('/admin/banners'); ok(r.text.includes('不读取此处的 Banner'), 'Banner 列表提示当前首页未使用 Banner');
+  }
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
