@@ -1,13 +1,15 @@
-<% const pic=(n,alt)=>'<picture><source type="image/webp" srcset="/static/img/home/'+n+'@2x.webp 2x,/static/img/home/'+n+'@3x.webp 3x"><img src="/static/img/home/'+n+'@2x.png" alt="'+(alt||'')+'" loading="lazy" decoding="async"></picture>'; %>
+<% const pic=(n,alt)=>'<picture><source type="image/webp" srcset="/static/img/home/'+n+'@2x.webp 2x,/static/img/home/'+n+'@3x.webp 3x"><img src="/static/img/home/'+n+'@2x.png" alt="'+(alt||'')+'" decoding="async"></picture>'; %>
 <div class="top">
-  <% if (shop.announcement) { %><div class="ann"><%= shop.announcement %></div><% } %>
-  <div class="head"><a class="brand" href="/" aria-label="首页"><span class="seal">财</span><span class="bn"><%= shop.shop_name %></span></a></div>
-  <form class="search" action="/products" method="get" role="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input name="q" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" aria-label="搜索商品" placeholder="搜索你想要的商品"><button>搜索</button></form>
+  <% if (shop.announcement) { %><a class="ann" href="/notices" title="<%= shop.announcement %>"><span><%= shop.announcement %></span></a><% } %>
+  <div class="head">
+    <a class="brand" href="/" aria-label="首页"><span class="seal">财</span><span class="bn"><%= shop.shop_name %></span></a>
+    <form class="search" action="/products" method="get" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input name="q" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" aria-label="搜索商品" placeholder="搜索你想要的商品"><button>搜索</button></form>
+  </div>
   <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
   <% if (user) { %>
-  <div class="hero"><small>欢迎回来</small><h2><%= user.nickname %></h2><p>领取可用优惠券,下单更划算</p><a class="btn" href="/coupons">去领券 ›</a></div>
+  <a class="hero" href="/coupons"><small>欢迎回来</small><h2><%= user.nickname %></h2><p>领取可用优惠券,下单更划算</p><span class="btn">去领券 ›</span></a>
   <% } else { %>
-  <div class="hero"><small>新人专享</small><h2>新人注册有礼</h2><p>注册即送<% if (regPts) { %> <%= regPts %> 积分<% } %><% if (regPts && newbieCoupon) { %>及<% } %><% if (newbieCoupon) { %>新人优惠券<% } %><% if (!regPts && !newbieCoupon) { %>会员积分与权益<% } %></p><a class="btn" href="/register">立即注册 ›</a></div>
+  <a class="hero" href="/register"><small>新人专享</small><h2>新人注册有礼</h2><p>注册即送<% if (regPts) { %> <%= regPts %> 积分<% } %><% if (regPts && newbieCoupon) { %>及<% } %><% if (newbieCoupon) { %>新人优惠券<% } %><% if (!regPts && !newbieCoupon) { %>会员积分与权益<% } %></p><span class="btn">立即注册 ›</span></a>
   <% } %>
   <nav class="ents" aria-label="快捷入口">
     <a class="ent" href="/me/points"><b><%- pic('icon-signin') %></b>每日签到</a>
@@ -17,13 +19,12 @@
     <a class="ent" href="/me/cloud"><b><%- pic('icon-vip') %></b>云商会员</a>
   </nav>
 </div>
-<h2 class="orn"><svg width="70" height="14" viewBox="0 0 70 14" aria-hidden="true"><path d="M0 7h44" stroke="#c99236" stroke-width="1"/><path d="M46 7q5-6 10 0q5 6 10 0" fill="none" stroke="#c99236" stroke-width="1.5"/><circle cx="68" cy="7" r="2" fill="#c99236"/></svg>精选专区<svg style="transform:scaleX(-1)" width="70" height="14" viewBox="0 0 70 14" aria-hidden="true"><path d="M0 7h44" stroke="#c99236" stroke-width="1"/><path d="M46 7q5-6 10 0q5 6 10 0" fill="none" stroke="#c99236" stroke-width="1.5"/><circle cx="68" cy="7" r="2" fill="#c99236"/></svg></h2>
-<div class="bento">
-  <a class="bc b0" href="/products"><h3>全部商品</h3><p>精选好物 品质之选</p><span>进入专区 ›</span><%- pic('card-goods') %></a>
-  <a class="bc b1" href="/activity"><h3>活动专区</h3><p>主题活动 持续上新</p><%- pic('card-event') %></a>
-  <a class="bc b3" href="/me/cloud"><h3>云商卡</h3><p>会员权益 专属服务</p><%- pic('card-yunshang') %></a>
-</div>
-<div class="wide"><a class="bc" href="/points-mall"><h3>积分专区</h3><p>积分兑换 好礼相送</p><span>去兑换 ›</span><%- pic('card-points') %></a></div>
+<nav class="zones" aria-label="精选专区">
+  <a class="bc b0" href="/products"><h3>全部商品</h3><p>品质好物</p><%- pic('card-goods') %></a>
+  <a class="bc b1" href="/activity"><h3>活动专区</h3><p>持续上新</p><%- pic('card-event') %></a>
+  <a class="bc b2" href="/points-mall"><h3>积分专区</h3><p>好礼兑换</p><%- pic('card-points') %></a>
+  <a class="bc b3" href="/me/cloud"><h3>云商卡</h3><p>会员权益</p><%- pic('card-yunshang') %></a>
+</nav>
 <div class="svc"><div><i>退</i>7天无理由退货（鲜活易腐商品除外）</div><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
 <footer class="zq-foot"><nav><a href="/help">帮助中心</a><a href="/service">联系客服</a><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a></nav><div>© 2026 <%= shop.shop_name %><% if (shop.icp) { %> · <%= shop.icp %><% } %> · 本站为演示站点,支付为模拟支付</div></footer>
 <nav class="tab" aria-label="底部导航">
