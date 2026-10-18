@@ -33,6 +33,8 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.get('/terms'); ok(r.text.includes('鲜活易腐') && r.text.includes('不可提现'), '用户协议含七天无理由例外与积分不可提现');
   r = await shop.get('/'); ok(r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '页脚有隐私政策/用户协议链接');
   ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由退货（鲜活易腐商品除外）') && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
+  ok(r.text.includes('韵农甄选') && r.text.includes('<span class="seal">韵</span>') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页店名/印章/公告/页脚,无旧品牌名');
+  for (const u of ['/privacy', '/terms', '/notices', '/service', '/products']) { const x = await shop.get(u); ok(!x.text.includes('财哥商城'), '无旧品牌名:' + u); }
   await shop.get('/register');
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员' });
   ok(r.status === 200 && r.text.includes('请先阅读并勾选同意'), '未勾选协议注册被服务端拒绝');
@@ -156,7 +158,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/categories/save', { name: '测试分类', parent_id: '0', icon: '🧪', sort: '99', status: '1' }); ok(r.status === 302, '新增分类');
   r = await adm.post('/admin/coupons/save', { name: '测试券', amount: '5', threshold: '50', total: '10', per_limit: '1', valid_days: '7', category_id: '0', status: '1' }); ok(r.status === 302, '新增优惠券');
   r = await adm.post('/admin/seckills/save', { sku_id: '1', price: '1', stock: '5', start_at: '2030-01-01T10:00', end_at: '2030-01-01T12:00', limit_per_user: '1', status: '1' }); ok(r.status === 302, '新增秒杀');
-  r = await adm.post('/admin/settings', { shop_name: '财哥商城', slogan: '好货不贵,财源广进', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
+  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', slogan: '好货不贵,财源广进', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
   for (const p of ['/admin/orders/export', '/admin/orders/export?status=completed', '/admin/members/export', '/admin/export/products', '/admin/logs/export', '/admin/points-log/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
   // RBAC
   const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin/password'); await ops.post('/admin/password/skip'); await ops.get('/admin');
@@ -204,9 +206,9 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');
   r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '25', cloud_signin_extra_step: '2', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
   // 积分比例可配置,规则页同步
-  r = await adm.post('/admin/settings', { shop_name: '财哥商城', points_rate: '200', points_max_percent: '30', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
+  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', points_rate: '200', points_max_percent: '30', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
   r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '后台修改积分比例/上限后积分规则页同步');
-  await adm.post('/admin/settings', { shop_name: '财哥商城', points_rate: '100', points_max_percent: '50', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
+  await adm.post('/admin/settings', { shop_name: '韵农甄选', points_rate: '100', points_max_percent: '50', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
   // 违禁词
   r = await adm.get('/admin/banned-words'); ok(r.status === 200 && r.text.includes('躺赚') && r.text.includes('国家级'), '违禁词检查页(默认词表)');
   r = await adm.get('/admin/products/9/edit'); const pf = r.text;

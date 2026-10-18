@@ -89,6 +89,18 @@ svc.cloud.ensureDefaults();
       mark('v3_compliance');
     })();
   }
+  if (!done('brand_yunnong')) { // 品牌更名「财哥商城」→「韵农甄选」:只替换仍等于旧默认值的设置/文案,后台改过的不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      if (svc.S('shop_name') === T.BRAND_OLD) svc.setSetting('shop_name', T.BRAND_NEW);
+      if (svc.S('announcement') === T.OLD_ANNOUNCEMENT) svc.setSetting('announcement', svc.ANNOUNCEMENT);
+      db.exec1("UPDATE banners SET title=? WHERE title=?", T.BRAND_NEW + ' 开业大吉', T.BRAND_OLD + ' 开业大吉');
+      for (const [cat, ot, oc, nt, nc] of T.BRAND_ARTICLES) db.exec1('UPDATE articles SET title=?, content=? WHERE category=? AND title=? AND content=?', nt, nc, cat, ot, oc);
+      for (const [o, n] of T.BRAND_TEXT_EDITS) db.exec1('UPDATE articles SET content=REPLACE(content,?,?) WHERE instr(content,?)>0', o, n, o);
+      db.exec1("UPDATE traces SET text=REPLACE(text,'感谢您在财哥商城购物','感谢您在韵农甄选购物') WHERE instr(text,'感谢您在财哥商城购物')>0");
+      mark('brand_yunnong');
+    })();
+  }
 })();
 
 const app = express();
@@ -104,7 +116,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 app.get('/img/gen.svg', (req, res) => {
   const hex = s => /^[0-9a-fA-F]{6}$/.test(s) ? '#' + s : '#d4202a';
   const a = hex(req.query.a), b = hex(req.query.b), v = parseInt(req.query.v) || 0;
-  const t = U.esc(String(req.query.t || '财').slice(0, 4)), n = U.esc(String(req.query.n || '').slice(0, 14));
+  const t = U.esc(String(req.query.t || '韵').slice(0, 4)), n = U.esc(String(req.query.n || '').slice(0, 14));
   const angle = [[0, 0, 1, 1], [1, 0, 0, 1], [0, 1, 1, 0], [0.5, 0, 0.5, 1]][v % 4];
   const shapes = [
     `<circle cx="520" cy="120" r="170" fill="#fff" opacity=".13"/><circle cx="90" cy="520" r="130" fill="#fff" opacity=".1"/>`,
@@ -115,7 +127,7 @@ app.get('/img/gen.svg', (req, res) => {
   res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${shapes}<text x="300" y="${n ? 330 : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="#fff">${t}</text>${n ? `<text x="300" y="500" font-size="44" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".95">${n}</text>` : ''}<text x="580" y="585" font-size="22" text-anchor="end" font-family="sans-serif" fill="#fff" opacity=".55">CAIGE MALL</text></svg>`);
 });
-app.get('/favicon.ico', (req, res) => res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#d4202a"/><text x="32" y="46" font-size="38" font-weight="700" text-anchor="middle" fill="#f9d66b" font-family="Noto Sans CJK SC,sans-serif">财</text></svg>`));
+app.get('/favicon.ico', (req, res) => res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#d4202a"/><text x="32" y="46" font-size="38" font-weight="700" text-anchor="middle" fill="#f9d66b" font-family="Noto Sans CJK SC,sans-serif">韵</text></svg>`));
 
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
@@ -231,5 +243,5 @@ app.use((err, req, res, next) => { console.error(err); if (res.headersSent) retu
 setInterval(svc.sweep, 60000).unref(); svc.sweep();
 // 供应商定时任务:待推送订单、状态轮询兜底(回调只推一次不重试)、价格/可售定时刷新
 setInterval(() => jdvop.tick(), Math.max(5000, U.int(process.env.JDVOP_TICK_MS, 60000))).unref();
-if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 财哥商城已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e))); });
+if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 韵农甄选(caige-mall)已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e))); });
 module.exports = app;

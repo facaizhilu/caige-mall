@@ -1,7 +1,7 @@
 {
   "name": "caige-mall",
   "version": "1.0.0",
-  "description": "财哥商城 - 中文电商演示站",
+  "description": "韵农甄选 - 中文电商演示站",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

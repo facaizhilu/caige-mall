@@ -18,7 +18,7 @@
 </div></div>
 <% if (shop.announcement) { %><div class="notice-bar"><%= shop.announcement %></div><% } %>
 <header class="header"><div class="wrap">
-  <a class="logo" href="/" aria-label="首页"><i>财</i><span><%= shop.shop_name %><small><%= shop.slogan %></small></span></a>
+  <a class="logo" href="/" aria-label="首页"><i>韵</i><span><%= shop.shop_name %><small><%= shop.slogan %></small></span></a>
   <div class="search">
     <form action="/products" method="get"><input name="q" type="search" enterkeyhint="search" autocomplete="off" aria-label="搜索商品" value="<%= (typeof q==='string')?q:'' %>" placeholder="搜索商品、品牌,例如:手机" maxlength="40"><button>搜 索</button></form>
     <div class="hotwords">热搜:<% hotWords.forEach(w=>{ %><a href="/products?q=<%= encodeURIComponent(w) %>"><%= w %></a><% }) %></div>

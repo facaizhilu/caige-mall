@@ -1,4 +1,4 @@
-# 财哥商城 · Caige Mall
+# 韵农甄选 · Caige Mall
 
 一个功能完整的中文电商演示站(前台商城 + 独立管理后台)。
 技术栈:**Node.js + Express + SQLite(better-sqlite3)+ EJS 服务端渲染**,纯手写 CSS(红金配色、响应式),无前端构建步骤。
