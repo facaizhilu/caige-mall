@@ -34,6 +34,9 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.get('/'); ok(r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '页脚有隐私政策/用户协议链接');
   ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由退货（鲜活易腐商品除外）') && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
   ok(r.text.includes('韵农甄选') && r.text.includes('<span class="seal">韵</span>') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页店名/印章/公告/页脚,无旧品牌名');
+  { const n = (r.text.match(/class="bnr-s/g) || []).length; const bt = (r.text.match(/<div class="hero bnr"[\s\S]*?<nav class="ents"/) || [''])[0];
+    ok(n >= 2 && n <= 3 && r.text.includes('class="bnr-d"') && /home\.css\?v=8/.test(r.text) && /home\.js\?v=8/.test(r.text), '首页横幅轮播(' + n + ' 张演示 Banner,带圆点)');
+    ok(bt && !/京东|财哥|倒计时|已售|销量|限时|仅剩/.test(bt) && [...bt.matchAll(/href="([^"]*)"/g)].every(m => /^\/(?!\/)/.test(m[1])) && [...bt.matchAll(/<img class="bnr-i" src="([^"]+)"[^>]*width="\d+" height="\d+"/g)].length === n, '演示 Banner 合规:无外部平台/倒计时/销量文案,仅站内链接,图片带宽高'); }
   { const ids = [...r.text.matchAll(/class="pk" href="\/product\/(\d+)"/g)].map(m => m[1]);
     ok(r.text.includes('好物精选') && /href="\/products">更多 ›<\/a>/.test(r.text) && ids.length >= 3 && !r.text.includes('示例商品'), '首页「好物精选」展示真实商品(' + ids.length + ' 个)及「更多 ›」');
     ok(!/已售|销量|月销|已抢|京东价|<del|<s>/.test(r.text) && /class="pk-p">¥\d/.test(r.text), '首页商品仅显示本店价,无销量/划线价');

@@ -114,3 +114,20 @@ a{color:inherit;text-decoration:none}
 @media (max-height:600px){.ents{padding-bottom:14px}}
 @media (min-height:740px){.ents{padding-bottom:20px}}
 @media (min-height:900px){.ents{padding-bottom:18px}}
+/* —— v8:首页横幅轮播(后台「Banner 管理」启用项,按排序);占用原横幅同一位置与高度档位,无启用 Banner 时回退为固定横幅 —— */
+.hero.bnr{padding:0;align-items:stretch;justify-content:flex-start;background:#3a0605;touch-action:pan-y;-webkit-tap-highlight-color:transparent}
+.hero.bnr:before{display:none}
+.hero.bnr>.bnr-t{flex:1 0 auto;max-width:none;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);overflow:hidden}
+.bnr-s{grid-area:1/1;position:relative;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;min-width:0;overflow:hidden;padding:10px 14px;color:#FBE3B0;transform:translate3d(0,0,0);transition:transform .45s cubic-bezier(.22,.7,.2,1);will-change:transform;-webkit-backface-visibility:hidden;backface-visibility:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.bnr-s.off{visibility:hidden;transform:translate3d(100%,0,0)}
+.bnr-s:after{content:"";position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;background:linear-gradient(90deg,#2a0302d9 0,#3a0605a0 45%,transparent 70%);pointer-events:none}
+.bnr-s>*{position:relative;z-index:2;flex:none;max-width:64%}
+.bnr-s>.bnr-i{position:absolute;z-index:0;top:0;left:0;width:100%;height:100%;max-width:none;object-fit:cover;object-position:75% 50%;pointer-events:none;-webkit-user-drag:none}
+.hero.bnr>.bnr-d{position:absolute;z-index:3;right:6px;bottom:2px;max-width:none;display:flex}
+.bnr-d button{display:flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;background:none;cursor:pointer}
+.bnr-d button:before{content:"";display:block;width:6px;height:6px;border-radius:3px;background:#fbe3b08c;transition:width .3s}
+.bnr-d button.on:before{width:14px;background:#f6d48a}
+@media (max-height:700px){.bnr-s{padding:7px 14px}}
+@media (min-height:740px){.bnr-s{padding:12px 18px}}
+@media (max-height:600px){.bnr-s{padding:6px 12px}}
+@media (prefers-reduced-motion:reduce){.bnr-s,.bnr-d button:before{transition:none}}

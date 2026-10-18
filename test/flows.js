@@ -501,7 +501,31 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const bn = db.get('SELECT id FROM banners LIMIT 1'); r = await adm.req('POST', `/admin/banners/${bn.id}/toggle`, { _csrf: adm.t }, {}); await adm.get('/admin/banners');
     const rr = await fetch(base + `/admin/banners/${bn.id}/toggle`, { method: 'POST', redirect: 'manual', headers: { Cookie: Object.entries(adm.k).map(([x, y]) => x + '=' + y).join('; '), 'Content-Type': 'application/x-www-form-urlencoded', Referer: 'https://evil.example/admin/x' }, body: '_csrf=' + adm.t });
     ok(rr.headers.get('location') === '/admin/banners', '开关切换忽略站外 Referer', rr.headers.get('location'));
-    r = await adm.get('/admin/banners'); ok(r.text.includes('不读取此处的 Banner'), 'Banner 列表提示当前首页未使用 Banner');
+    // 10) 首页横幅轮播:读取后台启用的 Banner(按排序);仅一张时无圆点;全部停用时回退固定横幅;链接只允许站内相对路径
+    r = await adm.get('/admin/banners'); ok(r.status === 200 && !r.text.includes('不读取此处的 Banner') && !r.text.includes('暂不在前台展示'), 'Banner 列表不再提示「首页未使用 Banner」');
+    { const anon = new C(); const home = async () => (await anon.get('/')).text;
+      const titles = t => [...t.matchAll(/class="bnr-s[^"]*"[\s\S]*?<h2>([^<]*)<\/h2>/g)].map(m => m[1]);
+      const en = db.all('SELECT title FROM banners WHERE status=1 ORDER BY sort, id').map(x => x.title);
+      let t = await home(); ok(en.length >= 2 && t.includes('class="hero bnr"') && t.includes(`data-n="${en.length}"`) && JSON.stringify(titles(t)) === JSON.stringify(en) && (t.match(/<button type="button"[^>]*aria-label="第 \d+ 张"/g) || []).length === en.length, '首页轮播展示全部启用 Banner(按排序)及圆点', titles(t));
+      ok(/\/static\/js\/home\.js\?v=\d+/.test(t) && !t.includes('home.css?v=7'), '首页引入轮播脚本,样式版本号已更新');
+      await adm.get('/admin/banners/new');
+      for (const bad of ['https://evil.example/x', 'http://evil.example', '//evil.example/x', '/\\evil.example', 'javascript:alert(1)', 'products']) {
+        r = await adm.post('/admin/banners/save', { title: '外链测试', subtitle: '', image: '', link: bad, bg1: '#d4202a', bg2: '#f2a93b', sort: '9', status: '1' });
+        ok(r.status === 200 && r.text.includes('仅支持站内相对路径') && !db.get("SELECT 1 FROM banners WHERE title='外链测试'"), 'Banner 保存拒绝非站内链接 ' + bad, r.status);
+      }
+      r = await adm.post('/admin/banners/save', { title: '站内链接测试', subtitle: '副标题', image: '', link: '/product/1?from=banner', bg1: '#d4202a', bg2: '#f2a93b', sort: '98', status: '1' }); ok(r.status === 302 && db.get("SELECT 1 FROM banners WHERE title='站内链接测试'"), 'Banner 保存接受站内相对链接');
+      r = await adm.post('/admin/banners/save', { title: '无链接测试', subtitle: '', image: '', link: '', bg1: '#d4202a', bg2: '#f2a93b', sort: '99', status: '1' }); ok(r.status === 302 && db.get("SELECT link FROM banners WHERE title='无链接测试'").link === '', 'Banner 链接可留空');
+      db.prepare("INSERT INTO banners(title,subtitle,link,bg1,bg2,sort,status) VALUES('旧外链测试','','https://evil.example','#d4202a','#f2a93b',100,1)").run();
+      t = await home(); ok(/<div class="bnr-s[^"]*"[^>]*>[\s\S]*?<h2>无链接测试<\/h2>(?:(?!<\/div>)[\s\S])*?<\/div>/.test(t) && !/<h2>无链接测试<\/h2>[^<]*<span class="btn"/.test(t), '无链接 Banner 渲染为不可点击且无按钮');
+      ok(!t.includes('evil.example') && t.includes('<h2>旧外链测试</h2>') && t.includes('href="/product/1?from=banner"'), '旧数据中的外部链接不输出到首页');
+      db.prepare("DELETE FROM banners WHERE title IN ('站内链接测试','无链接测试','旧外链测试')").run();
+      const keep = db.get('SELECT id FROM banners WHERE status=1 ORDER BY sort, id LIMIT 1').id, saved = db.all('SELECT id, status FROM banners');
+      db.prepare('UPDATE banners SET status=CASE WHEN id=? THEN 1 ELSE 0 END').run(keep);
+      t = await home(); ok(t.includes('class="hero bnr"') && !t.includes('data-n=') && !t.includes('class="bnr-d"') && (t.match(/class="bnr-s/g) || []).length === 1, '仅一个启用 Banner:单张展示,无圆点/轮播');
+      db.prepare('UPDATE banners SET status=0').run();
+      t = await home(); ok(!t.includes('bnr') && t.includes('<a class="hero" href="/register">') && t.includes('新人注册有礼'), '无启用 Banner:回退为固定横幅');
+      const st = db.prepare('UPDATE banners SET status=? WHERE id=?'); saved.forEach(x => st.run(x.status, x.id));
+      t = await home(); ok(titles(t).length === en.length, 'Banner 状态已恢复'); }
   }
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);

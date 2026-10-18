@@ -101,6 +101,17 @@ svc.cloud.ensureDefaults();
       mark('brand_yunnong');
     })();
   }
+  if (!done('home_carousel_banners')) { // 首页恢复轮播:旧库若仍是未改动过的旧默认 Banner(无图片),替换为合规演示 Banner;后台已改动过的不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      const rows = db.all('SELECT title, image FROM banners');
+      if (rows.length && rows.every(b => !b.image && T.OLD_SEED_BANNER_TITLES.includes(b.title))) {
+        db.exec1('DELETE FROM banners');
+        T.DEMO_BANNERS.forEach((b, i) => db.prepare('INSERT INTO banners(title,subtitle,image,link,bg1,bg2,sort,status) VALUES(?,?,?,?,?,?,?,1)').run(b.title, b.subtitle, b.image, b.link, b.bg1, b.bg2, i));
+      }
+      mark('home_carousel_banners');
+    })();
+  }
 })();
 
 const app = express();
