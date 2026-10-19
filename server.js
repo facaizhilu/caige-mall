@@ -220,6 +220,15 @@ svc.cloud.ensureDefaults();
       mark('brand_nanshanju_20261020');
     })();
   }
+  if (!done('bot_sender_24h_20261020')) { // 演示种子的「24 小时发货」提示属于自动回复,不是人工客服
+    db.exec1("UPDATE messages SET sender='bot' WHERE sender='staff' AND content='您好,订单将在24小时内为您安排发货哦~'");
+    mark('bot_sender_24h_20261020');
+  }
+  if (!done('policy_v12_svc_images')) { // 隐私政策增加「售后图片」条目;仅替换仍为原文的段落,有改动时协议版本 +0.1,老用户下次登录重新确认
+    const n = require('./lib/policies').applyV12Edits(db), m = String(svc.S('policy_version') || '1.1').match(/^(\d+)\.(\d+)$/);
+    if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('隐私政策已修订(售后图片),版本号提升为 v' + svc.S('policy_version')); }
+    mark('policy_v12_svc_images');
+  }
   if (!done('demo_plain_names_20261020')) { // 去除全部虚构演示品牌:自营演示商品/积分商品名去品牌前缀(仅匹配原种子默认名),品牌统一「韵农甄选」,生成图文字同步;供应商商品不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {

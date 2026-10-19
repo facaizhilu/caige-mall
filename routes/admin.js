@@ -662,7 +662,7 @@ module.exports = function (r, { filesOf }) {
       const canCreate = ['paid', 'shipped', 'completed'].includes(o.status) && o.type !== 'points' && !active;
       return { ...o, items, active, refunded, maxAmount: round2(Math.max(0, o.pay_amount - refunded)), noReason, daysSince, can7, canCreate };
     }) : [];
-    res.page('admin/service', { title: '客服中心', convs, cur, orders, days, msgs: cur ? db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', cur.id) : [] });
+    res.page('admin/service', { title: '客服中心', convs, cur, orders, days, msgs: cur ? db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', cur.id).map(require('../lib/chat').parse).map(m => m.kind === 'order' && m.data ? { ...m, order: db.get('SELECT id, order_no, status, pay_amount FROM orders WHERE id=? AND user_id=?', int(m.data.id), cur.id) } : m) : [] });
   });
   // 客服/订单详情页为用户创建售后单(售后统一由工作人员发起)
   const createAftersale = (req, o, b) => {
@@ -713,7 +713,21 @@ module.exports = function (r, { filesOf }) {
     if (!x.ok) { flash(req, 'error', x.msg); return res.redirect('/admin/orders/' + int(req.params.id) + '#aftersale'); }
     flash(req, 'success', `售后单 #${x.id} 已创建并通知用户`); res.redirect('/admin/aftersales/' + x.id);
   });
-  r.post('/service/:uid/reply', need('service'), (req, res) => { const c = String(req.body.content || '').trim().slice(0, 500); if (c && db.get('SELECT 1 FROM users WHERE id=?', int(req.params.uid))) { db.exec1("INSERT INTO messages(user_id,sender,content,created_at) VALUES(?,?,?,?)", int(req.params.uid), 'staff', c, now()); log(req, '客服回复', '#' + req.params.uid); } res.redirect('/admin/service?uid=' + int(req.params.uid)); });
+  r.post('/service/:uid/reply', need('service'), (req, res) => {
+    const uid = int(req.params.uid), c = String(req.body.content || '').trim().slice(0, 500), chat = require('../lib/chat'), fs = require('fs');
+    const files = (req.files || []).filter(f => f.fieldname === 'images');
+    const back = () => res.redirect('/admin/service?uid=' + uid);
+    const drop = () => files.forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+    if (!db.get('SELECT 1 FROM users WHERE id=?', uid)) { drop(); return back(); }
+    if (files.length) {
+      const bufs = files.map(f => fs.readFileSync(f.path)); drop();
+      const x = chat.saveImages(bufs); if (!x.ok) { flash(req, 'error', x.msg); return back(); }
+      chat.addMessage(uid, 'staff', 'image', `[图片×${x.urls.length}]`, { images: x.urls });
+    }
+    if (c) chat.addMessage(uid, 'staff', 'text', c);
+    if (c || files.length) log(req, '客服回复', '#' + uid + (files.length ? ' 图片×' + files.length : ''));
+    back();
+  });
 
   // ================= 统计报表 =================
   r.get('/stats', need('stats'), (req, res) => {
@@ -741,7 +755,7 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
     const numeric = ['signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];

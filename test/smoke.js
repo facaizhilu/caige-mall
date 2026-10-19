@@ -29,7 +29,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok((await shop.get('/cart')).status === 302, '未登录访问购物车跳转登录');
   let r = await shop.get('/register');
   ok(r.text.includes('name="agree"') && !/name="agree"[^>]*checked/.test(r.text) && r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '注册页:协议勾选框默认未勾选且有链接');
-  r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会访问您的相册') && r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(不访问相册、占位符、版本号)');
+  r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会在后台访问') && r.text.includes('售后图片') && r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(仅主动选图、售后图片、占位符、版本号)');
   r = await shop.get('/terms'); ok(r.text.includes('鲜活易腐') && r.text.includes('不可提现'), '用户协议含七天无理由例外与积分不可提现');
   r = await shop.get('/'); { const ft = (r.text.match(/<footer class="zq-foot">([\s\S]*?)<\/footer>/) || [])[1] || ''; ok(ft && !/href="\/(help|service|terms|privacy)"/.test(ft) && !ft.includes('<nav') && /© 2026 韵农甄选 · 琼ICP备00000000号\(演示\)/.test(ft) && !ft.includes('演示站点') && !r.text.includes('粤ICP'), '首页页脚仅一行 ©+备案号(无帮助/客服/协议/隐私链接,无演示站点长句)'); }
   { const pg = await shop.get('/products'); ok(pg.text.includes('href="/privacy"') && pg.text.includes('href="/terms"') && pg.text.includes('本站为演示站点'), '其他页面页脚仍有隐私政策/用户协议链接与演示说明'); }
@@ -127,7 +127,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/order/' + oid2 + '/pay', { method: 'wechat' }); r = await shop.get('/order/' + oid2); ok(r.text.includes('待发货'), '模拟微信支付成功');
   r = await shop.get('/order/' + oid2); ok(r.text.includes('联系客服申请售后') && !r.text.includes('申请退款/退货'), '订单详情:联系客服申请售后按钮');
   r = await shop.post('/order/' + oid2 + '/aftersale'); ok(r.loc === '/service#end', '点击后跳转客服');
-  r = await shop.get('/service'); ok(r.text.includes('我要申请售后:订单号') && !r.text.includes('type="file"'), '自动发送售后消息,客服为纯文字');
+  r = await shop.get('/service'); ok(r.text.includes('我要申请售后:订单号') && r.text.includes('accept="image/*"'), '自动发送售后消息,客服支持发送图片');
   r = await shop.post('/order/' + oid2 + '/aftersale', { type: 'refund', reason: 'x' }); ok(!(await shop.get('/aftersales')).text.includes('/aftersale/'), '前台不能直接创建售后单');
   const suid = (await adm.get('/admin/members?q=' + phone)).text.match(/\/admin\/members\/(\d+)/)[1];
   r = await adm.get('/admin/service?uid=' + suid); ok(r.text.includes('创建售后单') && r.text.includes('我要申请售后') && r.text.includes('质量问题退换货'), '后台客服会话展示订单与创建售后单');

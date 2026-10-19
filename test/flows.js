@@ -4,7 +4,7 @@ const db = require('../lib/db');
 let pass = 0, fail = 0;
 const ok = (c, n, x) => { c ? (pass++, console.log('  ✔', n)) : (fail++, console.log('  ✘', n, x || '')); };
 class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
-  async req(m, p, body, o = {}) { const h = { Cookie: Object.entries(this.k).map(([a, b]) => a + '=' + b).join('; ') }; let b; if (body && !o.form) { b = new URLSearchParams({ _csrf: this.t, ...body }).toString(); h['Content-Type'] = 'application/x-www-form-urlencoded'; } if (o.form) { body.append('_csrf', this.t); b = body; } if (o.json) h.Accept = 'application/json';
+  async req(m, p, body, o = {}) { const h = { Cookie: Object.entries(this.k).map(([a, b]) => a + '=' + b).join('; ') }; let b; if (body && !o.form) { b = new URLSearchParams({ _csrf: this.t, ...body }).toString(); h['Content-Type'] = 'application/x-www-form-urlencoded'; } if (o.form) { body.append('_csrf', this.t); b = body; } if (o.json) h.Accept = 'application/json'; if (o.h) Object.assign(h, o.h);
     const r = await fetch(this.b + p, { method: m, headers: h, body: b, redirect: 'manual' }); for (const c of r.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); this.k[kv.slice(0, i)] = kv.slice(i + 1); }
     const text = await r.text(); const mm = text.match(/name="csrf" content="([0-9a-f]+)"/) || text.match(/name="_csrf" value="([0-9a-f]+)"/); if (mm) this.t = mm[1]; return { status: r.status, loc: r.headers.get('location'), text }; }
   get(p) { return this.req('GET', p); } post(p, b, o) { return this.req('POST', p, b || {}, o); }
@@ -403,7 +403,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const sold = db.get('SELECT id FROM products WHERE status=1 AND sales>0 ORDER BY sales DESC LIMIT 1'), zero = db.get('SELECT id FROM products WHERE status=1 AND sales=0 LIMIT 1');
     for (const u of ['/', '/products', '/products?sort=sales', '/product/' + sold.id]) { r = await a.get(u); ok(!r.text.includes('已售'), '关闭时不显示已售:' + u); }
     const st = await adm.get('/admin/settings'); ok(st.text.includes('前台显示销量'), '站点设置含「前台显示销量」');
-    const form = {}; for (const m of st.text.matchAll(/<input[^>]*name="([a-z_]+)"[^>]*value="([^"]*)"/g)) form[m[1]] = m[2]; delete form._csrf;
+    const form = {}; for (const m of st.text.matchAll(/<input[^>]*name="([a-z_]+)"[^>]*value="([^"]*)"/g)) form[m[1]] = m[2]; for (const m of st.text.matchAll(/<textarea[^>]*name="([a-z_]+)"[^>]*>([^<]*)<\/textarea>/g)) form[m[1]] = m[2].replace(/&#10;/g, '\n'); delete form._csrf;
     await adm.post('/admin/settings', { ...form, show_sales: '1' });
     r = await a.get('/product/' + sold.id); ok(r.text.includes('已售 ' + db.get('SELECT sales FROM products WHERE id=?', sold.id).sales + ' 件'), '开启后显示真实销量');
     if (zero) { r = await a.get('/product/' + zero.id); ok(!r.text.includes('<dt>销量</dt>') && !r.text.includes('已售 0'), '销量为 0 时不显示'); }
@@ -630,7 +630,45 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok(/no-store/.test((sraw && sraw.headers.get('cache-control')) || ''), '前台 HTML 不缓存(避免返回缓存显示未登录旧页)');
     ok(x.text.includes('class="me-kf" data-mp-open-type="contact" href="/service"'), '「我的」常用功能含「在线客服」入口');
     x = await b.get('/product/9'); ok(x.text.includes('class="pd-kf"') && x.text.includes('data-mp-open-type="contact"'), '商品详情底栏「客服」入口(含小程序 open-type=contact 预留)');
-    x = await b.get('/service'); ok(x.text.includes('400-888-6666(演示)') && x.text.includes('yunnong-kefu(演示)') && x.text.includes('id="chat"'), '联系客服页:电话/微信号(演示)+在线对话');
+    x = await b.get('/service'); ok(x.text.includes('400-888-6666(演示)') && x.text.includes('yunnong-kefu(演示)') && x.text.includes('id="chatList"') && x.text.includes('class="chat-bar"'), '联系客服页:电话/微信号(演示)+在线对话');
+    // 在线客服:图片上传(有效/超限/错误类型/超过 3 张/未登录)、订单卡片、管理员图片回复、180 天自动删除
+    { const chat = require('../lib/chat'), fs = require('fs'), path = require('path');
+      const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+      const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 1), Buffer.from([0xff, 0xd9])]);
+      const fd = (...bufs) => { const f = new FormData(); bufs.forEach((x, i) => f.append('images', new Blob([x.b], { type: x.t || 'image/png' }), x.n || 'a' + i + '.png')); return f; };
+      const bid = db.get("SELECT id FROM users WHERE phone='13800000003'").id;
+      await b.get('/service'); const H = { 'x-csrf-token': b.t, 'X-Requested-With': 'fetch' };
+      const n0 = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND kind='image'", bid).n;
+      let y = await b.req('POST', '/service/image', fd({ b: PNG }, { b: JPG, t: 'image/jpeg', n: 'b.jpg' }), { form: true, json: true, h: H });
+      const im = db.get("SELECT * FROM messages WHERE user_id=? AND kind='image' ORDER BY id DESC LIMIT 1", bid); const urls = im ? JSON.parse(im.payload).images : [];
+      ok(y.status === 200 && urls.length === 2 && urls.every(u => fs.existsSync(path.join(__dirname, '..', 'public', u.replace(/^\/static\//, '').replace(/^\//, ''))) || fs.existsSync(path.join(chat.DIR, path.basename(u)))), '客服:上传有效 PNG/JPEG 图片(保存至 uploads)', y.status + y.text.slice(0, 80));
+      y = await b.req('POST', '/service/image', fd({ b: Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024 + 10)]) }), { form: true, json: true, h: H }); ok(y.status === 413 && y.text.includes('5MB'), '客服:单张超过 5MB 被拒(413)', y.status);
+      y = await b.req('POST', '/service/image', fd({ b: Buffer.from('hello, not an image'), n: 'fake.png' }), { form: true, json: true, h: H }); ok(y.status === 400 && y.text.includes('仅支持'), '客服:伪装扩展名的非图片被拒(校验文件头)', y.status);
+      y = await b.req('POST', '/service/image', fd({ b: PNG }, { b: PNG }, { b: PNG }, { b: PNG }), { form: true, json: true, h: H }); ok(y.status === 400 && y.text.includes('3 张'), '客服:一次超过 3 张被拒', y.status);
+      ok(db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND kind='image'", bid).n === n0 + 1, '客服:被拒的上传不产生消息');
+      const anon = new C(); await anon.get('/service'); y = await anon.req('POST', '/service/image', fd({ b: PNG }), { form: true, json: true, h: { 'x-csrf-token': anon.t } }); ok(y.status === 403, '客服:未登录不可上传图片', y.status);
+      y = await b.req('POST', '/service/image', fd({ b: PNG }), { form: true, json: true, h: { 'X-Requested-With': 'fetch' } }); ok(y.status === 403, '客服:无 CSRF 令牌的上传被拒', y.status);
+      const myo = db.get('SELECT id, order_no FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 1', bid), other = db.get('SELECT id FROM orders WHERE user_id<>? LIMIT 1', bid);
+      if (myo) { y = await b.req('POST', '/service/order', { order_id: String(myo.id) }, { json: true, h: H }); x = await b.get('/service'); ok(y.status === 200 && x.text.includes('class="cord"') && x.text.includes(myo.order_no), '客服:发送订单卡片', y.status); }
+      if (other) { const k = db.get("SELECT COUNT(*) n FROM messages WHERE kind='order'").n; await b.req('POST', '/service/order', { order_id: String(other.id) }, { json: true, h: H }); ok(db.get("SELECT COUNT(*) n FROM messages WHERE kind='order'").n === k, '客服:不能发送他人订单'); }
+      x = await b.get('/service'); ok(x.text.includes('自动回复') && x.text.includes('cimg') && x.text.includes('chip-q'), '客服页:自动回复标签/图片缩略图/快捷问题', [x.text.includes('自动回复'), x.text.includes('cimg'), x.text.includes('chip-q'), x.status]);
+      ok(db.get("SELECT COUNT(*) n FROM messages WHERE sender='staff' AND content='您好,订单将在24小时内为您安排发货哦~'").n === 0, '「24 小时发货」提示按自动回复(bot)发送');
+      const af = new FormData(); af.append('content', '收到图片,已为您登记'); af.append('images', new Blob([PNG], { type: 'image/png' }), 'r.png');
+      await adm.get('/admin/service?uid=' + bid); y = await adm.req('POST', '/admin/service/' + bid + '/reply', af, { form: true });
+      const sm = db.get("SELECT * FROM messages WHERE user_id=? AND sender='staff' AND kind='image' ORDER BY id DESC LIMIT 1", bid);
+      x = await adm.get('/admin/service?uid=' + bid); ok(y.status === 302 && sm && JSON.parse(sm.payload).images.length === 1 && x.text.includes(JSON.parse(sm.payload).images[0]) && x.text.includes('自动回复') && (!myo || x.text.includes('/admin/orders/' + myo.id)), '管理员:图片回复 + 后台显示会员图片/订单卡片链接', y.status);
+      const bf = new FormData(); bf.append('images', new Blob([Buffer.from('nope')], { type: 'image/png' }), 'x.png'); const k2 = db.get('SELECT COUNT(*) n FROM messages').n;
+      await adm.req('POST', '/admin/service/' + bid + '/reply', bf, { form: true }); ok(db.get('SELECT COUNT(*) n FROM messages').n === k2, '管理员:非图片文件回复被拒');
+      // 180 天保存期:最后一条消息超过 180 天的会话图片被删除,近期会话保留
+      const old = db.get("SELECT id FROM users WHERE id<>? ORDER BY id LIMIT 1", bid).id, sv = chat.saveImages([PNG]);
+      db.exec1('DELETE FROM messages WHERE user_id=?', old);
+      db.exec1("INSERT INTO messages (user_id, sender, kind, content, payload, created_at) VALUES (?, 'user', 'image', '[图片×1]', ?, ?)", old, JSON.stringify({ images: sv.urls }), require('../lib/util').offset(-181 * 86400000));
+      const fp = path.join(chat.DIR, path.basename(sv.urls[0])); const had = fs.existsSync(fp);
+      chat.purgeImages();
+      const om = db.get('SELECT * FROM messages WHERE user_id=?', old), rm2 = db.get('SELECT payload FROM messages WHERE id=?', im.id);
+      ok(had && !fs.existsSync(fp) && om.payload === null && rm2.payload && fs.existsSync(path.join(chat.DIR, path.basename(urls[0]))), '客服图片:会话结束 180 天后自动删除,近期会话保留');
+      x = await b.get('/privacy'); ok(x.text.includes('售后图片'), '隐私政策含「售后图片」条目');
+    }
   }
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);

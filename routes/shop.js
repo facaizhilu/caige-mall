@@ -701,14 +701,58 @@ module.exports = function (app, { filesOf }) {
   app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));
   // 积分规则(公开页面,数值随后台配置自动更新)
   app.get('/points-rules', (req, res) => showArticle(db.get("SELECT * FROM articles WHERE topic='points_rules' AND status=1 ORDER BY id LIMIT 1"), res));
+  // ---------------- 在线客服(微信风格会话:文字/图片/订单卡片) ----------------
+  const chat = require('../lib/chat');
+  const chatItems = uid => {
+    const rows = db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', uid).map(chat.parse);
+    let prev = null; const today = U.today(), yr = today.slice(0, 4);
+    return rows.map(m => {
+      const t = U.parseDate ? U.parseDate(m.created_at) : new Date(m.created_at.replace(' ', 'T'));
+      const gap = !prev || (t - prev) > 5 * 60000; prev = t;
+      const d = m.created_at, hm = d.slice(11, 16);
+      const divider = gap ? (d.slice(0, 10) === today ? hm : d.slice(0, 4) === yr ? `${+d.slice(5, 7)}月${+d.slice(8, 10)}日 ${hm}` : `${d.slice(0, 4)}年${+d.slice(5, 7)}月${+d.slice(8, 10)}日 ${hm}`) : '';
+      if (m.kind === 'order' && m.data && m.data.id) {
+        const o = db.get('SELECT * FROM orders WHERE id=? AND user_id=?', int(m.data.id), uid);
+        m.order = o ? { ...o, item: db.get('SELECT * FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', o.id), n: db.get('SELECT COALESCE(SUM(qty),0) n FROM order_items WHERE order_id=?', o.id).n } : null;
+      }
+      return { ...m, divider };
+    });
+  };
+  const quickQs = () => String(svc.S('service_quick_questions') || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean).slice(0, 6);
   app.get('/service', (req, res) => {
-    let msgs = [];
-    if (req.user) { msgs = db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', req.user.id); db.exec1("UPDATE messages SET is_read=1 WHERE user_id=? AND sender IN ('staff','bot')", req.user.id); }
-    res.page('shop/service', { title: '联系客服', msgs, faq: db.all("SELECT * FROM articles WHERE category='help' AND status=1 ORDER BY sort LIMIT 6") });
+    let items = [], orders = [];
+    if (req.user) {
+      items = chatItems(req.user.id); db.exec1("UPDATE messages SET is_read=1 WHERE user_id=? AND sender IN ('staff','bot','system')", req.user.id);
+      orders = db.all('SELECT id, order_no, status, pay_amount, created_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id).map(o => ({ ...o, item: db.get('SELECT name, image FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', o.id) }));
+    }
+    if (req.query.partial === '1') return res.render('shop/_chat-list', { items, user: req.user, shop: svc.settings(), ORDER_STATUS: U.ORDER_STATUS });
+    res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
   });
+  const chatDone = (req, res, ok, msg, code) => (req.xhr || wantsJson(req) || (req.headers['x-requested-with'] === 'fetch')) ? res.status(ok ? 200 : (code || 400)).json({ ok, msg }) : (ok ? res.redirect('/service#end') : (req.session.flash = { type: 'error', msg }, res.redirect('/service')));
   app.post('/service', needLogin, (req, res) => {
     const c = String(req.body.content || '').trim().slice(0, 500);
-    if (c) { svc.notifyService(req.user.id, 'user', c); db.exec1('INSERT INTO messages(user_id,sender,content,created_at,is_read) VALUES(?,?,?,?,1)', req.user.id, 'bot', '【智能助手】' + svc.botReply(c), now()); }
-    res.redirect('/service#end');
+    if (!c) return chatDone(req, res, false, '请输入内容');
+    chat.addMessage(req.user.id, 'user', 'text', c);
+    chat.addMessage(req.user.id, 'bot', 'text', svc.botReply(c)); // 自动回复(sender=bot,前台标「自动回复」)
+    chatDone(req, res, true);
+  });
+  // 图片:仅本路由接收 multipart(内存暂存,按文件头校验后落盘 /uploads/svc/);单张 ≤5MB,每次 ≤3 张
+  const svcUpload = require('multer')({ storage: require('multer').memoryStorage(), limits: { fileSize: chat.MAX_BYTES, files: chat.MAX_FILES + 1, fields: 5 } }).array('images', chat.MAX_FILES + 1);
+  app.post('/service/image', (req, res, next) => { if (!req.user) return res.status(403).json({ ok: false, msg: '请先登录' }); next(); }, (req, res) => {
+    svcUpload(req, res, err => {
+      if (err) return chatDone(req, res, false, err.code === 'LIMIT_FILE_SIZE' ? '单张图片不能超过 5MB' : (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') ? `一次最多发送 ${chat.MAX_FILES} 张图片` : '上传失败', err.code === 'LIMIT_FILE_SIZE' ? 413 : 400);
+      const x = chat.saveImages((req.files || []).map(f => f.buffer));
+      if (!x.ok) return chatDone(req, res, false, x.msg, /5MB/.test(x.msg) ? 413 : 400);
+      chat.addMessage(req.user.id, 'user', 'image', `[图片×${x.urls.length}]`, { images: x.urls });
+      if (!db.get("SELECT 1 FROM messages WHERE user_id=? AND sender='bot' AND content LIKE '%已收到您的图片%' AND created_at>?", req.user.id, U.offset(-30 * 60000)))
+        chat.addMessage(req.user.id, 'bot', 'text', '已收到您的图片,客服核实后将尽快回复您。图片仅用于售后处理。');
+      chatDone(req, res, true);
+    });
+  });
+  app.post('/service/order', needLogin, (req, res) => {
+    const o = db.get('SELECT id, order_no FROM orders WHERE id=? AND user_id=?', int(req.body.order_id), req.user.id);
+    if (!o) return chatDone(req, res, false, '订单不存在');
+    chat.addMessage(req.user.id, 'user', 'order', `[订单] ${o.order_no}`, { id: o.id });
+    chatDone(req, res, true);
   });
 };

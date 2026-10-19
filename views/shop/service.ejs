@@ -1,10 +1,38 @@
-<div class="crumb"><a href="/">首页</a> › 联系客服</div>
-<div class="card kf-quick"><b>联系客服</b> <a href="tel:<%= shop.service_phone.replace(/[^0-9+]/g,'') %>">📞 <%= shop.service_phone %><%= shop.service_phone==='400-888-6666'?'(演示)':'' %></a><% if (shop.service_wechat) { %><span>💬 微信 <%= shop.service_wechat %><%= shop.service_wechat==='yunnong-kefu'?'(演示)':'' %></span><% } %></div>
-<div class="grid g2" style="grid-template-columns:2fr 1fr">
-<div class="card"><h3 style="margin-top:0">💬 在线客服 <span class="muted" style="font-size:12px">(<%= shop.service_hours %>,留言后智能助手即时回复常见问题,人工客服稍后回复)</span></h3>
-<% if(!user){ %><div class="empty"><div class="e">🔒</div>登录后可咨询客服<br><br><a class="btn primary" href="/login?next=/service">去登录</a></div><% } else { %>
-<div class="chat" id="chat"><div class="msg">您好,我是<%= shop.shop_name %>客服助手,请问有什么可以帮您?<small>系统</small></div><% msgs.forEach(m=>{ %><div class="msg <%= m.sender==='user'?'user':'' %>"><%= m.content %><small><%= m.created_at %><%= m.sender==='staff'?' · 人工客服':'' %></small></div><% }) %><span id="end"></span></div>
-<form method="post" action="/service" class="flex mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="content" placeholder="请输入您的问题…" required maxlength="500" autocomplete="off"><button class="btn primary" style="flex:none">发送</button></form>
-<script>var c=document.getElementById('chat');c.scrollTop=c.scrollHeight</script><% } %></div>
-<div><div class="card"><h3 style="margin-top:0">联系方式</h3><dl class="kv"><dt>热线</dt><dd><%= shop.service_phone %><%= shop.service_phone==='400-888-6666'?'(演示)':'' %></dd><% if (shop.service_wechat) { %><dt>微信</dt><dd><%= shop.service_wechat %><%= shop.service_wechat==='yunnong-kefu'?'(演示)':'' %></dd><% } %><dt>时间</dt><dd><%= shop.service_hours %></dd><dt>邮箱</dt><dd><%= shop.service_email %></dd><dt>地址</dt><dd><%= shop.address %></dd></dl></div>
-<div class="card mt"><h3 style="margin-top:0">常见问题</h3><% faq.forEach(a=>{ %><a style="display:block;padding:3px 0" href="/article/<%= a.id %>">· <%= a.title %></a><% }) %></div></div></div>
+<%# 在线客服(微信风格):全屏会话,底部固定输入栏(+ / 输入框 / 发送),快捷问题,图片与订单卡片;联系方式在会话顶部「联系方式」入口(不占右上角胶囊区) %>
+<div class="chatpg" id="chatpg">
+  <div class="chat-top"><span class="muted"><%= shop.service_hours %></span><button type="button" class="ct-link" id="ctBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>联系方式</button></div>
+  <div class="chat-list" id="chatList" aria-live="polite">
+    <% if (!user) { %><div class="cmsg left"><img class="cav" src="/static/img/badge-chip.svg?v=1" alt="" width="32" height="32"><div class="cbody"><div class="cname">自动回复</div><div class="cb">登录后即可咨询客服 <a href="/login?next=/service">去登录 ›</a></div></div></div>
+    <% } else { %><%- include('_chat-list', { items, user, shop, ORDER_STATUS }) %><% } %>
+  </div>
+  <% if (user && quick.length) { %><div class="chat-chips" id="chips"><% quick.forEach(q => { %><button type="button" class="chip-q" data-q="<%= q %>"><%= q %></button><% }) %></div><% } %>
+  <form class="chat-bar" id="chatBar" method="post" action="/service" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <%# 小程序端:可改为 <button open-type="contact"> 打开微信原生客服 %><button type="button" class="cb-plus" id="plusBtn" aria-label="更多:相册/拍照/订单" data-mp-open-type="contact"<%= user ? '' : ' disabled' %>><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v9M7.5 12h9"/></svg></button>
+    <textarea name="content" id="chatInput" rows="1" maxlength="500" placeholder="<%= user ? '请输入您的问题…' : '登录后可发送消息' %>" enterkeyhint="send"<%= user ? '' : ' disabled' %>></textarea>
+    <button class="cb-send" id="sendBtn"<%= user ? '' : ' disabled' %>>发送</button>
+  </form>
+</div>
+<input type="file" id="fAlbum" accept="image/*" multiple hidden>
+<input type="file" id="fCam" accept="image/*" capture="environment" hidden>
+<div class="sheet-bg" id="sheetBg" hidden></div>
+<div class="sheet" id="plusSheet" hidden role="dialog" aria-label="发送图片或订单">
+  <div class="sh-grid"><button type="button" data-act="album"><span>🖼️</span>相册</button><button type="button" data-act="camera"><span>📷</span>拍照</button><button type="button" data-act="order"><span>🧾</span>订单</button></div>
+  <button type="button" class="sh-cancel" data-close>取消</button>
+</div>
+<div class="sheet" id="orderSheet" hidden role="dialog" aria-label="选择订单">
+  <div class="sh-h">选择要发送的订单</div>
+  <div class="sh-list"><% if (!orders.length) { %><div class="muted" style="padding:16px;text-align:center">暂无订单</div><% } %><% orders.forEach(o => { %><button type="button" class="sh-ord" data-oid="<%= o.id %>"><% if (o.item && o.item.image) { %><img src="<%= o.item.image %>" alt="" width="44" height="44"><% } %><span class="so-t"><b><%= o.item ? o.item.name : o.order_no %></b><small><%= o.order_no %> · ¥<%= Number(o.pay_amount).toFixed(2) %> · <%= ORDER_STATUS[o.status] %></small></span></button><% }) %></div>
+  <button type="button" class="sh-cancel" data-close>取消</button>
+</div>
+<div class="sheet" id="ctSheet" hidden role="dialog" aria-label="联系方式">
+  <div class="sh-h">联系方式</div>
+  <dl class="kv sh-kv"><dt>热线</dt><dd><a href="tel:<%= shop.service_phone.replace(/[^0-9+]/g,'') %>"><%= shop.service_phone %></a><%= shop.service_phone==='400-888-6666'?'(演示)':'' %></dd><% if (shop.service_wechat) { %><dt>微信</dt><dd><%= shop.service_wechat %><%= shop.service_wechat==='yunnong-kefu'?'(演示)':'' %></dd><% } %><dt>时间</dt><dd><%= shop.service_hours %></dd><dt>邮箱</dt><dd><%= shop.service_email %></dd><dt>地址</dt><dd><%= shop.address %></dd></dl>
+  <button type="button" class="sh-cancel" data-close>关闭</button>
+</div>
+<div class="sheet" id="noticeSheet" hidden role="dialog" aria-label="图片使用说明">
+  <div class="sh-h">温馨提示</div><p class="sh-p">图片仅用于售后处理,会话结束 180 天后自动删除。</p>
+  <button type="button" class="sh-ok" id="noticeOk">知道了</button>
+</div>
+<div class="pv" id="pv" hidden><img alt="图片预览"></div>
+<script src="/static/js/chat.js?v=1" defer></script>
