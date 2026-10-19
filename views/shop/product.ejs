@@ -3,7 +3,7 @@
   <div class="gallery"><div class="main"><img id="mainImg" src="<%= images[0] || U.PLACEHOLDER %>" alt="" onerror="<%= U.IMG_FALLBACK %>"></div>
     <div class="thumbs"><% images.forEach((im,i)=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
   <div>
-    <h1><% if (p.supplier && demo) { %><span class="tag demo">演示</span><% } %><% if (brand) { %><span class="tag gold"><%= brand.name %></span><% } %><%= p.name %></h1>
+    <h1><% if (p.supplier && demo) { %><span class="tag demo">演示</span><% } %><%= p.name %></h1>
     <div class="subt"><%= p.subtitle %></div>
     <div class="pricebox">
       <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 活动专区</span><span class="muted"><%= seckill.live?'活动进行中':'活动即将开始' %></span></div><% } %>
@@ -13,7 +13,7 @@
       <% if (seckill && !seckill.live) { %><span class="muted sk-pre"> 活动价 <b style="color:var(--red)">¥<%= seckill.price %></b>,<%= seckill.start_at.slice(5,16) %> 开始,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
       <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
     </div>
-    <dl class="kv pd-kv" style="margin:12px 0"><dt>配送</dt><dd><% if (p.ship_from) { %><span class="<%= p.supplier ? 'sup-ship' : '' %>"><%= p.ship_from %></span><% } else if (p.supplier) { %><span class="sup-ship">供应商发货</span><% } else { %><%= shop.ship_from || '海口发货' %><% } %></dd>
+    <dl class="kv pd-kv" style="margin:12px 0"><% const supBrand = p.supplier ? (p.supplier_brand || (brand && brand.name) || '') : ''; if (supBrand) { %><dt>品牌</dt><dd class="pd-brand"><%= supBrand %></dd><% } %><dt>配送</dt><dd><% if (p.ship_from) { %><span class="<%= p.supplier ? 'sup-ship' : '' %>"><%= p.ship_from %></span><% } else if (p.supplier) { %><span class="sup-ship">供应商发货</span><% } else { %><%= shop.ship_from || '海口发货' %><% } %></dd>
       <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
       <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><% if (p.supplier) { %><span class="tag gray">由供应商发货</span><% } else { %><span class="tag green">极速发货</span><% } %><% if (!noReason) { %><div class="no7-note"><%= p.supplier && !p.is_perishable ? '该商品按供应商规则签收后不支持七天无理由退货' : '鲜活易腐等商品签收后不支持七天无理由退货' %>;如有质量问题,仍可联系客服退换。</div><% } %></dd>
       <% if (shop.show_sales === '1' && +p.sales > 0) { %><dt>销量</dt><dd>已售 <%= p.sales %> 件 · <%= rateText %></dd><% } else { %><dt>评价</dt><dd><%= rateText %></dd><% } %></dl>

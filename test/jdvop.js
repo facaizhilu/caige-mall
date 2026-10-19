@@ -132,6 +132,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   r = await g.get('/products?cat=' + roll.category_id); ok(r.text.includes(roll.name), '出现在映射后的二级分类');
   r = await g.get('/products?q=' + encodeURIComponent('快充数据线')); ok(r.text.includes(roll.name), '搜索可找到供应商商品');
   for (const s of ['price_asc', 'price_desc', 'sales', 'new']) { r = await findIn('/products?sort=' + s, '/product/' + roll.id + '"'); ok(r, '排序 ' + s + ' 下可见'); }
+  { const sp = db.get("SELECT id, supplier_brand FROM products WHERE supplier IS NOT NULL AND status=1 LIMIT 1"); if (sp) { const x = await g.get('/product/' + sp.id); const h1 = (x.text.match(/<h1>([\s\S]*?)<\/h1>/) || [])[1] || ''; ok(sp.supplier_brand && x.text.includes('<dt>品牌</dt><dd class="pd-brand">' + sp.supplier_brand + '</dd>') && !h1.includes(sp.supplier_brand), '供应商商品品牌仅显示为参数行「品牌」'); } }
   r = await g.get('/products?sort=price_asc&q=' + encodeURIComponent('数据线')); const ix = [r.text.indexOf('/product/' + roll.id + '"'), r.text.indexOf('Type-C 编织快充数据线 2米')];
   ok(ix[0] > 0 && ix[1] > 0 && ix[0] < ix[1], '价格升序与自营商品混排(¥25.9 供应商数据线排在 ¥29 起的自营数据线之前)', ix);
   r = await g.get('/products?q=' + encodeURIComponent('感冒')); ok(!r.text.includes('感冒'.repeat(1) + '灵'), '禁售商品前台不可见');
