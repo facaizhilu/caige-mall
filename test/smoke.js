@@ -31,11 +31,13 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok(r.text.includes('name="agree"') && !/name="agree"[^>]*checked/.test(r.text) && r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '注册页:协议勾选框默认未勾选且有链接');
   r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会访问您的相册') && r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(不访问相册、占位符、版本号)');
   r = await shop.get('/terms'); ok(r.text.includes('鲜活易腐') && r.text.includes('不可提现'), '用户协议含七天无理由例外与积分不可提现');
-  r = await shop.get('/'); ok(r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '页脚有隐私政策/用户协议链接');
-  ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由退货（鲜活易腐商品除外）') && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
-  ok(r.text.includes('韵农甄选') && r.text.includes('<span class="seal">韵</span>') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页店名/印章/公告/页脚,无旧品牌名');
+  r = await shop.get('/'); { const ft = (r.text.match(/<footer class="zq-foot">([\s\S]*?)<\/footer>/) || [])[1] || ''; ok(ft && !/href="\/(help|service|terms|privacy)"/.test(ft) && !ft.includes('<nav') && /© 2026 韵农甄选 · 琼ICP备00000000号\(演示\)/.test(ft) && !ft.includes('演示站点') && !r.text.includes('粤ICP'), '首页页脚仅一行 ©+备案号(无帮助/客服/协议/隐私链接,无演示站点长句)'); }
+  { const pg = await shop.get('/products'); ok(pg.text.includes('href="/privacy"') && pg.text.includes('href="/terms"') && pg.text.includes('本站为演示站点'), '其他页面页脚仍有隐私政策/用户协议链接与演示说明'); }
+  ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('7天无理由(鲜活易腐除外)') && r.text.indexOf('class="svc"') < r.text.indexOf('class="picks"') && (r.text.match(/class="pk"/g) || []).length >= 6 && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
+  { const names = [...r.text.matchAll(/<span class="pk-n">([^<]*)<\/span>/g)].map(m => m[1]).slice(0, 6); const fresh = names.filter(n => /苹果|脐橙|芒果|鸡蛋|蔬菜/.test(n)).length; ok(names.length === 6 && fresh >= 4 && names.length - fresh <= 2 && !r.text.includes('智能手机') && !/今日推荐|为你推荐|猜你喜欢/.test(r.text), '好物精选演示 6 件以新鲜农产品为主(数码配件≤2),无整机手机与个性化文案', names.join('|')); }
+  ok(r.text.includes('韵农甄选') && r.text.includes('src="/static/img/logo-horizontal-onred-64.png?v=1"') && r.text.includes('alt="韵农甄选"') && r.text.includes('logo-horizontal-onred.svg') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
   { const n = (r.text.match(/class="bnr-s/g) || []).length; const bt = (r.text.match(/<div class="hero bnr"[\s\S]*?<nav class="ents"/) || [''])[0];
-    ok(n >= 2 && n <= 3 && r.text.includes('class="bnr-d"') && /home\.css\?v=8/.test(r.text) && /home\.js\?v=8/.test(r.text), '首页横幅轮播(' + n + ' 张演示 Banner,带圆点)');
+    ok(n >= 2 && n <= 3 && r.text.includes('class="bnr-d"') && /home\.css\?v=9/.test(r.text) && /home\.js\?v=8/.test(r.text), '首页横幅轮播(' + n + ' 张演示 Banner,带圆点)');
     ok(bt && !/京东|财哥|倒计时|已售|销量|限时|仅剩/.test(bt) && [...bt.matchAll(/href="([^"]*)"/g)].every(m => /^\/(?!\/)/.test(m[1])) && [...bt.matchAll(/<img class="bnr-i" src="([^"]+)"[^>]*width="\d+" height="\d+"/g)].length === n, '演示 Banner 合规:无外部平台/倒计时/销量文案,仅站内链接,图片带宽高'); }
   { const ids = [...r.text.matchAll(/class="pk" href="\/product\/(\d+)"/g)].map(m => m[1]);
     ok(r.text.includes('好物精选') && /href="\/products">更多 ›<\/a>/.test(r.text) && ids.length >= 3 && !r.text.includes('示例商品'), '首页「好物精选」展示真实商品(' + ids.length + ' 个)及「更多 ›」');
@@ -48,6 +50,8 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员', agree: '1' });
   ok(r.status === 302 && r.loc === '/me', '注册成功并登录', r.status + ' ' + r.loc);
   r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('会员中心'), '会员中心(新注册用户已同意协议,无需再次确认)');
+  { const h = (r.text.match(/class="card mt me-help">([\s\S]*?)<\/div><\/div>/) || [])[1] || ''; ok(['/help">帮助中心', '/service">联系客服', '/terms">用户协议', '/privacy">隐私政策'].every(x => h.includes('href="' + x)), '「我的」页有帮助中心/联系客服/用户协议/隐私政策'); }
+  { const st = await shop.get('/me/settings'); ok(['/help">帮助中心', '/service">联系客服', '/terms">用户协议', '/privacy">隐私政策'].every(x => st.text.includes('href="' + x)), '设置页有帮助中心/联系客服/用户协议/隐私政策'); }
   ok(r.text.includes('href="/privacy"'), '我的菜单含隐私政策');
   ok(r.text.includes('href="/me/settings"'), '我的页面有「设置」入口');
   r = await shop.get('/me/profile'); ok(!r.text.includes('生日') && !r.text.includes('birthday') && !r.text.includes('href="/me/cancel"'), '个人资料无生日字段,不再放注销链接');

@@ -119,6 +119,42 @@ svc.cloud.ensureDefaults();
       mark('scope_20261019');
     })();
   }
+  if (!done('icp_demo_qiong')) { // 演示备案号占位改为「琼ICP备…(演示)」:仅当仍为旧默认值
+    const T = require('./lib/seed-texts');
+    if (svc.S('icp') === T.OLD_ICP) svc.setSetting('icp', T.NEW_ICP);
+    mark('icp_demo_qiong');
+  }
+  if (!done('home_picks_produce') && process.env.DEMO_MODE === '1') { // 演示库:原演示整机手机(未改动:原名+原副标题+自营)替换为数码配件;补充两款新鲜水果;好物精选排序以新鲜农产品为主。后台改过的不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      const ph = db.get('SELECT id FROM products WHERE supplier IS NULL AND name=? AND subtitle=?', T.OLD_SEED_PHONE.name, T.OLD_SEED_PHONE.subtitle);
+      const catId = n => (db.get('SELECT id FROM categories WHERE name=? AND parent_id>0', n) || {}).id;
+      const brandId = n => (db.get('SELECT id FROM brands WHERE name=?', n) || {}).id || null;
+      const imgs = r => JSON.stringify([0, 1, 2, 3].map(v => U.genImg(r[14], r[12], r[13], v, r[0].slice(0, 8))));
+      const specsOf = r => r[10].split(';').map(x => { const [k, v] = x.split(':'); return [k, v.split('|')]; });
+      const combosOf = r => { let c = [{}]; for (const [k, vs] of specsOf(r)) c = c.flatMap(o => vs.map(v => ({ ...o, [k]: v }))); return c; };
+      const skuPrice = (r, ci, n) => r[11][Math.min(Math.floor(ci / Math.max(1, n / r[11].length)), r[11].length - 1)];
+      if (ph && catId(T.DEMO_ACCESSORY_ROW[2])) {
+        const r = T.DEMO_ACCESSORY_ROW, combos = combosOf(r);
+        db.exec1('UPDATE products SET name=?, subtitle=?, category_id=?, images=?, spec_names=?, sort=? WHERE id=?', r[0], r[1], catId(r[2]), imgs(r), specsOf(r).map(x => x[0]).join(','), T.DEMO_PICK_SORT[r[0]], ph.id);
+        db.all('SELECT id FROM skus WHERE product_id=? ORDER BY id', ph.id).forEach((k, i) => {
+          if (i < combos.length) { const pr = skuPrice(r, i, combos.length); db.exec1('UPDATE skus SET attrs=?, spec_text=?, price=? WHERE id=?', JSON.stringify(combos[i]), Object.values(combos[i]).join(' / '), pr[0], k.id); }
+          else db.exec1('UPDATE skus SET stock=0 WHERE id=?', k.id);
+        });
+        db.exec1('UPDATE products SET stock=(SELECT SUM(stock) FROM skus WHERE product_id=?), price=(SELECT MIN(price) FROM skus WHERE product_id=? AND stock>0) WHERE id=?', ph.id, ph.id, ph.id);
+        for (const r of T.DEMO_PRODUCE_ROWS) {
+          if (!catId(r[2]) || db.get('SELECT 1 FROM products WHERE name=?', r[0])) continue;
+          const cs = combosOf(r);
+          const pid = db.prepare('INSERT INTO products(name,subtitle,category_id,brand_id,price,stock,description,images,is_hot,is_new,template_id,spec_names,sort,created_at) VALUES(?,?,?,?,?,0,?,?,0,0,1,?,?,?)').run(r[0], r[1], catId(r[2]), brandId(r[3]), r[4], T.SEED_DESC(r[0]), imgs(r), specsOf(r).map(x => x[0]).join(','), T.DEMO_PICK_SORT[r[0]] || 0, U.now()).lastInsertRowid;
+          cs.forEach((a, ci) => { const pr = skuPrice(r, ci, cs.length); db.prepare('INSERT INTO skus(product_id,attrs,spec_text,price,stock,code) VALUES(?,?,?,?,?,?)').run(pid, JSON.stringify(a), Object.values(a).join(' / '), pr[0], Math.max(5, Math.floor(pr[1] / cs.length * r[11].length)), 'CG' + String(pid).padStart(3, '0') + String(ci + 1).padStart(2, '0')); });
+          db.exec1('UPDATE products SET stock=(SELECT SUM(stock) FROM skus WHERE product_id=?), price=(SELECT MIN(price) FROM skus WHERE product_id=?) WHERE id=?', pid, pid, pid);
+        }
+        for (const [n, so] of Object.entries(T.DEMO_PICK_SORT)) db.exec1('UPDATE products SET sort=? WHERE supplier IS NULL AND name=? AND sort<=100', so, n);
+        console.log('[demo] 好物精选演示商品已更新为以新鲜农产品为主');
+      }
+      mark('home_picks_produce');
+    })();
+  }
   if (!done('home_carousel_banners')) { // 首页恢复轮播:旧库若仍是未改动过的旧默认 Banner(无图片),替换为合规演示 Banner;后台已改动过的不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {
@@ -156,7 +192,8 @@ app.get('/img/gen.svg', (req, res) => {
   res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${shapes}<text x="300" y="${n ? 330 : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="#fff">${t}</text>${n ? `<text x="300" y="500" font-size="44" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".95">${n}</text>` : ''}<text x="580" y="585" font-size="22" text-anchor="end" font-family="sans-serif" fill="#fff" opacity=".55">CAIGE MALL</text></svg>`);
 });
-app.get('/favicon.ico', (req, res) => res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#d4202a"/><text x="32" y="46" font-size="38" font-weight="700" text-anchor="middle" fill="#f9d66b" font-family="Noto Sans CJK SC,sans-serif">韵</text></svg>`));
+app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.ico'), { maxAge: '1d' }));
+app.get('/apple-touch-icon.png', (req, res) => res.sendFile(path.join(__dirname, 'public', 'img', 'apple-touch-icon.png'), { maxAge: '1d' }));
 
 // 查询参数一律为字符串(?q[]=1 / ?q[a]=1 之类的数组/对象取最后一个字符串值或置空),避免列表/搜索页 500
 app.use((req, res, next) => { const q = req.query; for (const k of Object.keys(q)) { const v = q[k]; if (Array.isArray(v)) { const last = v.filter(x => typeof x === 'string').pop(); q[k] = last === undefined ? '' : last; } else if (v && typeof v === 'object') q[k] = ''; } next(); });

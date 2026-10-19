@@ -2,7 +2,7 @@
 <div class="top">
   <% if (shop.announcement) { %><a class="ann" href="/notices" title="<%= shop.announcement %>"><span><%= shop.announcement %></span></a><% } %>
   <div class="head">
-    <a class="brand" href="/" aria-label="首页"><span class="seal">韵</span><span class="bn"><%= shop.shop_name %></span></a>
+    <a class="brand" href="/" aria-label="首页"><picture><source type="image/svg+xml" srcset="/static/img/logo-horizontal-onred.svg?v=1"><img class="logo" src="/static/img/logo-horizontal-onred-64.png?v=1" srcset="/static/img/logo-horizontal-onred-64.png?v=1 2x,/static/img/logo-horizontal-onred-96.png?v=1 3x" alt="韵农甄选" width="100" height="32" decoding="async" fetchpriority="high"></picture></a>
     <form class="search" action="/products" method="get" role="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input name="q" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" aria-label="搜索商品" placeholder="搜索商品"><button>搜索</button></form>
   </div>
   <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
@@ -39,6 +39,7 @@
   <a class="bc b2" href="/points-mall"><h3>积分专区</h3><p>好礼兑换</p><%- pic('card-points') %></a>
   <a class="bc b3" href="/me/cloud"><h3>云商卡</h3><p>会员权益</p><%- pic('card-yunshang') %></a>
 </nav>
+<div class="svc" aria-label="服务保障"><div><i>退</i>7天无理由(鲜活易腐除外)</div><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
 <section class="picks" aria-labelledby="picks-t">
   <div class="pk-h"><h3 id="picks-t">好物精选</h3><a href="/products">更多 ›</a></div>
   <div class="pk-g">
@@ -49,8 +50,7 @@
   <% } } %>
   </div>
 </section>
-<div class="svc"><div><i>退</i>7天无理由退货（鲜活易腐商品除外）</div><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
-<footer class="zq-foot"><nav><a href="/help">帮助中心</a><a href="/service">联系客服</a><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a></nav><div>© 2026 <%= shop.shop_name %><% if (shop.icp) { %> · <%= shop.icp %><% } %> · 本站为演示站点,支付为模拟支付</div></footer>
+<footer class="zq-foot"><div class="icp">© 2026 <%= shop.shop_name %><% if (shop.icp) { %> · <%= shop.icp %><% } %></div></footer>
 <nav class="tab" aria-label="底部导航">
   <a class="on" href="/" aria-current="page"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>首页</span></a>
   <a href="/products"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="3.75"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg><span>分类</span></a>
