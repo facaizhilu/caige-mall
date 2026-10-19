@@ -442,7 +442,8 @@ module.exports = function (app, { filesOf }) {
   app.post('/logout', (req, res) => { req.session.regenerate(() => res.redirect('/')); });
 
   // ---------------- 会员中心 ----------------
-  app.get('/me', needLogin, (req, res) => {
+  app.get('/me', (req, res) => {
+    if (!req.user) return res.page('shop/me', { title: '我的', guest: true }); // 未登录:顶部卡片显示登录/注册
     const u = req.user;
     const cnt = {}; for (const r of db.all('SELECT status, COUNT(*) n FROM orders WHERE user_id=? GROUP BY status', u.id)) cnt[r.status] = r.n;
     const next = db.get('SELECT * FROM member_levels WHERE min_growth>? ORDER BY min_growth LIMIT 1', u.growth);
@@ -450,7 +451,7 @@ module.exports = function (app, { filesOf }) {
     const stats = { coupons: svc.userCoupons(u.id, 'unused').length, favs: db.get('SELECT COUNT(*) n FROM favorites WHERE user_id=?', u.id).n, hist: db.get('SELECT COUNT(*) n FROM history WHERE user_id=?', u.id).n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE user_id=? AND status IN ('pending','approved_return','returned')", u.id).n };
     const recent = db.all('SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 3', u.id).map(o => ({ ...o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id) }));
     const today = U.today();
-    res.page('shop/me', { title: '会员中心', cnt, next, prev, stats, recent, signed: u.last_signin === today });
+    res.page('shop/me', { title: '我的', guest: false, cloudOn: svc.cloud.isCardActive(u), cnt, next, prev, stats, recent, signed: u.last_signin === today });
   });
   app.post('/me/profile', needLogin, (req, res) => {
     const nick = String(req.body.nickname || '').trim().slice(0, 20) || req.user.nickname;
@@ -649,7 +650,7 @@ module.exports = function (app, { filesOf }) {
   app.get('/points-mall', (req, res) => {
     const goods = db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY (stock<=0), sort, id');
     goods.forEach(g => { g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g); });
-    res.page('shop/points-mall', { title: '积分商城', goods, banner: svc.S('points_mall_banner') || '' });
+    res.page('shop/points-mall', { title: '积分商城', goods });
   });
   app.get('/points-mall/:id', (req, res, next) => {
     const g = db.get('SELECT * FROM points_goods WHERE id=? AND status=1', int(req.params.id)); if (!g) return next();

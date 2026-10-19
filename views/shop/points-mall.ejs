@@ -1,8 +1,6 @@
 <div class="crumb"><a href="/">首页</a> › 积分商城</div>
 <style>
-.pm-banner{display:block;width:100%;border-radius:12px;overflow:hidden;margin-bottom:12px;aspect-ratio:750/240;background:linear-gradient(120deg,#f59e0b,#d4202a)}
-.pm-banner img{width:100%;height:100%;object-fit:cover;display:block}
-.pm-banner.ph{display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;opacity:.95}
+.btn.gold{background:linear-gradient(135deg,#e8c26a,#c48f2f)!important;color:#5a0d0d!important;border-color:transparent!important}.pm-ptag{background:linear-gradient(135deg,#d63a2c,#9e1712)!important;color:#FBE3B0!important}
 .pm-ptag{display:inline-block;background:linear-gradient(120deg,#f5c242,#d99a0b);color:#fff;font-weight:700;border-radius:999px;padding:2px 10px;font-size:15px;line-height:1.5;white-space:nowrap}
 .pm-ship{display:inline-block;border:1px solid #f0b429;color:#b7791f;border-radius:4px;padding:0 4px;font-size:12px;line-height:18px;margin-left:4px;white-space:nowrap}
 .pm-left{font-size:12px;color:#888}
@@ -11,8 +9,7 @@
 .pm-so{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;border-radius:4px;padding:2px 6px;z-index:1}
 @media(max-width:430px){.pm-ptag{font-size:13px;padding:1px 8px}}
 </style>
-<% if (banner) { %><div class="pm-banner" data-slot="points_mall_banner"><img src="<%= banner %>" alt="积分专区"></div><% } else { %><div class="pm-banner ph" data-slot="points_mall_banner" data-placeholder="1">积分专区横幅 · 设计稿待提供</div><% } %>
-<div class="card" style="background:linear-gradient(120deg,#f59e0b,#d4202a);color:#fff;margin-bottom:18px"><div class="flex between wrapf"><div><h2 style="margin:0">🎁 积分专区</h2><p style="margin:4px 0 0">签到、购物赚积分,免费兑好礼 · 全部包邮</p></div><div class="right"><% if (user) { %>我的积分 <b style="font-size:30px"><%= user.points %></b><br><a href="/me/points" style="color:#ffe9b0">去签到赚积分 ›</a><% } else { %><a class="btn" href="/login?next=/points-mall">登录查看积分</a><% } %></div></div></div>
+<div class="card pm-head" style="background:radial-gradient(140% 120% at 50% 0%,#d63a2c,#9e1712 60%,#6e0d0b);color:#FBE3B0;box-shadow:inset 0 -2px 0 #e9b84f;margin-bottom:18px"><div class="flex between wrapf"><div><h2 style="margin:0;color:#FBE3B0">🎁 积分专区</h2><p style="margin:4px 0 0">签到、购物赚积分,免费兑好礼 · 兑换包邮</p></div><div class="right"><% if (user) { %>我的积分 <b style="font-size:30px"><%= user.points %></b><br><a href="/me/points" style="color:#f3d27a">去签到赚积分 ›</a><% } else { %><a class="btn" href="/login?next=/points-mall">登录查看积分</a><% } %></div></div></div>
 <div class="grid"><% goods.forEach(g=>{ %><div class="pcard<%= g.soldOut?' soldout':'' %>" style="position:relative"><% if (g.soldOut) { %><span class="pm-so">已兑完</span><% } %><a class="pic" href="/points-mall/<%= g.id %>"><img loading="lazy" decoding="async" src="<%= g.image %>" alt="<%= g.name %>"></a><div class="info"><div class="name"><% if (g.is_demo && demo) { %><span class="tag demo">演示</span><% } %><a href="/points-mall/<%= g.id %>"><%= g.name %></a></div>
 <div class="meta"><span><span class="pm-ptag"><%= g.points %> 积分</span><% if (g.type==='goods') { %><span class="pm-ship">包邮</span><% } %></span></div>
 <% if (g.per_user_limit > 0) { %><div class="pm-left">每人限兑 <%= g.per_user_limit %> 件<% if (user) { %> · 还可兑 <%= g.left %> 件<% } %></div><% } %>

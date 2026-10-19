@@ -1,22 +1,34 @@
-<div class="me"><%- include("_menu",{cur:""}) %><div>
-  <div class="mehead">
-    <div class="avatar"><%= user.nickname.slice(0,1) %></div>
-    <div style="flex:1"><div style="font-size:20px;font-weight:700"><%= user.nickname %><span class="lvtag">💎 <%= user.level_name %></span></div>
-      <div style="opacity:.9">手机:<%= U.maskPhone(user.phone) %> · 邀请码 <%= user.invite_code %></div>
-      <% if (next) { %><div class="progress"><i style="width:<%= Math.min(100,Math.round(user.growth/next.min_growth*100)) %>%"></i></div><div style="font-size:12px;opacity:.9">成长值 <%= user.growth %> / <%= next.min_growth %>,再 <%= next.min_growth-user.growth %> 成长值升级「<%= next.name %>」</div><% } else { %><div style="font-size:12px">已是最高等级 · 成长值 <%= user.growth %></div><% } %></div>
-    <form method="post" action="/me/signin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn" <%= signed?'disabled':'' %>><%= signed?'✔ 今日已签到':'📅 每日签到' %></button></form>
+<%# 「我的」:1 会员卡 → 2 我的订单 → 3 常用功能 → 4 底部列表(退出登录在最后) %>
+<% const HS = (id) => '<svg class="kf-ic" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="url(#' + id + ')" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d63a2c"/><stop offset="1" stop-color="#c48f2f"/></linearGradient></defs><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/></svg>'; %>
+<div class="mepage">
+<% if (guest) { %>
+  <div class="mecard guest"><div class="avatar">👤</div><div class="mc-info"><div class="mc-name">您好,欢迎来到<%= shop.shop_name %></div><div class="mc-sub">登录后查看订单、积分与会员权益</div></div><div class="mc-act"><a class="btn mc-btn" href="/login?next=/me">登录</a><a class="btn mc-btn2" href="/register">注册</a></div></div>
+<% } else { %>
+  <div class="mecard"><div class="avatar"><%= user.nickname.slice(0,1) %></div>
+    <div class="mc-info"><div class="mc-name"><%= user.nickname %></div><div class="mc-sub"><%= U.maskPhone(user.phone) %></div><div class="mc-tags"><span class="lvtag"><%= user.level_name %></span><% if (cloudOn) { %><span class="lvtag gold">云商会员</span><% } %></div></div>
+    <a class="mc-pts" href="/me/points"><small>我的积分</small><b><%= user.points %></b></a></div>
+  <% if (next) { %><div class="mc-grow muted">成长值 <%= user.growth %> / <%= next.min_growth %>,再 <%= next.min_growth-user.growth %> 升级「<%= next.name %>」 · 邀请码 <%= user.invite_code %></div><% } else { %><div class="mc-grow muted">已是最高等级 · 成长值 <%= user.growth %> · 邀请码 <%= user.invite_code %></div><% } %>
+<% } %>
+  <div class="card me-sec"><div class="sec-h"><h2>我的订单</h2><a href="/orders">全部订单 ›</a></div>
+    <div class="me-grid g4">
+      <a href="/orders?status=unpaid"><span>💳</span>待付款<% if (!guest && cnt.unpaid) { %><b class="qbadge"><%= cnt.unpaid %></b><% } %></a>
+      <a href="/orders?status=paid"><span>📦</span>待发货<% if (!guest && cnt.paid) { %><b class="qbadge"><%= cnt.paid %></b><% } %></a>
+      <a href="/orders?status=shipped"><span>🚚</span>待收货<% if (!guest && cnt.shipped) { %><b class="qbadge"><%= cnt.shipped %></b><% } %></a>
+      <a href="/aftersales"><span>🔧</span>退换/售后<% if (!guest && stats.as) { %><b class="qbadge"><%= stats.as %></b><% } %></a>
+    </div>
   </div>
-  <div class="stats stats-4">
-    <a class="stat" href="/me/points"><b><%= user.points %></b><span>积分</span></a>
-    <a class="stat" href="/points-mall"><b>兑</b><span>积分商城</span></a>
-    <a class="stat" href="/me/coupons"><b><%= stats.coupons %></b><span>优惠券</span></a>
-    <a class="stat" href="/me/favorites"><b><%= stats.favs %></b><span>收藏</span></a>
+  <div class="card me-sec"><div class="sec-h"><h2>常用功能</h2></div>
+    <div class="me-grid g4">
+      <% if (!guest) { %><form method="post" action="/me/signin" class="me-signin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button <%= signed?'disabled':'' %>><span>📅</span><%= signed?'今日已签':'每日签到' %></button></form><% } else { %><a href="/login?next=/me/points"><span>📅</span>每日签到</a><% } %>
+      <a href="/points-mall"><span>🎁</span>积分专区</a>
+      <a href="/me/cloud"><span>💎</span>云商会员</a>
+      <a href="/me/coupons"><span>🎟️</span>优惠券<% if (!guest && stats.coupons) { %><b class="qbadge"><%= stats.coupons %></b><% } %></a>
+      <a href="/me/addresses"><span>📍</span>收货地址</a>
+      <a href="/me/favorites"><span>❤️</span>我的收藏</a>
+      <a href="/me/invite"><span>🔗</span>我的邀请</a>
+      <%# 小程序端:此入口改用 <button open-type="contact"> 打开微信原生客服 %><a class="me-kf" data-mp-open-type="contact" href="/service"><span><%- HS('kfg') %></span>在线客服</a>
+    </div>
   </div>
-  <a class="card redeem-banner" href="/points-mall"><b>积分商城</b><span class="muted">用积分兑换商品 · 积分不可购买、转让或提现</span><span class="go">去看看 ›</span></a>
-  <div class="card"><div class="sec-h"><h2>我的订单</h2><a href="/orders">全部订单 ›</a></div>
-    <div class="quick" style="margin-top:0"><a href="/orders?status=unpaid" style="box-shadow:none;background:#fafafc"><span>💳</span>待付款 <% if(cnt.unpaid){ %><b class="qbadge"><%= cnt.unpaid %></b><% } %></a><a href="/orders?status=paid" style="box-shadow:none;background:#fafafc"><span>📦</span>待发货 <% if(cnt.paid){ %><b class="qbadge"><%= cnt.paid %></b><% } %></a><a href="/orders?status=shipped" style="box-shadow:none;background:#fafafc"><span>🚚</span>待收货 <% if(cnt.shipped){ %><b class="qbadge"><%= cnt.shipped %></b><% } %></a><a href="/orders?status=completed" style="box-shadow:none;background:#fafafc"><span>✅</span>已完成</a><a href="/aftersales" style="box-shadow:none;background:#fafafc"><span>🔧</span>退款/售后 <% if(stats.as){ %><b class="qbadge"><%= stats.as %></b><% } %></a></div>
-    <% recent.forEach(o=>{ %><div class="ocard mt" style="box-shadow:none;border:1px solid var(--line)"><div class="oh"><span><%= o.created_at %> · <%= o.order_no %></span><span class="os <%= o.status %>"><%= ORDER_STATUS[o.status] %></span></div><div class="ob"><div><% o.items.slice(0,2).forEach(i=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= i.image %>"><span><%= i.name %></span></div><% }) %></div><a class="btn sm" href="/order/<%= o.id %>">查看</a></div></div><% }) %>
-  </div>
-  <div class="grid g2 mt me-links"><a class="card" href="/me/cloud"><b>💎 云商卡</b><br><span class="muted">会员价 · 包邮 · 签到加赠</span></a><a class="card" href="/me/invite"><b>🔗 我的邀请</b><br><span class="muted">邀请码与邀请记录</span></a><a class="card" href="/points-mall"><b>🎁 积分商城</b><br><span class="muted">积分兑换商品</span></a><a class="card" href="/points-rules"><b>📘 积分规则</b><br><span class="muted">获取、使用与有效期</span></a><a class="card" href="/me/settings"><b>⚙️ 设置</b><br><span class="muted">个人资料 · 账号与安全 · 隐私</span></a></div>
-  <div class="card mt me-help"><div class="setlist"><a href="/help">帮助中心<span class="muted">›</span></a><a href="/service">联系客服<span class="muted">›</span></a><a href="/terms">用户协议<span class="muted">›</span></a><a href="/privacy">隐私政策<span class="muted">›</span></a></div></div>
-</div></div>
+  <div class="card me-sec me-help"><div class="setlist"><a href="/help">帮助中心<span class="muted">›</span></a><a href="/article/<%= aboutId %>">关于我们<span class="muted">›</span></a><a href="/points-rules">积分规则<span class="muted">›</span></a><a href="/privacy">隐私政策<span class="muted">›</span></a><a href="/terms">用户协议<span class="muted">›</span></a><% if (!guest) { %><a href="/me/settings">设置<span class="muted">›</span></a><% } %></div>
+  <% if (!guest) { %><form method="post" action="/logout" class="me-logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button>退出登录</button></form><% } %></div>
+</div>

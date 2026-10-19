@@ -396,3 +396,24 @@ textarea{resize:vertical}
 .sup-err{background:#fff4e5;border:1px solid #fcd9a8;color:#92400e;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;overflow-wrap:anywhere}
 .sup-err ul{margin:4px 0 0;padding-left:18px}
 .oi .tag.gray{white-space:nowrap}
+.quick.q6{grid-template-columns:repeat(6,1fr)}@media(max-width:600px){.quick.q6{grid-template-columns:repeat(3,1fr)}}
+.quick a .kf-ic,.pd-kf .kf-ic{display:block;margin:0 auto}.me-kf{color:#9e1712;font-weight:600}
+.pd-kf{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;min-height:44px;font-size:12px;color:#9e1712;flex:none}.pd-kf .kf-ic{width:22px;height:22px}
+.kf-quick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:12px;background:linear-gradient(120deg,#fff8e6,#fff);border:1px solid #f0dcb4}.kf-quick a{color:#9e1712;font-weight:600}
+/* 「我的」移动端布局 */
+.mepage{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.mecard{display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;color:#FBE3B0;background:radial-gradient(140% 140% at 20% 0%,#d63a2c,#9e1712 60%,#6e0d0b);box-shadow:inset 0 -2px 0 #e9b84f,0 6px 18px rgba(158,23,18,.18)}
+.mecard .avatar{width:56px;height:56px;font-size:24px;background:linear-gradient(145deg,#f8dc9a,#c99236);color:#7d1210}
+.mc-info{flex:1;min-width:0}.mc-name{font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}.mc-sub{font-size:13px;opacity:.9}
+.mc-tags{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}.mecard .lvtag{margin:0;background:rgba(255,255,255,.18);color:#FBE3B0;font-size:12px}.mecard .lvtag.gold{background:linear-gradient(135deg,#e8c26a,#c48f2f);color:#5a0d0d}
+.mc-pts{flex:none;text-align:right;color:#FBE3B0}.mc-pts:hover{color:#fff}.mc-pts small{display:block;font-size:12px}.mc-pts b{font-size:24px;color:#ffe08a}
+.mc-act{display:flex;flex-direction:column;gap:6px;flex:none}.mc-btn{background:linear-gradient(135deg,#e8c26a,#c48f2f);color:#5a0d0d;border:0;font-weight:700;padding:6px 16px}.mc-btn2{background:transparent;color:#FBE3B0;border-color:#e9b84f;padding:6px 16px}
+.mc-grow{font-size:12px;margin-top:-4px;padding:0 4px}
+.me-sec{margin:0}.me-sec .sec-h{margin-bottom:8px}.me-sec .sec-h h2{font-size:16px}
+.me-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.me-grid>a,.me-grid>form>button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:64px;font-size:12px;color:var(--ink);background:none;border:0;width:100%;cursor:pointer;padding:6px 2px;text-align:center;font-family:inherit}
+.me-grid span{font-size:22px;line-height:28px;height:28px;display:flex;align-items:center}.me-grid .kf-ic{width:26px;height:26px}
+.me-grid>form>button[disabled]{color:var(--ink3)}
+.me-grid .qbadge{position:absolute;top:4px;left:calc(50% + 8px)}
+.me-kf{color:#9e1712!important;font-weight:600}
+.me-logout{margin-top:10px}.me-logout button{width:100%;min-height:44px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink2);font-size:14px;cursor:pointer}

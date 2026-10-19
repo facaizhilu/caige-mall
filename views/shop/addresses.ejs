@@ -1,6 +1,6 @@
 <div class="me"><%- include("_menu",{cur:"addresses"}) %><div>
 <div class="card"><h3 style="margin-top:0">收货地址(<%= addrs.length %>)</h3>
- <div class="addrs"><% addrs.forEach(a=>{ %><div class="addr" style="cursor:default"><b><%= a.name %></b> <%= a.phone %> <% if(a.is_default){ %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span>
+ <div class="addrs"><% addrs.forEach(a=>{ %><div class="addr" style="cursor:default"><b><%= a.name %></b> <%= U.maskPhone(a.phone) %> <% if(a.is_default){ %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span>
    <div class="flex mt"><a class="btn sm" href="/me/addresses?edit=<%= a.id %>">编辑</a>
    <% if(!a.is_default){ %><form method="post" action="/me/addresses/<%= a.id %>/default"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">设为默认</button></form><% } %>
    <form method="post" action="/me/addresses/<%= a.id %>/delete" data-confirm="确定删除该地址?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm danger">删除</button></form></div></div><% }) %></div></div>

@@ -231,7 +231,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/privacy'); ok2(r.text.includes('我的 - 设置 - 账号与安全 - 注销账号'), '隐私政策:注销路径');
     // A1:性别不再保存
     db.prepare("UPDATE users SET gender='保密' WHERE id=1").run();
-    await c1.get('/me/profile'); await c1.post('/me/profile', { nickname: '财哥粉丝', gender: '男' }); ok2(db.get('SELECT gender FROM users WHERE id=1').gender === '保密', 'A1:提交 gender 不被保存');
+    await c1.get('/me/profile'); await c1.post('/me/profile', { nickname: '韵农粉丝', gender: '男' }); ok2(db.get('SELECT gender FROM users WHERE id=1').gender === '保密', 'A1:提交 gender 不被保存');
     // D2:差评也在发表时发放积分,审核通过不重复发放
     const oc = db.get("SELECT o.id, i.id iid FROM orders o JOIN order_items i ON i.order_id=o.id WHERE o.user_id=1 AND o.status='completed' AND i.product_id IS NOT NULL ORDER BY o.id LIMIT 1");
     ok2(!!oc, 'D2:找到可评价订单');
@@ -481,7 +481,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const vid = db.get('SELECT id FROM users WHERE phone=?', ph10).id; ok(String(vid).startsWith('1') && vid >= 10, '回归准备:#' + vid + ' 会员已登录');
     const m1 = new C(); await m1.login('13800000001', '123456');
     await adm.get('/admin/members'); await adm.post('/admin/members/1/status', {});
-    ok((await m1.get('/me')).status === 302, '禁用 #1 后 #1 会话失效'); ok((await v10.get('/me')).status === 200, `禁用 #1 不影响 #${vid} 的登录会话`);
+    ok((await m1.get('/me')).text.includes('href="/login?next=/me"'), '禁用 #1 后 #1 会话失效'); ok((await v10.get('/me')).text.includes('class="mecard"'), `禁用 #1 不影响 #${vid} 的登录会话`);
     await adm.post('/admin/members/1/status', {}); ok(db.get('SELECT status FROM users WHERE id=1').status === 1, '恢复 #1');
     // 4) 角色权限:按勾选保存并过滤无效键;不能削减自己所用角色、不能去掉最后一个全权限角色
     await adm.get('/admin/roles/new'); await adm.post('/admin/roles/save', { name: '回归角色', perm: ['order', 'bogus', 'member'], permissions: '' });
@@ -556,7 +556,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     x = await a.get('/points-mall');
     ok(x.text.includes('class="pm-ptag">3000 积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && x.text.includes('class="tag demo">演示'), '积分专区卡片:金色「xxx 积分」+「包邮」+「立即兑换」+演示标记');
     const grid = x.text.slice(x.text.indexOf('class="grid"')); ok(!/¥|退换|无理由/.test(grid), '积分商品卡片无金额、无退换说明');
-    ok(x.text.includes('data-placeholder="1"') && x.text.includes('data-slot="points_mall_banner"'), '积分专区顶部横幅:未上传时显示占位');
+    ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('兑换包邮') && x.text.includes('#9e1712'), '积分专区:无顶部横幅/占位,头卡朱红金,文案「兑换包邮」');
     const demoGoods = db.all('SELECT g.*, c.name cn, pc.name pn FROM points_goods g LEFT JOIN categories c ON c.id=g.category_id LEFT JOIN categories pc ON pc.id=c.parent_id');
     const CC = require('../lib/suppliers/jdvop/compliance');
     ok(demoGoods.length >= 6 && demoGoods.every(g => g.is_demo === 1) && demoGoods.every(g => g.type === 'coupon' || (g.category_id && !CC.scopeWarning([g.pn, g.cn]))) && demoGoods.some(g => g.pn === '新鲜农产品') && demoGoods.some(g => g.pn === '数码电脑') && demoGoods.some(g => g.type === 'coupon'), '演示积分商品均在经营范围(数码配件/新鲜农产品/优惠券)并标记演示');
@@ -602,11 +602,9 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const succ = rs.filter(r => r.ok).length, g3 = db.get('SELECT stock, exchanged FROM points_goods WHERE id=?', tg.id);
     ok(succ === 3 && g3.stock === 0 && g3.exchanged === 3, '并发 30 次兑换:成功 3 次,库存 0,无超兑', JSON.stringify({ succ, g3 }));
     ok((pa - db.get('SELECT points FROM users WHERE id=2').points) + (pb - db.get('SELECT points FROM users WHERE id=3').points) === 30 && db.get('SELECT COUNT(*) n FROM orders WHERE points_goods_id=? AND id>?', tg.id, maxO).n === 3, '并发:仅成功的 3 次扣积分并生成订单');
-    // 7) 横幅上传
+    // 7) 积分专区横幅已移除:后台无上传项,上传字段被忽略
     const bf = new FormData(); for (const [k, v] of Object.entries(PTS_SET)) bf.append(k, v); bf.append('points_mall_banner_file', new Blob([png], { type: 'image/png' }), 'banner.png');
-    await adm.get('/admin/settings'); x = await adm.post('/admin/settings/points', bf, { form: true }); const bn = db.get("SELECT value FROM settings WHERE key='points_mall_banner'").value;
-    x = await a.get('/points-mall'); ok(/^\/uploads\//.test(bn) && x.text.includes(`<img src="${bn}" alt="积分专区">`) && !x.text.includes('data-placeholder'), '后台上传积分专区横幅,前台展示');
-    await adm.post('/admin/settings/points', { ...PTS_SET, points_mall_banner_clear: '1' }); x = await a.get('/points-mall'); ok(x.text.includes('data-placeholder="1"'), '移除横幅后恢复占位');
+    x = await adm.get('/admin/settings'); ok(!x.text.includes('points_mall_banner'), '后台设置无积分专区横幅上传项');
     x = await adm.post('/admin/settings/points', { ...PTS_SET, points_clear_day: '13-01' }); ok(db.get("SELECT value FROM settings WHERE key='points_clear_day'").value === '06-01', '清零日格式校验');
     // 8) 周期过期:跨 6/1 边界
     const E = svc.cycleExpireAt;
@@ -624,6 +622,15 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     svc.remindExpiringPoints(); ok(db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n === m0 + 1, '提醒不重复发送');
     ok(svc.wechatSubscribeNotify(cu, 'points_expire', {}).stub === true, '微信订阅消息桩函数存在(待接入)');
     x = await b.get('/points-rules'); ok(x.text.includes('6 月 1 日') && !x.text.includes('= ¥1'), '积分规则:6/1 清零规则,无折现比例');
+    // 会话持久:登录会员多页跳转后「我的」仍为登录态;Cookie 为 rolling 30 天;HTML 不缓存
+    let still = true; for (const u of ['/', '/products', '/points-mall', '/cart', '/orders', '/me/points', '/product/9', '/service', '/me/coupons', '/help', '/me/favorites', '/activity', '/me']) { const y = await b.get(u); if (y.status !== 200 || y.text.includes('href="/login"') && !y.text.includes('href="/me"')) { still = false; break; } }
+    x = await b.get('/me'); ok(still && x.status === 200 && x.text.includes('在线客服') && !x.text.includes('>去登录<'), '会员多页跳转后进入「我的」仍为登录态');
+    const sraw = await fetch(base + '/', { headers: { cookie: b.cookie || '' } }).catch(() => null);
+    const row = db.all("SELECT expire FROM sessions WHERE sid LIKE 's:%' ORDER BY expire DESC LIMIT 1")[0]; ok(row && row.expire > Date.now() + 29 * 86400000, '前台会话 30 天有效期(SQLite 持久化,rolling 续期)');
+    ok(/no-store/.test((sraw && sraw.headers.get('cache-control')) || ''), '前台 HTML 不缓存(避免返回缓存显示未登录旧页)');
+    ok(x.text.includes('class="me-kf" data-mp-open-type="contact" href="/service"'), '「我的」常用功能含「在线客服」入口');
+    x = await b.get('/product/9'); ok(x.text.includes('class="pd-kf"') && x.text.includes('data-mp-open-type="contact"'), '商品详情底栏「客服」入口(含小程序 open-type=contact 预留)');
+    x = await b.get('/service'); ok(x.text.includes('400-888-6666(演示)') && x.text.includes('yunnong-kefu(演示)') && x.text.includes('id="chat"'), '联系客服页:电话/微信号(演示)+在线对话');
   }
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);

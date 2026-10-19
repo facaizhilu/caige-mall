@@ -6,7 +6,7 @@
   <% if (promo) { %><input type="hidden" name="promo_type" value="<%= promo.type==='seckill'?'activity':promo.type %>"><input type="hidden" name="promo_id" value="<%= promo.id %>"><input type="hidden" name="group_id" value="<%= promo.groupId||'' %>"><% } %>
   <div class="card ck-sec"><h3>📍 收货地址</h3>
     <div class="addrs">
-      <% addrs.forEach((a,i)=>{ %><label class="addr<%= i===0?' on':'' %>"><input type="radio" name="address_id" value="<%= a.id %>" data-prov="<%= a.province %>" <%= i===0?'checked':'' %>><b><%= a.name %></b> <%= a.phone %> <% if (a.is_default) { %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span></label><% }) %>
+      <% addrs.forEach((a,i)=>{ %><label class="addr<%= i===0?' on':'' %>"><input type="radio" name="address_id" value="<%= a.id %>" data-prov="<%= a.province %>" <%= i===0?'checked':'' %>><b><%= a.name %></b> <%= U.maskPhone(a.phone) %> <% if (a.is_default) { %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span></label><% }) %>
       <label class="addr<%= !addrs.length?' on':'' %>"><input type="radio" name="address_id" value="new" <%= !addrs.length?'checked':'' %>><b>＋ 使用新地址</b><br><span class="muted">填写省市区与详细地址</span></label>
     </div>
     <div id="newAddr" class="mt <%= addrs.length?'hide':'' %>" data-region="">

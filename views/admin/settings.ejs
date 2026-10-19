@@ -2,7 +2,7 @@
 <div class="card"><h3>站点信息</h3><div class="form-grid">
 <div class="form-row"><label>商城名称 *</label><input name="shop_name" value="<%= s.shop_name %>" required></div><div class="form-row"><label>Slogan</label><input name="slogan" value="<%= s.slogan %>"></div>
 <div class="form-row" style="grid-column:1/-1"><label>顶部公告条(留空则不显示)</label><input name="announcement" value="<%= s.announcement %>"></div>
-<div class="form-row"><label>客服电话</label><input name="service_phone" value="<%= s.service_phone %>"></div><div class="form-row"><label>客服时间</label><input name="service_hours" value="<%= s.service_hours %>"></div>
+<div class="form-row"><label>客服电话</label><input name="service_phone" value="<%= s.service_phone %>"><div class="help">默认 400-888-6666 为演示号码,前台标「演示」</div></div><div class="form-row"><label>客服微信号</label><input name="service_wechat" value="<%= s.service_wechat || '' %>" maxlength="40"><div class="help">默认 yunnong-kefu 为演示值,前台标「演示」;留空不显示</div></div><div class="form-row"><label>客服时间</label><input name="service_hours" value="<%= s.service_hours %>"></div>
 <div class="form-row"><label>客服邮箱</label><input name="service_email" value="<%= s.service_email %>"></div><div class="form-row"><label>备案号</label><input name="icp" value="<%= s.icp %>"></div>
 <div class="form-row" style="grid-column:1/-1"><label>公司/发货地址</label><input name="address" value="<%= s.address %>"></div></div></div>
 <div class="card"><h3>交易与会员规则</h3><div class="form-grid">
@@ -18,7 +18,6 @@
 <div class="form-row"><label>清零日(MM-DD)</label><input name="points_clear_day" value="<%= s.points_clear_day %>" pattern="\d{2}-\d{2}" placeholder="06-01"></div>
 <div class="form-row"><label>到期前提醒(天)</label><input type="number" name="points_expiry_remind_days" min="1" max="180" value="<%= s.points_expiry_remind_days %>"><div class="help">到期前 N 天发送站内消息提醒(微信订阅消息待接入)</div></div>
 <div class="form-row" style="grid-column:1/-1"><label>积分兑换须知(兑换确认页小字;留空则不显示)</label><textarea name="points_redeem_notice" rows="2" maxlength="200"><%= s.points_redeem_notice %></textarea></div>
-<div class="form-row" style="grid-column:1/-1"><label>积分专区顶部横幅</label><% if (s.points_mall_banner) { %><img src="<%= s.points_mall_banner %>" style="height:60px;border-radius:8px;display:block;margin-bottom:6px"><label style="font-weight:400"><input type="checkbox" name="points_mall_banner_clear" value="1"> 移除横幅(恢复占位)</label><% } else { %><div class="help">未上传,前台显示占位</div><% } %><input type="file" name="points_mall_banner_file" accept="image/*"><div class="help">建议 1500×480(宽高比约 3.1:1)JPG/PNG/WebP,≤3MB</div></div>
 <div class="form-row"><label>下单积分抵现</label><label style="font-weight:400"><input type="checkbox" name="points_deduct_enable" value="1" <%= s.points_deduct_enable==='1'?'checked':'' %>> 启用(默认关闭)</label><div class="help">关闭时前台不展示任何积分折现比例,结算页无积分抵扣</div></div>
 <div class="form-row"><label>积分抵现比例(多少积分抵 ¥1)</label><input type="number" name="points_rate" min="1" value="<%= s.points_rate %>"></div><div class="form-row"><label>积分最高抵扣订单百分比(%)</label><input type="number" name="points_max_percent" min="0" max="100" value="<%= s.points_max_percent %>"></div>
 </div></div><button class="btn primary" style="padding:9px 30px">保存积分设置</button></form>

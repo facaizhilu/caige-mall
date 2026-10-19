@@ -45,13 +45,15 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
     ok(!/已售|销量|月销|已抢|京东价|<del|<s>/.test(r.text) && /class="pk-p">¥\d/.test(r.text), '首页商品仅显示本店价,无销量/划线价');
     let onShelf = true; for (const id of ids) { const pr = await shop.get('/product/' + id); if (pr.status !== 200 || /已下架/.test(pr.text)) onShelf = false; } ok(onShelf, '首页商品均为在售商品'); }
   for (const u of ['/privacy', '/terms', '/notices', '/service', '/products']) { const x = await shop.get(u); ok(!x.text.includes('财哥商城'), '无旧品牌名:' + u); }
+  for (const u of ['/points-mall', '/points-mall/1', '/products', '/help', '/service', '/login', '/me']) { const x = await shop.get(u); ok(x.text.includes('logo-horizontal-onred.svg') && x.text.includes('class="tab ztab"') && !x.text.includes('<i>韵</i>') && !x.text.includes('class="topbar"') && !/财哥|好货不贵|南山区科技园/.test(x.text), '统一移动端页头/底栏、无旧品牌:' + u); }
+  { const x = await shop.get('/help'); ok(x.text.includes('海南省海口市龙华区') && x.text.includes('韵农甄选 · 新鲜好物') && x.text.includes('400-888-6666(演示)'), '页脚地址/口号更新,演示客服电话标「演示」'); }
   await shop.get('/register');
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员' });
   ok(r.status === 200 && r.text.includes('请先阅读并勾选同意'), '未勾选协议注册被服务端拒绝');
   r = await shop.post('/register', { phone, password: 'abc12345', password2: 'abc12345', nickname: '测试员', agree: '1' });
   ok(r.status === 302 && r.loc === '/me', '注册成功并登录', r.status + ' ' + r.loc);
-  r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('会员中心'), '会员中心(新注册用户已同意协议,无需再次确认)');
-  { const h = (r.text.match(/class="card mt me-help">([\s\S]*?)<\/div><\/div>/) || [])[1] || ''; ok(['/help">帮助中心', '/service">联系客服', '/terms">用户协议', '/privacy">隐私政策'].every(x => h.includes('href="' + x)), '「我的」页有帮助中心/联系客服/用户协议/隐私政策'); }
+  r = await shop.get('/me'); ok(r.text.includes('测试员') && r.text.includes('我的积分') && r.text.indexOf('class="mecard"') < r.text.indexOf('我的订单') && r.text.indexOf('我的订单') < r.text.indexOf('常用功能'), '「我的」:会员卡→我的订单→常用功能(新注册用户已同意协议,无需再次确认)');
+  { const h = (r.text.match(/class="card me-sec me-help">([\s\S]*?)<\/div>\n<\/div>/) || [])[1] || ''; ok(['/help">帮助中心', '/terms">用户协议', '/privacy">隐私政策', '/me/settings">设置'].every(x => h.includes('href="' + x)) && h.indexOf('退出登录') > h.indexOf('设置') && r.text.includes('href="/service"><span>') && ['每日签到', '积分专区', '云商会员', '优惠券', '收货地址', '我的收藏', '在线客服'].every(x => r.text.includes(x)), '「我的」页常用功能含签到/积分专区/云商会员/客服,底部帮助/协议/隐私/设置,退出登录在最后'); }
   { const st = await shop.get('/me/settings'); ok(['/help">帮助中心', '/service">联系客服', '/terms">用户协议', '/privacy">隐私政策'].every(x => st.text.includes('href="' + x)), '设置页有帮助中心/联系客服/用户协议/隐私政策'); }
   ok(r.text.includes('href="/privacy"'), '我的菜单含隐私政策');
   ok(r.text.includes('href="/me/settings"'), '我的页面有「设置」入口');
@@ -170,7 +172,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/categories/save', { name: '测试分类', parent_id: '0', icon: '🧪', sort: '99', status: '1' }); ok(r.status === 302, '新增分类');
   r = await adm.post('/admin/coupons/save', { name: '测试券', amount: '5', threshold: '50', total: '10', per_limit: '1', valid_days: '7', category_id: '0', status: '1' }); ok(r.status === 302, '新增优惠券');
   r = await adm.post('/admin/seckills/save', { sku_id: '1', price: '1', stock: '5', start_at: '2030-01-01T10:00', end_at: '2030-01-01T12:00', limit_per_user: '1', status: '1' }); ok(r.status === 302, '新增秒杀');
-  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', slogan: '好货不贵,财源广进', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
+  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', slogan: '韵农甄选 · 新鲜好物', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
   for (const p of ['/admin/orders/export', '/admin/orders/export?status=completed', '/admin/members/export', '/admin/export/products', '/admin/logs/export', '/admin/points-log/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
   // RBAC
   const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin/password'); await ops.post('/admin/password/skip'); await ops.get('/admin');
@@ -271,7 +273,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await del.get('/me/cancel'); ok(r.text.includes('确认注销') && !r.text.includes('暂不能注销'), '注销页说明后果并要求确认');
   r = await del.post('/me/cancel', { confirm_text: '注销', ack: '1' }); r = await del.get('/me/cancel'); ok(r.text.includes('请在输入框中填写'), '未输入「确认注销」被拒');
   r = await del.post('/me/cancel', { confirm_text: '确认注销', ack: '1' }); ok(r.loc === '/', '注销成功并退出登录');
-  ok((await del.get('/me')).status === 302, '注销后会话失效');
+  { const g = await del.get('/me'); ok(g.status === 200 && g.text.includes('href="/login?next=/me"') && !g.text.includes('class="mecard"'), '注销后会话失效(「我的」显示登录/注册卡片)'); }
   const dl = new Client(); await dl.get('/login'); r = await dl.post('/login', { phone: dphone, password: 'abc12345' }); ok(r.text.includes('手机号或密码错误'), '注销后手机号无法登录');
   r = await adm.get('/admin/members?status=cancelled'); ok(r.text.includes('已注销') && !r.text.includes(dphone), '后台会员列表显示已注销且手机号已匿名');
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`);

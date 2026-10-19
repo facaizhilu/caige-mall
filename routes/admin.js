@@ -741,7 +741,7 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
     const numeric = ['signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
@@ -764,8 +764,6 @@ module.exports = function (r, { filesOf }) {
     svc.setSetting('points_deduct_enable', b.points_deduct_enable === '1' ? '1' : '0');
     svc.setSetting('points_rate', rate); svc.setSetting('points_max_percent', pct);
     svc.setSetting('points_redeem_notice', String(b.points_redeem_notice == null ? '' : b.points_redeem_notice).trim().slice(0, 200));
-    const up = filesOf(req, 'points_mall_banner_file')[0];
-    if (up) svc.setSetting('points_mall_banner', up); else if (b.points_mall_banner_clear === '1') svc.setSetting('points_mall_banner', '');
     log(req, '修改积分设置', `清零日 ${cd} 提醒 ${remind} 天 抵现 ${b.points_deduct_enable === '1' ? '开' : '关'}`); go('success', '积分设置已保存');
   });
   crud(r, { path: 'roles', table: 'roles', perm: 'system', title: '角色权限', singular: '角色',

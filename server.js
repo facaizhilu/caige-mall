@@ -101,6 +101,19 @@ svc.cloud.ensureDefaults();
       mark('brand_yunnong');
     })();
   }
+  if (!done('brand_hainan_20261020')) { // 去除旧「财哥」品牌与深圳地址:仅替换仍等于旧默认值的设置/演示数据,后台改过的不动
+    db.transaction(() => {
+      if (svc.S('slogan') === '好货不贵,财源广进') svc.setSetting('slogan', '韵农甄选 · 新鲜好物');
+      if (['广东省深圳市南山区科技园', '广东省深圳市南山区科技园财哥大厦 18 层'].includes(svc.S('address'))) svc.setSetting('address', '海南韵农科技有限公司 · 海南省海口市龙华区');
+      db.exec1("UPDATE products SET name='华岳 Type-C 编织快充数据线' WHERE name='财哥 Type-C 编织快充数据线'");
+      db.exec1("UPDATE points_goods SET name='华岳 Type-C 数据线' WHERE name='财哥 Type-C 数据线'");
+      const hy = db.get("SELECT id FROM brands WHERE name='华岳'"), cg = db.get("SELECT id FROM brands WHERE name='财哥'");
+      if (cg) { if (hy) db.exec1('UPDATE products SET brand_id=? WHERE brand_id=? AND name=?', hy.id, cg.id, '华岳 Type-C 编织快充数据线'); db.exec1("UPDATE brands SET name='韵农', description='韵农品牌官方旗舰' WHERE id=? AND description='财哥品牌官方旗舰' AND NOT EXISTS (SELECT 1 FROM brands WHERE name='韵农')", cg.id); }
+      db.exec1("UPDATE users SET nickname='韵农粉丝' WHERE nickname='财哥粉丝'");
+      db.exec1("UPDATE points_goods SET image=REPLACE(REPLACE(image,'f59e0b','b8231c'),'fde68a','e9b84f') WHERE is_demo=1 AND instr(image,'f59e0b')>0");
+      mark('brand_hainan_20261020');
+    })();
+  }
   if (!done('scope_20261019') && process.env.DEMO_MODE === '1') { // 演示库:按 2026-10-19 实际登记的经营范围,下架范围外的「原始演示自营商品」(按种子原名精确匹配,后台新建/改名的不动),隐藏范围外演示分类
     const T = require('./lib/seed-texts');
     db.transaction(() => {
@@ -214,7 +227,7 @@ app.get('/img/gen.svg', (req, res) => {
     `<polygon points="600,0 600,300 300,0" fill="#fff" opacity=".14"/><polygon points="0,600 0,350 250,600" fill="#fff" opacity=".12"/>`
   ][v % 4];
   res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${shapes}<text x="300" y="${n ? 330 : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="#fff">${t}</text>${n ? `<text x="300" y="500" font-size="44" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".95">${n}</text>` : ''}<text x="580" y="585" font-size="22" text-anchor="end" font-family="sans-serif" fill="#fff" opacity=".55">CAIGE MALL</text></svg>`);
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${shapes}<text x="300" y="${n ? 330 : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="#fff">${t}</text>${n ? `<text x="300" y="500" font-size="44" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".95">${n}</text>` : ''}<text x="580" y="585" font-size="22" text-anchor="end" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".55">韵农甄选</text></svg>`);
 });
 app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.ico'), { maxAge: '1d' }));
 app.get('/apple-touch-icon.png', (req, res) => res.sendFile(path.join(__dirname, 'public', 'img', 'apple-touch-icon.png'), { maxAge: '1d' }));
@@ -275,7 +288,8 @@ app.locals.showMkt = (mkt, price) => mkt != null && +mkt > 0 && +mkt > +price;
 app.locals.AFTERSALE_STATUS = U.AFTERSALE_STATUS; app.locals.AFTERSALE_TYPE = U.AFTERSALE_TYPE; app.locals.PERMS = U.PERMS; app.locals.regions = require('./lib/regions');
 app.locals.qs = (req, over) => { const q = { ...req.query, ...over }; return '?' + Object.entries(q).filter(([, v]) => v !== '' && v != null).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&'); };
 
-const cookieBase = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 86400000 };
+// 会话 Cookie:path=/、lax、生产(HTTPS,Render 代理后 trust proxy=1)下 secure;前台 rolling 30 天,会话存 SQLite(sessions 表)
+const cookieBase = { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' ? 'auto' : false, maxAge: 30 * 86400000 };
 const secret = process.env.SESSION_SECRET || 'caige-mall-demo-secret-change-me';
 
 // ================= 后台 /admin(独立会话、独立布局) =================
@@ -301,7 +315,9 @@ app.post('/api/suppliers/jdvop/callback', async (req, res) => {
 });
 
 // ================= 前台 =================
-app.use(session({ name: 'cg.sid', secret, resave: false, saveUninitialized: false, store: new SqliteStore('s:'), cookie: cookieBase }));
+app.use(session({ name: 'cg.sid', secret, resave: false, saveUninitialized: false, store: new SqliteStore('s:'), rolling: true, cookie: cookieBase }));
+// 前台 HTML 不缓存:避免手机浏览器返回/前进缓存(bfcache/代理缓存)展示登录前的旧页面(底栏「我的」指向 /login)造成「被退出登录」的错觉
+app.use((req, res, next) => { if (req.method === 'GET' && !req.path.startsWith('/static')) res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate'); next(); });
 // 前台不提供任何图片/文件上传(评价、售后、客服均为纯文字),不挂载 multipart 解析
 app.use(csrf);
 app.use(pageRenderer('shop/layout'));

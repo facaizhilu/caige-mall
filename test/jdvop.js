@@ -125,14 +125,14 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   const parentCat = db.get('SELECT parent_id FROM categories WHERE id=?', roll.category_id).parent_id;
   // 在「全部商品」中逐页查找(列表按综合排序 + 分页/无限滚动)
   const findIn = async (url, needle) => { for (let pgn = 1; pgn <= 30; pgn++) { const x = await g.get(url + (url.includes('?') ? '&' : '?') + 'page=' + pgn); if (x.text.includes(needle)) return x; if (!x.text.includes('class="pcard"')) return null; } return null; };
-  r = await findIn('/products', '/product/' + roll.id + '"'); const ownHit = await findIn('/products', '财哥 Type-C 编织快充数据线');
+  r = await findIn('/products', '/product/' + roll.id + '"'); const ownHit = await findIn('/products', '华岳 Type-C 编织快充数据线');
   ok(r && ownHit, '/products 中供应商商品与自营商品混排');
   ok(r && /class="tag demo">演示<\/span>[^<]*<\/div>/.test(r.text) && r.text.includes(roll.name), 'DEMO 模式商品卡显示「演示」');
   r = await g.get('/products?cat=' + parentCat); ok(r.text.includes(roll.name), '供应商商品出现在一级分类标签');
   r = await g.get('/products?cat=' + roll.category_id); ok(r.text.includes(roll.name), '出现在映射后的二级分类');
   r = await g.get('/products?q=' + encodeURIComponent('快充数据线')); ok(r.text.includes(roll.name), '搜索可找到供应商商品');
   for (const s of ['price_asc', 'price_desc', 'sales', 'new']) { r = await findIn('/products?sort=' + s, '/product/' + roll.id + '"'); ok(r, '排序 ' + s + ' 下可见'); }
-  r = await g.get('/products?sort=price_asc&q=' + encodeURIComponent('数据线')); const ix = [r.text.indexOf('/product/' + roll.id + '"'), r.text.indexOf('财哥 Type-C 编织快充数据线')];
+  r = await g.get('/products?sort=price_asc&q=' + encodeURIComponent('数据线')); const ix = [r.text.indexOf('/product/' + roll.id + '"'), r.text.indexOf('华岳 Type-C 编织快充数据线')];
   ok(ix[0] > 0 && ix[1] > 0 && ix[0] < ix[1], '价格升序与自营商品混排(¥25.9 供应商数据线排在 ¥29 起的自营数据线之前)', ix);
   r = await g.get('/products?q=' + encodeURIComponent('感冒')); ok(!r.text.includes('感冒'.repeat(1) + '灵'), '禁售商品前台不可见');
   r = await g.get('/product/' + roll.id); const plain = stripTags(r.text);
