@@ -574,8 +574,8 @@ module.exports = function (app, { filesOf }) {
     const pg = U.paginate('SELECT * FROM points_log WHERE user_id=? ORDER BY id DESC', [req.user.id], req.query.page, 15);
     const days = []; const signed = new Set(db.all('SELECT day FROM signins WHERE user_id=?', req.user.id).map(r => r.day));
     for (let i = 6; i >= 0; i--) { const d = U.offset(-i * 86400000).slice(0, 10); days.push({ d, signed: signed.has(d), today: i === 0 }); }
-    const expiring = svc.expiringPoints(req.user.id);
-    res.page('shop/me-points', { title: '我的积分', pg, days, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudSeries: svc.cloud.extraSeries(), cloudActive: svc.cloud.isCardActive(req.user) });
+    const expiring = svc.expiringPoints(req.user.id), cycle = svc.cyclePointsExpiry(req.user.id);
+    res.page('shop/me-points', { title: '我的积分', pg, days, cycle, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudSeries: svc.cloud.extraSeries(), cloudActive: svc.cloud.isCardActive(req.user) });
   });
   app.post('/me/signin', needLogin, (req, res) => {
     const today = U.today(), yest = U.offset(-86400000).slice(0, 10);
@@ -645,28 +645,22 @@ module.exports = function (app, { filesOf }) {
   });
 
   // ---------------- 积分商城 ----------------
-  app.get('/points-mall', (req, res) => res.page('shop/points-mall', { title: '积分商城', goods: db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY sort,id') }));
+  // 积分专区:已兑完(库存 0)的商品排在最后并标「已兑完」;积分商品一律包邮;前台不展示积分折现比例
+  app.get('/points-mall', (req, res) => {
+    const goods = db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY (stock<=0), sort, id');
+    goods.forEach(g => { g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g); });
+    res.page('shop/points-mall', { title: '积分商城', goods, banner: svc.S('points_mall_banner') || '' });
+  });
+  app.get('/points-mall/:id', (req, res, next) => {
+    const g = db.get('SELECT * FROM points_goods WHERE id=? AND status=1', int(req.params.id)); if (!g) return next();
+    g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g);
+    res.page('shop/points-goods', { title: g.name, g, notice: String(svc.S('points_redeem_notice') || '').trim() });
+  });
   app.post('/points-mall/:id/exchange', needLogin, (req, res) => {
-    const r = db.transaction(() => {
-      const g = db.get('SELECT * FROM points_goods WHERE id=? AND status=1', int(req.params.id));
-      const u = db.get('SELECT * FROM users WHERE id=?', req.user.id);
-      if (!g) return { ok: false, msg: '商品不存在' };
-      if (g.stock <= 0) return { ok: false, msg: '库存不足' };
-      if (u.points < g.points) return { ok: false, msg: `积分不足,还差 ${g.points - u.points} 积分` };
-      let oid = null;
-      if (g.type === 'goods') {
-        const a = db.get('SELECT * FROM addresses WHERE user_id=? ORDER BY is_default DESC, id LIMIT 1', u.id);
-        if (!a) return { ok: false, msg: '请先添加收货地址再兑换实物', addr: true };
-        oid = db.exec1("INSERT INTO orders(order_no,user_id,type,status,goods_amount,pay_amount,pay_method,paid_at,receiver,phone,province,city,district,detail,points_used,created_at) VALUES(?,?,'points','paid',0,0,'points',?,?,?,?,?,?,?,?,?)", U.orderNo(), u.id, now(), a.name, a.phone, a.province, a.city, a.district, a.detail, g.points, now()).lastInsertRowid;
-        db.exec1('INSERT INTO order_items(order_id,name,spec_text,image,price,qty) VALUES(?,?,?,?,0,1)', oid, g.name, g.points + ' 积分兑换', g.image);
-        db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', oid, now(), '积分兑换成功,等待商家发货');
-      } else if (g.type === 'coupon') { const c = svc.grantCoupon(u.id, g.coupon_id, true); if (!c.ok) return c; }
-      svc.addPoints(u.id, -g.points, '积分兑换:' + g.name);
-      db.exec1('UPDATE points_goods SET stock=stock-1, exchanged=exchanged+1 WHERE id=?', g.id);
-      return { ok: true, msg: g.type === 'coupon' ? '兑换成功,优惠券已发放到「我的优惠券」' : '兑换成功,订单已生成,请等待发货', oid };
-    })();
+    const id = int(req.params.id), r = svc.redeemPointsGoods(req.user.id, id);
+    if (req.get('accept') === 'application/json') return res.json(r);
     flash(req, r.ok ? 'success' : 'error', r.msg);
-    res.redirect(r.ok && r.oid ? '/order/' + r.oid : r.addr ? '/me/addresses' : '/points-mall');
+    res.redirect(r.ok && r.oid ? '/order/' + r.oid : r.addr ? '/me/addresses' : r.ok ? '/points-mall' : '/points-mall/' + id);
   });
 
   // ---------------- 秒杀 / 拼团 ----------------
@@ -700,7 +694,7 @@ module.exports = function (app, { filesOf }) {
   const showArticle = (a, res) => {
     if (!a) return res.status(404).page('shop/error', { title: '文章不存在', code: 404, message: '文章不存在' });
     db.exec1('UPDATE articles SET views=views+1 WHERE id=?', a.id);
-    if (a.topic === 'points_rules') a = { ...a, content: require('../lib/policies').fillPointsVars(a.content, svc.S) };
+    if (a.topic === 'points_rules') a = { ...a, content: require('../lib/policies').fillPointsVars(a.content, svc.S, { deduct: svc.deductEnabled() }) };
     res.page('shop/article', { title: a.title, a });
   };
   app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));

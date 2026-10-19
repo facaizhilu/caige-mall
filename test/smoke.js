@@ -136,7 +136,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/coupons/2/claim', {}, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '领券中心领取');
   // 秒杀
   r = await shop.get('/seckill?x=1'); ok(r.status === 301 && r.loc === '/activity?x=1', '旧地址 /seckill 301 跳转 /activity');
-  r = await shop.get('/points-rules'); ok(r.text.includes('(活动价、拼团商品不可使用)') && !r.text.includes('秒杀'), '积分规则:活动价、拼团商品不可使用');
+  r = await shop.get('/points-rules'); ok(!r.text.includes('= ¥1') && !r.text.includes('下单抵扣') && !r.text.includes('秒杀') && r.text.includes('6 月 1 日'), '积分规则:前台无积分折现比例(抵现默认关闭),含 6/1 周期清零说明');
   r = await shop.get('/groupbuy'); ok(r.text.includes('发起拼团，成团即发货；超时未成团自动全额退款') && !r.text.includes('邀请好友'), '拼团文案无邀请好友');
   r = await shop.get('/group/1'); ok(!/<span class="tag gold">[^<*]{2,}<\/span>/.test(r.text) && r.text.includes('**</span>'), '团员昵称脱敏');
   r = await shop.get('/products'); ok(!r.text.includes('ribbon">热卖'), '无真实销量≥阈值时不显示「热卖」');
@@ -195,7 +195,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/me/invite'); ok(r.status === 200 && r.text.includes('我的邀请') && r.text.includes('首个订单确认收货') && r.text.includes('注册本身不产生任何奖励') && !/佣金|分销|云粉|分享后|邀请满/.test(r.text), '我的邀请页:单级、首单后奖励、无分销文案');
   r = await cg.get('/me'); ok(r.text.includes('我的邀请') && !r.text.includes('我的云粉') && !r.text.includes('积分兑换申请'), '会员中心菜单:我的邀请');
   ok((await cg.post('/me/cloud/daily')).status === 404 && (await cg.post('/me/referral/settle')).status === 404, '每日返积分/佣金结算接口已移除');
-  r = await cg.get('/points-rules'); ok(r.status === 200 && r.text.includes('100 积分 = ¥1') && r.text.includes('不可购买') && !r.text.includes('{{'), '积分规则页(获取/使用/有效期,数值来自配置)');
+  r = await cg.get('/points-rules'); ok(r.status === 200 && !r.text.includes('积分 = ¥1') && r.text.includes('不可购买') && !r.text.includes('{{'), '积分规则页(获取/使用/有效期,数值来自配置;无折现比例)');
   // 云商卡会员签到加赠(主动签到才有,限期)
   r = await cg.post('/me/signin'); r = await cg.get('/me/points'); ok(r.text.includes('云商卡会员签到加赠') && r.text.includes('限期积分'), '云商卡会员主动签到加赠限期积分');
   // 会员价/包邮
@@ -218,9 +218,9 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');
   r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '25', cloud_signin_extra_step: '2', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
   // 积分比例可配置,规则页同步
-  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', points_rate: '200', points_max_percent: '30', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
-  r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '后台修改积分比例/上限后积分规则页同步');
-  await adm.post('/admin/settings', { shop_name: '韵农甄选', points_rate: '100', points_max_percent: '50', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10' });
+  r = await adm.post('/admin/settings/points', { points_clear_day: '06-01', points_expiry_remind_days: '30', points_expiry_enable: '1', points_redeem_notice: '积分兑换商品非质量问题不退不换;如有质量问题或发错货,请联系客服换货或退回积分。', points_deduct_enable: '1', points_rate: '200', points_max_percent: '30' });
+  r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '(抵现开启时)后台修改积分比例/上限后积分规则页同步');
+  await adm.post('/admin/settings/points', { points_clear_day: '06-01', points_expiry_remind_days: '30', points_expiry_enable: '1', points_redeem_notice: '积分兑换商品非质量问题不退不换;如有质量问题或发错货,请联系客服换货或退回积分。', points_rate: '100', points_max_percent: '50' }); r = await cg.get('/points-rules'); ok(!r.text.includes('积分 = ¥1'), '关闭抵现后规则页不再出现折现比例');
   // 违禁词
   r = await adm.get('/admin/banned-words'); ok(r.status === 200 && r.text.includes('躺赚') && r.text.includes('国家级'), '违禁词检查页(默认词表)');
   r = await adm.get('/admin/products/9/edit'); const pf = r.text;

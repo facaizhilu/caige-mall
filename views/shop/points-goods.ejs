@@ -1,0 +1,23 @@
+<div class="crumb"><a href="/">首页</a> › <a href="/points-mall">积分商城</a> › <%= g.name %></div>
+<style>
+.pg-wrap{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:20px}
+.pg-wrap img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;display:block}
+.pm-ptag{display:inline-block;background:linear-gradient(120deg,#f5c242,#d99a0b);color:#fff;font-weight:700;border-radius:999px;padding:3px 14px;font-size:20px;white-space:nowrap}
+.pm-ship{display:inline-block;border:1px solid #f0b429;color:#b7791f;border-radius:4px;padding:0 5px;font-size:12px;line-height:20px;margin-left:6px}
+.tag.demo{font-size:12px}
+.pg-row{font-size:14px;margin:8px 0;color:#555}
+.pg-notice{font-size:12px;color:#999;margin:8px 0 0;line-height:1.6}
+@media(max-width:640px){.pg-wrap{grid-template-columns:1fr;gap:12px}.pm-ptag{font-size:17px}}
+</style>
+<div class="card"><div class="pg-wrap"><div><img src="<%= g.image %>" alt="<%= g.name %>"></div><div>
+<h2 style="margin:0 0 8px;font-size:18px"><% if (g.is_demo && demo) { %><span class="tag demo">演示</span><% } %><%= g.name %></h2>
+<div><span class="pm-ptag"><%= g.points %> 积分</span><% if (g.type==='goods') { %><span class="pm-ship">包邮</span><% } %></div>
+<% if (g.description) { %><div class="pg-row"><%= g.description %></div><% } %>
+<div class="pg-row">配送:<%= g.type==='goods' ? '包邮' : '虚拟券,兑换后即时到账' %></div>
+<div class="pg-row">剩余:<%= g.soldOut ? '已兑完' : g.stock + ' 件' %><% if (g.per_user_limit > 0) { %> · 每人限兑 <%= g.per_user_limit %> 件<% if (user) { %>,您还可兑 <b class="pg-left"><%= g.left %></b> 件<% } %><% } %></div>
+<% if (user) { %><div class="pg-row">我的积分:<b><%= user.points %></b></div><% } %>
+<% if (g.soldOut) { %><button class="btn lg block mt" disabled>已兑完</button>
+<% } else if (!user) { %><a class="btn gold lg block mt" href="/login?next=/points-mall/<%= g.id %>">登录后兑换</a>
+<% } else { %><form method="post" action="/points-mall/<%= g.id %>/exchange" data-confirm="确定使用 <%= g.points %> 积分兑换「<%= g.name %>」?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn gold lg block mt" <%= g.left===0?'disabled':'' %>><%= g.left===0?'已达兑换上限':'积分兑换' %></button></form><% } %>
+<% if (notice) { %><p class="pg-notice"><%= notice %></p><% } %>
+</div></div></div>

@@ -56,6 +56,9 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   ok(db.get('SELECT sold FROM seckills WHERE id=2').sold === before + 1, '秒杀已售数+1'); await a.post('/order/' + soid + '/cancel');
   ok(db.get('SELECT sold FROM seckills WHERE id=2').sold === before, '取消订单后秒杀库存回滚');
   console.log('== 优惠券/积分/运费 ==');
+  // 下单积分抵现默认关闭(店主要求前台不出现折现比例);此处临时开启以覆盖历史抵扣订单的退款/售后逻辑,末尾「积分专区」段关闭并断言
+  const PTS_SET = { points_clear_day: '06-01', points_expiry_remind_days: '30', points_expiry_enable: '1', points_redeem_notice: '积分兑换商品非质量问题不退不换;如有质量问题或发错货,请联系客服换货或退回积分。', points_rate: '100', points_max_percent: '50' };
+  await adm.post('/admin/settings/points', { ...PTS_SET, points_deduct_enable: '1' });
   const sku4 = db.get('SELECT * FROM skus WHERE product_id=4 LIMIT 1');
   r = await a.post('/checkout', { sku_id: sku4.id, qty: 1 });
   const cp = (r.text.match(/<option value="(\d+)">减¥10 · 满99减10/) || [])[1]; ok(!!cp, '结算页可选满99减10券');
@@ -538,6 +541,89 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       t = await home(); ok(!t.includes('bnr') && t.includes('<a class="hero" href="/register">') && t.includes('新人注册有礼'), '无启用 Banner:回退为固定横幅');
       const st = db.prepare('UPDATE banners SET status=? WHERE id=?'); saved.forEach(x => st.run(x.status, x.id));
       t = await home(); ok(titles(t).length === en.length, 'Banner 状态已恢复'); }
+  }
+
+  console.log('== 积分专区 v1.3:限兑/库存/并发/包邮/退回积分/周期过期/无折现比例 ==');
+  { const svc = require('../lib/svc'); let x;
+    // 1) 下单积分抵现默认关闭:前台无任何积分折现比例,服务端忽略 use_points
+    await adm.post('/admin/settings/points', { ...PTS_SET, points_deduct_enable: '0' });
+    ok(db.get("SELECT value FROM settings WHERE key='points_deduct_enable'").value === '0', '积分抵现关闭(默认值 0)');
+    const sku = db.get('SELECT s.* FROM skus s JOIN products p ON p.id=s.product_id WHERE p.status=1 AND p.supplier IS NULL AND s.stock>5 AND s.price>=50 LIMIT 1');
+    x = await a.post('/checkout', { sku_id: sku.id, qty: 1 }); ok(x.text.includes('确认订单') && !x.text.includes('积分抵扣') && !/积分抵\s*¥|可抵\s*¥|积分可抵/.test(x.text), '结算页无积分抵扣/折现比例');
+    const qx = JSON.parse((await a.post('/api/quote', { items: itemsRaw(x.text), address_id: addr, use_points: '500' }, { json: true })).text); ok(qx.ok && qx.pointsDiscount === 0 && qx.pointsUsed === 0 && qx.maxPoints === 0, '关闭时服务端忽略 use_points', JSON.stringify(qx));
+    for (const pth of ['/', '/products', '/product/' + sku.product_id, '/me/points', '/points-mall']) { x = await a.get(pth); ok(!/积分可抵|可抵\s*¥|积分\s*=\s*¥|积分抵\s*¥/.test(x.text), '前台无积分折现比例 ' + pth); }
+    // 2) 积分专区列表/详情:金色积分标签 + 包邮,按钮「立即兑换」,演示标记,无金额/退换说明
+    x = await a.get('/points-mall');
+    ok(x.text.includes('class="pm-ptag">3000 积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && x.text.includes('class="tag demo">演示'), '积分专区卡片:金色「xxx 积分」+「包邮」+「立即兑换」+演示标记');
+    const grid = x.text.slice(x.text.indexOf('class="grid"')); ok(!/¥|退换|无理由/.test(grid), '积分商品卡片无金额、无退换说明');
+    ok(x.text.includes('data-placeholder="1"') && x.text.includes('data-slot="points_mall_banner"'), '积分专区顶部横幅:未上传时显示占位');
+    const demoGoods = db.all('SELECT g.*, c.name cn, pc.name pn FROM points_goods g LEFT JOIN categories c ON c.id=g.category_id LEFT JOIN categories pc ON pc.id=c.parent_id');
+    const CC = require('../lib/suppliers/jdvop/compliance');
+    ok(demoGoods.length >= 6 && demoGoods.every(g => g.is_demo === 1) && demoGoods.every(g => g.type === 'coupon' || (g.category_id && !CC.scopeWarning([g.pn, g.cn]))) && demoGoods.some(g => g.pn === '新鲜农产品') && demoGoods.some(g => g.pn === '数码电脑') && demoGoods.some(g => g.type === 'coupon'), '演示积分商品均在经营范围(数码配件/新鲜农产品/优惠券)并标记演示');
+    const mango = demoGoods.find(g => g.pn === '新鲜农产品');
+    x = await a.get('/points-mall/' + mango.id); ok(x.text.includes('积分兑换') && x.text.includes('包邮') && x.text.includes('class="pg-notice">积分兑换商品非质量问题不退不换') && !/无理由/.test(x.text), '兑换确认页:积分兑换按钮、包邮、兑换须知小字,无退换标记');
+    ok(x.text.includes('每人限兑 1 件') && x.text.includes('class="pg-left">1<'), '兑换确认页显示每人限兑及剩余可兑');
+    await adm.post('/admin/settings/points', { ...PTS_SET, points_redeem_notice: '' }); x = await a.get('/points-mall/' + mango.id); ok(!x.text.includes('class="pg-notice"'), '兑换须知清空后不显示');
+    await adm.post('/admin/settings/points', { ...PTS_SET });
+    // 3) 后台新增积分商品:图片上传、限兑、分类经营范围提示(不拦截)
+    x = await adm.get('/admin/points-goods/new'); ok(x.text.includes('800×800') && x.text.includes('每人限兑') && !/name="(shipping_fee|returnable|return_note)"/.test(x.text), '后台表单:方图≥800 提示、每人限兑;无运费/退换字段');
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const subCat = db.get("SELECT id FROM categories WHERE name='手机配件'").id;
+    const fd = (o, file) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.append(k, String(v)); if (file) f.append('image_file', new Blob([png], { type: 'image/png' }), 'a.png'); return f; };
+    x = await adm.post('/admin/points-goods/save', fd({ name: '回归测试数据线', image: '', points: 10, type: 'goods', coupon_id: 0, category_id: subCat, stock: 5, per_user_limit: 1, description: '', sort: 99, status: 1 }, true), { form: true });
+    const tg = db.get("SELECT * FROM points_goods WHERE name='回归测试数据线'"); ok(x.status === 302 && tg && /^\/uploads\/.+\.png$/.test(tg.image) && tg.per_user_limit === 1, '后台新增积分商品:图片上传成功、限兑已保存', tg && tg.image);
+    x = await adm.get('/admin/points-goods'); ok(x.text.includes('积分商品已保存') && !x.text.includes('不影响保存'), '范围内分类无经营范围提示');
+    const badCat = db.exec1("INSERT INTO categories(name,parent_id,sort,status) VALUES('服饰鞋包',0,99,0)").lastInsertRowid;
+    await adm.get('/admin/points-goods/new'); x = await adm.post('/admin/points-goods/save', fd({ name: '回归范围外礼品', image: '', points: 10, type: 'goods', coupon_id: 0, category_id: badCat, stock: 1, per_user_limit: 0, description: '', sort: 99, status: 0 }), { form: true });
+    x = await adm.get('/admin/points-goods'); ok(db.get("SELECT 1 FROM points_goods WHERE name='回归范围外礼品'") && x.text.includes('不影响保存') && x.text.includes('经营范围'), '范围外分类:保存成功并提示(复用 scopeWarning)');
+    db.exec1("DELETE FROM points_goods WHERE name='回归范围外礼品'"); db.exec1('DELETE FROM categories WHERE id=?', badCat);
+    // 4) 每人限兑 + 取消退回积分/库存/名额
+    db.exec1('UPDATE users SET points=points+5000 WHERE id=2');
+    let p0 = db.get('SELECT points FROM users WHERE id=2').points;
+    x = await a.post('/points-mall/' + tg.id + '/exchange'); const toid = +(x.loc.match(/order\/(\d+)/) || [])[1];
+    const to = db.get('SELECT * FROM orders WHERE id=?', toid);
+    ok(to && to.type === 'points' && to.freight === 0 && to.pay_amount === 0 && to.points_goods_id === tg.id && db.get('SELECT points FROM users WHERE id=2').points === p0 - 10, '兑换成功:包邮(运费 0)、扣 10 积分、生成兑换单');
+    x = await a.post('/points-mall/' + tg.id + '/exchange', {}); const ff = await a.get(x.loc); ok(ff.text.includes('每人限兑 1 件') && db.get('SELECT stock FROM points_goods WHERE id=?', tg.id).stock === 4, '超过每人限兑被拒(服务端校验)');
+    x = await a.get('/points-mall/' + tg.id); ok(x.text.includes('已达兑换上限'), '达上限后按钮显示「已达兑换上限」');
+    await adm.post('/admin/orders/' + toid + '/cancel', { reason: '回归测试' });
+    ok(db.get('SELECT status FROM orders WHERE id=?', toid).status === 'refunded' && db.get('SELECT points FROM users WHERE id=2').points === p0 && db.get('SELECT stock FROM points_goods WHERE id=?', tg.id).stock === 5, '兑换单退款:积分退回、库存回补');
+    ok(svc.redeemedCount(2, tg.id) === 0, '已退款兑换不计入限兑次数');
+    x = await a.post('/points-mall/' + tg.id + '/exchange'); ok(/\/order\/\d+/.test(x.loc || ''), '退款后可再次兑换');
+    // 5) 库存 0:已兑完、禁止兑换
+    db.exec1("UPDATE points_goods SET stock=1, per_user_limit=0 WHERE id=?", tg.id);
+    x = await b.post('/points-mall/' + tg.id + '/exchange'); ok(db.get('SELECT stock FROM points_goods WHERE id=?', tg.id).stock === 0, '最后一件兑出,库存为 0');
+    x = await a.get('/points-mall'); const soldIdx = x.text.indexOf('回归测试数据线'); ok(soldIdx > 0 && x.text.lastIndexOf('pm-so', soldIdx) > x.text.lastIndexOf('class="pcard', soldIdx) - 1 && /回归测试数据线[\s\S]{0,700}已兑完/.test(x.text), '列表标「已兑完」');
+    p0 = db.get('SELECT points FROM users WHERE id=2').points; x = await a.post('/points-mall/' + tg.id + '/exchange', {}, { json: true }); ok(JSON.parse(x.text).ok === false && JSON.parse(x.text).msg === '已兑完' && db.get('SELECT points FROM users WHERE id=2').points === p0, '库存 0 时兑换被拒且不扣积分');
+    x = await a.get('/points-mall/' + tg.id); ok(x.text.includes('disabled>已兑完'), '详情页按钮「已兑完」禁用');
+    // 6) 并发:库存 3,同时 30 个兑换请求 → 恰好 3 个成功,不超兑
+    db.exec1("UPDATE points_goods SET stock=3, exchanged=0 WHERE id=?", tg.id); db.exec1('UPDATE users SET points=points+1000 WHERE id IN (2,3)');
+    const maxO = db.get('SELECT MAX(id) m FROM orders').m, pa = db.get('SELECT points FROM users WHERE id=2').points, pb = db.get('SELECT points FROM users WHERE id=3').points;
+    const rs = await Promise.all(Array.from({ length: 30 }, (_, i) => (i % 2 ? a : b).post('/points-mall/' + tg.id + '/exchange', {}, { json: true }).then(r => JSON.parse(r.text))));
+    const succ = rs.filter(r => r.ok).length, g3 = db.get('SELECT stock, exchanged FROM points_goods WHERE id=?', tg.id);
+    ok(succ === 3 && g3.stock === 0 && g3.exchanged === 3, '并发 30 次兑换:成功 3 次,库存 0,无超兑', JSON.stringify({ succ, g3 }));
+    ok((pa - db.get('SELECT points FROM users WHERE id=2').points) + (pb - db.get('SELECT points FROM users WHERE id=3').points) === 30 && db.get('SELECT COUNT(*) n FROM orders WHERE points_goods_id=? AND id>?', tg.id, maxO).n === 3, '并发:仅成功的 3 次扣积分并生成订单');
+    // 7) 横幅上传
+    const bf = new FormData(); for (const [k, v] of Object.entries(PTS_SET)) bf.append(k, v); bf.append('points_mall_banner_file', new Blob([png], { type: 'image/png' }), 'banner.png');
+    await adm.get('/admin/settings'); x = await adm.post('/admin/settings/points', bf, { form: true }); const bn = db.get("SELECT value FROM settings WHERE key='points_mall_banner'").value;
+    x = await a.get('/points-mall'); ok(/^\/uploads\//.test(bn) && x.text.includes(`<img src="${bn}" alt="积分专区">`) && !x.text.includes('data-placeholder'), '后台上传积分专区横幅,前台展示');
+    await adm.post('/admin/settings/points', { ...PTS_SET, points_mall_banner_clear: '1' }); x = await a.get('/points-mall'); ok(x.text.includes('data-placeholder="1"'), '移除横幅后恢复占位');
+    x = await adm.post('/admin/settings/points', { ...PTS_SET, points_clear_day: '13-01' }); ok(db.get("SELECT value FROM settings WHERE key='points_clear_day'").value === '06-01', '清零日格式校验');
+    // 8) 周期过期:跨 6/1 边界
+    const E = svc.cycleExpireAt;
+    ok(E('2026-05-31 23:59:59', '06-01') === '2027-05-31 23:59:59' && E('2026-06-01 00:00:00', '06-01') === '2028-05-31 23:59:59' && E('2027-05-31 23:59:59', '06-01') === '2028-05-31 23:59:59' && E('2027-06-01 00:00:00', '06-01') === '2029-05-31 23:59:59', '周期过期:6/1 前后分属不同周期(5/31→次年 5/31,6/1→后年 5/31)');
+    ok(E('2026-03-15 10:00:00', '03-01') === '2028-02-29 23:59:59' && E('2026-02-28 10:00:00', '03-01') === '2027-02-28 23:59:59' && E('2027-03-01 00:00:00', '03-01') === '2029-02-28 23:59:59', '清零日可配置(03-01 跨闰年计算正确)');
+    const cu = db.get("SELECT id FROM users WHERE phone='13800000003'").id; svc.addPoints(cu, 77, '回归测试获得');
+    const cl = db.get("SELECT * FROM point_lots WHERE user_id=? ORDER BY id DESC LIMIT 1", cu); ok(cl && cl.kind === 'cycle' && cl.remaining === 77 && cl.expire_at === E(cl.created_at, '06-01'), '获得积分记入周期批次并按清零日计算到期');
+    db.exec1("UPDATE point_lots SET expire_at='2000-05-31 23:59:59' WHERE id=?", cl.id); const bp = db.get('SELECT points FROM users WHERE id=?', cu).points; svc.expirePointLots();
+    ok(db.get('SELECT points FROM users WHERE id=?', cu).points === bp - 77 && db.get('SELECT remaining FROM point_lots WHERE id=?', cl.id).remaining === 0, '到期批次自动清零');
+    const soon = require('../lib/util').offset(20 * 86400000).slice(0, 10) + ' 23:59:59';
+    svc.addPoints(cu, 66, '回归提醒'); const rl = db.get("SELECT id FROM point_lots WHERE user_id=? ORDER BY id DESC LIMIT 1", cu).id; db.exec1('UPDATE point_lots SET expire_at=? WHERE id=?', soon, rl);
+    x = await b.get('/me/points'); const md = `${+soon.slice(5, 7)}月${+soon.slice(8, 10)}日`; ok(x.text.includes(`66积分将于${md}过期`), '积分页显示「xxx积分将于x月x日过期」', md);
+    const m0 = db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n; const sent = svc.remindExpiringPoints();
+    ok(sent.some(s => s.uid === cu && s.n === 66) && db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n === m0 + 1 && db.get("SELECT content FROM messages WHERE user_id=? ORDER BY id DESC", cu).content.includes(`66 积分将于 ${md}过期`), '到期前 30 天站内消息提醒');
+    svc.remindExpiringPoints(); ok(db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n === m0 + 1, '提醒不重复发送');
+    ok(svc.wechatSubscribeNotify(cu, 'points_expire', {}).stub === true, '微信订阅消息桩函数存在(待接入)');
+    x = await b.get('/points-rules'); ok(x.text.includes('6 月 1 日') && !x.text.includes('= ¥1'), '积分规则:6/1 清零规则,无折现比例');
   }
 
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);

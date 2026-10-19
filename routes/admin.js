@@ -599,10 +599,14 @@ module.exports = function (r, { filesOf }) {
     const rows = db.all("SELECT g.*, u.nickname, p.name pname FROM groups g JOIN users u ON u.id=g.leader_id JOIN groupbuys gb ON gb.id=g.groupbuy_id JOIN products p ON p.id=gb.product_id ORDER BY g.id DESC LIMIT 100");
     res.page('admin/groups', { title: '团列表', rows });
   });
+  // 积分商城商品:积分数仅在后台按件设置;一律包邮;库存为 0 前台显示「已兑完」并禁止兑换;分类不在经营范围时仅提示不拦截
+  const pgCatOptions = () => [{ v: 0, t: '优惠券 / 不选分类' }, ...db.all('SELECT c.id v, CASE WHEN pc.name IS NULL THEN c.name ELSE pc.name || \' / \' || c.name END t FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id ORDER BY COALESCE(pc.sort,c.sort), c.parent_id>0, c.sort')];
+  const pgScope = row => { if (!row.category_id || row.type === 'coupon') return null; const c = db.get('SELECT c.name, pc.name pn FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.id=?', row.category_id); if (!c) return null; const w = require('../lib/suppliers/jdvop/compliance').scopeWarning([c.pn, c.name].filter(Boolean)); return w ? w.msg : null; };
   crud(r, { path: 'points-goods', table: 'points_goods', perm: 'marketing', title: '积分商城商品', singular: '积分商品', toggle: 'status', order: 'sort,id',
-    cols: [{ label: 'ID', f: x => x.id }, { label: '商品', f: x => `<img src="${esc(x.image)}" style="height:36px;width:36px;border-radius:6px;vertical-align:middle;object-fit:cover"> <b>${esc(x.name)}</b>` }, { label: '类型', f: x => x.type === 'coupon' ? '优惠券' : '实物' }, { label: '所需积分', f: x => x.points }, { label: '库存/已兑', f: x => `${x.stock}/${x.exchanged}` }, { label: '状态', f: stBadge }],
-    fields: [{ name: 'name', label: '名称', required: true }, { name: 'image', label: '图片', type: 'image' }, { name: 'points', label: '所需积分', type: 'number', int: true, min: 1 }, { name: 'type', label: '类型', type: 'select', options: [{ v: 'goods', t: '实物礼品' }, { v: 'coupon', t: '优惠券' }] }, { name: 'coupon_id', label: '关联优惠券(类型为优惠券时)', type: 'select', numeric: true, options: () => [{ v: 0, t: '无' }, ...db.all('SELECT id v, name t FROM coupons')] }, { name: 'stock', label: '库存', type: 'number', int: true, min: 0 }, { name: 'description', label: '说明' }, { name: 'sort', label: '排序', type: 'number', int: true }, { name: 'status', label: '上架', type: 'checkbox', def: 1 }],
-    validate: row => row.type === 'coupon' && !row.coupon_id ? '优惠券类型需选择关联优惠券' : null, before: row => { if (!row.image) row.image = U.genImg('🎁', 'f59e0b', 'fde68a', 0, row.name.slice(0, 6)); } }, ctx);
+    cols: [{ label: 'ID', f: x => x.id }, { label: '商品', f: x => `<img src="${esc(x.image)}" style="height:36px;width:36px;border-radius:6px;vertical-align:middle;object-fit:cover"> <b>${esc(x.name)}</b>${x.is_demo ? ' <span class="tag">演示</span>' : ''}` }, { label: '类型', f: x => x.type === 'coupon' ? '优惠券' : '实物(包邮)' }, { label: '所需积分', f: x => x.points }, { label: '每人限兑', f: x => x.per_user_limit > 0 ? x.per_user_limit + ' 件' : '不限' }, { label: '库存/已兑', f: x => `${x.stock}/${x.exchanged}` + (x.stock <= 0 ? ' <span class="tag red">已兑完</span>' : '') }, { label: '状态', f: stBadge }],
+    fields: [{ name: 'name', label: '名称', required: true }, { name: 'image', label: '图片', type: 'image', help: '建议上传正方形图片,不小于 800×800 像素(JPG/PNG/WebP,≤3MB)' }, { name: 'points', label: '所需积分', type: 'number', int: true, min: 1 }, { name: 'type', label: '类型', type: 'select', options: [{ v: 'goods', t: '实物礼品(包邮)' }, { v: 'coupon', t: '优惠券' }] }, { name: 'coupon_id', label: '关联优惠券(类型为优惠券时)', type: 'select', numeric: true, options: () => [{ v: 0, t: '无' }, ...db.all('SELECT id v, name t FROM coupons')] }, { name: 'category_id', label: '商品分类(用于经营范围提示)', type: 'select', numeric: true, options: pgCatOptions, help: '不在当前经营范围的分类仅提示,不阻止保存' }, { name: 'stock', label: '库存', type: 'number', int: true, min: 0, help: '库存为 0 时前台显示「已兑完」并停止兑换' }, { name: 'per_user_limit', label: '每人限兑(件,0=不限)', type: 'number', int: true, min: 0 }, { name: 'description', label: '说明' }, { name: 'sort', label: '排序', type: 'number', int: true }, { name: 'status', label: '上架', type: 'checkbox', def: 1 }],
+    validate: row => row.type === 'coupon' && !row.coupon_id ? '优惠券类型需选择关联优惠券' : null, before: row => { if (!row.image) row.image = U.genImg('🎁', 'f59e0b', 'fde68a', 0, row.name.slice(0, 6)); },
+    warn: pgScope }, ctx);
   crud(r, { path: 'keywords', table: 'keywords', perm: 'marketing', title: '热搜词', singular: '热搜词', order: 'is_hot DESC, hits DESC', search: ['word'], toggle: 'is_hot',
     cols: [{ label: 'ID', f: x => x.id }, { label: '关键词', f: x => '<b>' + esc(x.word) + '</b>' }, { label: '搜索次数', f: x => x.hits }, { label: '首页热搜', f: x => x.is_hot ? '<span class="tag">展示中</span>' : '<span class="tag gray">未展示</span>' }, { label: '排序', f: x => x.sort }],
     fields: [{ name: 'word', label: '关键词', required: true }, { name: 'hits', label: '搜索次数', type: 'number', int: true }, { name: 'sort', label: '排序', type: 'number', int: true }, { name: 'is_hot', label: '展示为热搜', type: 'checkbox', def: 1 }],
@@ -737,16 +741,32 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
-    const numeric = ['points_rate', 'points_max_percent', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const numeric = ['signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     if (!String(req.body.shop_name || '').trim()) { flash(req, 'error', '商城名称不能为空'); return res.redirect('/admin/settings'); }
     for (const k of numeric) if (!(num(req.body[k], -1) >= 0)) { flash(req, 'error', '数值类设置需为非负数字'); return res.redirect('/admin/settings'); }
-    if (num(req.body.points_rate) < 1) { flash(req, 'error', '积分抵现比例至少为 1'); return res.redirect('/admin/settings'); }
-    if (num(req.body.points_max_percent) > 100) { flash(req, 'error', '积分最高抵扣比例不能超过 100%'); return res.redirect('/admin/settings'); }
     for (const k of keys) svc.setSetting(k, String(req.body[k] == null ? '' : req.body[k]).trim().slice(0, 300));
     log(req, '修改站点设置', ''); flash(req, 'success', '设置已保存'); res.redirect('/admin/settings');
+  });
+  // 积分设置:有效期清零日、到期提醒、积分专区横幅、兑换须知;下单积分抵现(默认关闭,关闭时前台不出现积分折现比例)
+  r.post('/settings/points', need('system'), (req, res) => {
+    const b = req.body, go = (t, m) => { flash(req, t, m); res.redirect('/admin/settings#points'); };
+    const cd = String(b.points_clear_day || '').trim();
+    if (!/^(0[1-9]|1[0-2])-(0[1-9]|1\d|2[0-8])$/.test(cd)) return go('error', '清零日格式为 MM-DD(日期 01-28),如 06-01');
+    const remind = int(b.points_expiry_remind_days, -1), rate = int(b.points_rate, -1), pct = int(b.points_max_percent, -1);
+    if (remind < 1 || remind > 180) return go('error', '到期提醒天数需为 1-180');
+    if (rate < 1) return go('error', '积分抵现比例至少为 1');
+    if (pct < 0 || pct > 100) return go('error', '积分最高抵扣比例需为 0-100');
+    svc.setSetting('points_clear_day', cd); svc.setSetting('points_expiry_remind_days', remind);
+    svc.setSetting('points_expiry_enable', b.points_expiry_enable === '1' ? '1' : '0');
+    svc.setSetting('points_deduct_enable', b.points_deduct_enable === '1' ? '1' : '0');
+    svc.setSetting('points_rate', rate); svc.setSetting('points_max_percent', pct);
+    svc.setSetting('points_redeem_notice', String(b.points_redeem_notice == null ? '' : b.points_redeem_notice).trim().slice(0, 200));
+    const up = filesOf(req, 'points_mall_banner_file')[0];
+    if (up) svc.setSetting('points_mall_banner', up); else if (b.points_mall_banner_clear === '1') svc.setSetting('points_mall_banner', '');
+    log(req, '修改积分设置', `清零日 ${cd} 提醒 ${remind} 天 抵现 ${b.points_deduct_enable === '1' ? '开' : '关'}`); go('success', '积分设置已保存');
   });
   crud(r, { path: 'roles', table: 'roles', perm: 'system', title: '角色权限', singular: '角色',
     cols: [{ label: 'ID', f: x => x.id }, { label: '角色', f: x => '<b>' + esc(x.name) + '</b>' }, { label: '权限', f: x => x.permissions === 'all' ? '<span class="tag">全部权限</span>' : x.permissions.split(',').filter(Boolean).map(p => `<span class="tag gold">${esc(U.PERMS[p] ? U.PERMS[p].split('/')[0] : p)}</span>`).join('') }, { label: '管理员数', f: x => db.get('SELECT COUNT(*) n FROM admins WHERE role_id=?', x.id).n }, { label: '说明', f: x => esc(x.remark) }],
