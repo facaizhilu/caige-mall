@@ -155,6 +155,30 @@ svc.cloud.ensureDefaults();
       mark('home_picks_produce');
     })();
   }
+  if (!done('demo_laptop_accessory') && process.env.DEMO_MODE === '1') { // 演示库:原演示整机「华岳 轻薄本」(未改动:原名+原副标题+自营)替换为电脑配件(同一 ID);后台改过的不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      const lp = db.get('SELECT id FROM products WHERE supplier IS NULL AND name=? AND subtitle=?', T.OLD_SEED_LAPTOP.name, T.OLD_SEED_LAPTOP.subtitle);
+      const r = T.DEMO_LAPTOP_REPLACE_ROW;
+      const cat = db.get('SELECT id FROM categories WHERE name=? AND parent_id>0', r[2]);
+      if (lp && cat) {
+        const specs = r[10].split(';').map(x => { const [k, v] = x.split(':'); return [k, v.split('|')]; });
+        let combos = [{}]; for (const [k, vs] of specs) combos = combos.flatMap(o => vs.map(v => ({ ...o, [k]: v })));
+        const imgs = JSON.stringify([0, 1, 2, 3].map(v => U.genImg(r[14], r[12], r[13], v, r[0].slice(0, 8))));
+        db.exec1('UPDATE products SET name=?, subtitle=?, category_id=?, images=?, spec_names=?, description=? WHERE id=?', r[0], r[1], cat.id, imgs, specs.map(x => x[0]).join(','), T.SEED_DESC(r[0]), lp.id);
+        const ex = db.all('SELECT id FROM skus WHERE product_id=? ORDER BY id', lp.id);
+        combos.forEach((a, i) => {
+          const pr = r[11][Math.min(Math.floor(i / Math.max(1, combos.length / r[11].length)), r[11].length - 1)];
+          if (ex[i]) db.exec1('UPDATE skus SET attrs=?, spec_text=?, price=? WHERE id=?', JSON.stringify(a), Object.values(a).join(' / '), pr[0], ex[i].id);
+          else db.prepare('INSERT INTO skus(product_id,attrs,spec_text,price,stock,code) VALUES(?,?,?,?,?,?)').run(lp.id, JSON.stringify(a), Object.values(a).join(' / '), pr[0], 10, 'CG' + String(lp.id).padStart(3, '0') + String(i + 1).padStart(2, '0') + 'M');
+        });
+        ex.slice(combos.length).forEach(k => db.exec1('UPDATE skus SET stock=0 WHERE id=?', k.id));
+        db.exec1('UPDATE products SET stock=(SELECT SUM(stock) FROM skus WHERE product_id=?), price=(SELECT MIN(price) FROM skus WHERE product_id=? AND stock>0) WHERE id=?', lp.id, lp.id, lp.id);
+        console.log('[demo] 演示整机「华岳 轻薄本」已替换为电脑配件');
+      }
+      mark('demo_laptop_accessory');
+    })();
+  }
   if (!done('home_carousel_banners')) { // 首页恢复轮播:旧库若仍是未改动过的旧默认 Banner(无图片),替换为合规演示 Banner;后台已改动过的不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {

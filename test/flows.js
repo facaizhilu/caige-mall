@@ -519,7 +519,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       const titles = t => [...t.matchAll(/class="bnr-s[^"]*"[\s\S]*?<h2>([^<]*)<\/h2>/g)].map(m => m[1]);
       const en = db.all('SELECT title FROM banners WHERE status=1 ORDER BY sort, id').map(x => x.title);
       let t = await home(); ok(en.length >= 2 && t.includes('class="hero bnr"') && t.includes(`data-n="${en.length}"`) && JSON.stringify(titles(t)) === JSON.stringify(en) && (t.match(/<button type="button"[^>]*aria-label="第 \d+ 张"/g) || []).length === en.length, '首页轮播展示全部启用 Banner(按排序)及圆点', titles(t));
-      ok(/\/static\/js\/home\.js\?v=\d+/.test(t) && !t.includes('home.css?v=7'), '首页引入轮播脚本,样式版本号已更新');
+      ok(/\/static\/js\/home\.js\?v=\d+/.test(t) && !t.includes('home.css?v=9'), '首页引入轮播脚本,样式版本号已更新');
       await adm.get('/admin/banners/new');
       for (const bad of ['https://evil.example/x', 'http://evil.example', '//evil.example/x', '/\\evil.example', 'javascript:alert(1)', 'products']) {
         r = await adm.post('/admin/banners/save', { title: '外链测试', subtitle: '', image: '', link: bad, bg1: '#d4202a', bg2: '#f2a93b', sort: '9', status: '1' });

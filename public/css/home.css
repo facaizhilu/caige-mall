@@ -150,3 +150,8 @@ a{color:inherit;text-decoration:none}
 /* 中高屏(740–899,如 375×812 / 390×844 / 360×800 / 414×896)两行商品:横幅、入口、专区收敛,把高度让给商品图(图不压扁) */
 @media (min-height:740px) and (max-height:899px){.head{padding-top:calc(6px + env(safe-area-inset-top))}.hero{margin-top:8px;min-height:104px;height:auto}.ents{margin-top:10px;padding-bottom:16px}.ent{gap:4px}.zones{margin-top:8px;gap:6px}.bc{height:58px;padding:6px}.bc img{width:min(38px,44%)}.svc{margin-top:6px}.picks{margin-top:6px;padding:4px 8px 6px}.pk-h{height:24px}.pk-g{margin-top:2px}}
 @media (min-height:740px) and (max-height:899px) and (min-width:361px){.ent b{width:clamp(42px,11.5vw,50px)}}
+/* —— v10:横幅标题流式字号,按宽度保证 8 字以内完整显示(省略号仅作超长标题兜底) —— */
+.bnr-s>h2{--bt:1.6rem;font-size:clamp(1rem,min(var(--bt),calc(9vw - 8px)),var(--bt));letter-spacing:1px;max-width:74%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+@media (min-height:740px){.bnr-s>h2{--bt:1.75rem}}
+@media (max-height:700px){.bnr-s>h2{--bt:1.25rem}}
+@media (max-height:600px){.bnr-s>h2{--bt:1.125rem}}
