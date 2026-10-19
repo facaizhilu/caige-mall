@@ -220,6 +220,24 @@ svc.cloud.ensureDefaults();
       mark('brand_nanshanju_20261020');
     })();
   }
+  if (!done('demo_plain_names_20261020')) { // 去除全部虚构演示品牌:自营演示商品/积分商品名去品牌前缀(仅匹配原种子默认名),品牌统一「韵农甄选」,生成图文字同步;供应商商品不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      let yn = db.get("SELECT id FROM brands WHERE name='韵农甄选'"); if (!yn) yn = { id: db.exec1("INSERT INTO brands(name,description,color,sort,status) VALUES('韵农甄选','韵农甄选品牌官方旗舰','#b8231c',0,1)").lastInsertRowid };
+      db.exec1('UPDATE brands SET status=1 WHERE id=?', yn.id);
+      const swapImg = (v, o, n) => String(v || '').split(encodeURIComponent(o)).join(encodeURIComponent(n));
+      for (const r of db.all("SELECT id, name, images, description FROM products WHERE supplier IS NULL")) {
+        if (!T.DEMO_BRAND_PREFIX.test(r.name)) continue;
+        const nn = T.plainDemoName(r.name); if (nn === r.name) continue;
+        const desc = r.description === T.SEED_DESC(r.name) ? T.SEED_DESC(nn) : r.description;
+        db.exec1('UPDATE products SET name=?, images=?, description=? WHERE id=?', nn, swapImg(r.images, r.name, nn), desc, r.id);
+        db.exec1('UPDATE order_items SET name=?, image=REPLACE(image,?,?) WHERE product_id=? AND name=?', nn, encodeURIComponent(r.name), encodeURIComponent(nn), r.id, r.name);
+      }
+      for (const [o, n] of T.POINTS_PLAIN) for (const g of db.all('SELECT id, image FROM points_goods WHERE name=?', o)) db.exec1('UPDATE points_goods SET name=?, image=? WHERE id=?', n, swapImg(g.image, o.slice(0, 20), n).split(encodeURIComponent(o.slice(0, 6))).join(encodeURIComponent(n)), g.id);
+      for (const b of T.DEMO_OLD_BRANDS) for (const ob of db.all('SELECT id FROM brands WHERE name=? AND description=?', b, b + '品牌官方旗舰')) { db.exec1('UPDATE products SET brand_id=? WHERE brand_id=? AND supplier IS NULL', yn.id, ob.id); db.exec1('UPDATE brands SET status=0 WHERE id=?', ob.id); }
+      mark('demo_plain_names_20261020');
+    })();
+  }
 })();
 
 const app = express();
