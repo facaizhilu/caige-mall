@@ -97,7 +97,10 @@ module.exports = function (r, { filesOf }) {
   });
 
   // ================= 商品 =================
-  const catOptions = () => db.all('SELECT c.*, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.status>=0 ORDER BY COALESCE(p.sort,c.sort), c.parent_id, c.sort').map(c => ({ v: c.id, t: (c.parent_id ? '　└ ' : '') + c.name, parent: c.parent_id }));
+  // 经营范围提示(自营商品不自动处理,只在新增/编辑时提示;复用供应商类目允许/禁售清单)
+  const scopeWarnOf = (name, pname) => { const w = jdvop.compliance.scopeWarning([pname, name].filter(Boolean)); return w ? w.msg : ''; };
+  const scopeWarnCat = id => { const c = db.get('SELECT c.name, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.id=?', int(id)); return c ? scopeWarnOf(c.name, c.pname) : ''; };
+  const catOptions = () => db.all('SELECT c.*, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.status>=0 ORDER BY COALESCE(p.sort,c.sort), c.parent_id, c.sort').map(c => ({ v: c.id, t: (c.parent_id ? '　└ ' : '') + c.name, parent: c.parent_id, scope: c.parent_id ? scopeWarnOf(c.name, c.pname) : '' }));
   r.get('/products', need('product'), (req, res) => {
     const { q = '', cat = '', status = '', stock = '' } = req.query;
     const where = ['1=1'], params = [];
@@ -116,6 +119,7 @@ module.exports = function (r, { filesOf }) {
     if (!p) { flash(req, 'error', '商品不存在'); return res.redirect('/admin/products'); }
     const skus = db.all('SELECT * FROM skus WHERE product_id=? ORDER BY id', p.id);
     res.locals.bannedHits = require('../lib/banned').summarize(require('../lib/banned').checkProduct(p, skus));
+    res.locals.scopeHint = p.supplier ? '' : scopeWarnCat(p.category_id);
     productForm(req, res, p, skus);
   });
   r.post('/products/save', need('product'), (req, res) => {
@@ -174,6 +178,8 @@ module.exports = function (r, { filesOf }) {
     }
     const hits = require('../lib/banned').checkProduct(row, skus);
     if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + require('../lib/banned').summarize(hits)); return res.redirect('/admin/products/' + (id || db.get('SELECT MAX(id) n FROM products').n) + '/edit'); }
+    const scope = isSup ? '' : scopeWarnCat(row.category_id);
+    if (scope) { flash(req, 'warn', '商品已保存。⚠️ 经营范围提示:' + scope + ';经营范围变更前请勿上架销售,建议设为下架。'); return res.redirect('/admin/products/' + (id || db.get('SELECT MAX(id) n FROM products').n) + '/edit'); }
     if (!ex || ex.sort !== row.sort || (ex.is_top || 0) !== row.is_top) log(req, '修改推荐排序', `#${id || 'new'} ${row.name}:权重 ${ex ? ex.sort : '-'}→${row.sort},置顶 ${ex ? (ex.is_top ? '是' : '否') : '-'}→${row.is_top ? '是' : '否'}`);
     if (ex && (ex.supplier_sales ?? null) !== row.supplier_sales) log(req, '修改供应商销量参考', `#${id} ${ex.supplier_sales ?? '空'}→${row.supplier_sales ?? '空'}`);
     flash(req, 'success', '商品已保存'); res.redirect('/admin/products');
@@ -219,6 +225,8 @@ module.exports = function (r, { filesOf }) {
     })();
     const B = require('../lib/banned'), hits = B.checkProduct(row, [{ spec_text: spec }]);
     if (hits.length) { flash(req, 'warn', '商品已保存,但检测到违禁/敏感词,请核实修改:' + B.summarize(hits)); return res.redirect('/admin/products/' + pid + '/edit'); }
+    const scope = scopeWarnCat(row.category_id);
+    if (scope) { flash(req, 'warn', `商品 #${pid} 已保存。⚠️ 经营范围提示:${scope};经营范围变更前请勿上架销售,建议设为下架。`); return res.redirect('/admin/products/' + pid + '/edit'); }
     flash(req, 'success', `商品 #${pid} 已${row.status ? '上架' : '保存为下架状态'};如需多规格或上传图片,可在「编辑」中补充`); res.redirect('/admin/products');
   });
   // 推荐排序:列表页直接修改权重 / 置顶(销量不可人工编辑)

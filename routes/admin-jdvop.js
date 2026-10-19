@@ -11,11 +11,14 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   const catOptions = () => db.all('SELECT c.id, c.name, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.parent_id>0 ORDER BY c.parent_id, c.sort, c.id');
   const modeInfo = () => ({ cfg: J.config.status(), missing: J.config.missing(), demo: process.env.DEMO_MODE === '1' });
 
+  // 类目审核筛选:可上架 / 预包装食品(待经营范围变更+食品备案,下一批优先开放)/ 其他不可上架
+  const REVIEW_FILTERS = { ok: b => !b, food: b => !!(b && b.food), other: b => !!(b && !b.food) };
   // ---------- 选品:浏览供应商分类与商品,勾选导入 ----------
   r.get('/jdvop', need('product'), aw(async (req, res) => {
-    const f = { cat1: req.query.cat1 || '', cat2: req.query.cat2 || '', cat3: req.query.cat3 || '', q: String(req.query.q || '').slice(0, 30), page: Math.max(1, int(req.query.page, 1)) };
+    const f = { cat1: req.query.cat1 || '', cat2: req.query.cat2 || '', cat3: req.query.cat3 || '', q: String(req.query.q || '').slice(0, 30), page: Math.max(1, int(req.query.page, 1)), rv: REVIEW_FILTERS[req.query.rv] ? String(req.query.rv) : '' };
     let data = { list: [], count: 0, cats1: [], cats2: [], cats3: [] }, err = null;
     try { data = await J.browse(f); } catch (e) { err = e.message; }
+    if (f.rv) data.list = data.list.filter(g => REVIEW_FILTERS[f.rv](g.blocked)); // 仅筛选当前页
     res.page('admin/jdvop-browse', { title: '供应商商品', f, data, err, mi: modeInfo(), pages: Math.max(1, Math.ceil((data.count || 0) / 20)) });
   }));
   r.post('/jdvop/import', need('product'), aw(async (req, res) => {
@@ -50,8 +53,10 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   // ---------- 分类映射 ----------
   r.get('/jdvop/mapping', need('product'), (req, res) => {
     const rows = db.all('SELECT m.*, c.name cname, (SELECT COUNT(*) FROM products p WHERE p.supplier=m.supplier AND p.supplier_cat=m.supplier_cat_id) n FROM supplier_category_map m LEFT JOIN categories c ON c.id=m.category_id WHERE m.supplier=? ORDER BY m.reviewed, m.supplier_path', J.SUP);
-    rows.forEach(m => { m.blocked = J.compliance.blockedBy((m.supplier_path || '').split(' / ')); });
-    res.page('admin/jdvop-mapping', { title: '供应商分类映射', rows, cats: catOptions() });
+    rows.forEach(m => { m.blocked = J.compliance.review((m.supplier_path || '').split(' / ')); });
+    const rv = REVIEW_FILTERS[req.query.rv] ? String(req.query.rv) : '';
+    const counts = Object.fromEntries(Object.entries(REVIEW_FILTERS).map(([k, fn]) => [k, rows.filter(m => fn(m.blocked)).length]));
+    res.page('admin/jdvop-mapping', { title: '供应商分类映射', rows: rv ? rows.filter(m => REVIEW_FILTERS[rv](m.blocked)) : rows, cats: catOptions(), rv, counts });
   });
   r.post('/jdvop/mapping/:cat', need('product'), (req, res) => {
     const cid = int(req.body.category_id);
@@ -71,10 +76,14 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   r.post('/jdvop/settings', need('system'), (req, res) => {
     const b = req.body, pct = Math.min(500, Math.max(0, parseFloat(b.jdvop_markup_pct) || 0));
     const vals = { jdvop_markup_mode: b.jdvop_markup_mode === 'cost_plus' ? 'cost_plus' : 'max_retail_cost', jdvop_markup_pct: String(pct), jdvop_sync_hours: String(Math.min(168, Math.max(0, parseFloat(b.jdvop_sync_hours) || 0))), jdvop_poll_minutes: String(Math.min(1440, Math.max(1, int(b.jdvop_poll_minutes, 10)))), jdvop_virtual_stock: String(Math.min(9999, Math.max(1, int(b.jdvop_virtual_stock, 200)))), jdvop_max_push_attempts: String(Math.min(10, Math.max(1, int(b.jdvop_max_push_attempts, 3)))), jdvop_mock_auto: b.jdvop_mock_auto === '1' ? '1' : '0' };
-    if (typeof b.jdvop_blocklist === 'string') vals.jdvop_blocklist = b.jdvop_blocklist.split(/\r?\n/).map(s => s.trim()).filter(Boolean).join('\n').slice(0, 5000) || J.compliance.BLOCKLIST_DEFAULT;
+    const lines = v => v.split(/\r?\n/).map(s => s.trim()).filter(Boolean).join('\n').slice(0, 5000);
+    if (typeof b.jdvop_blocklist === 'string') vals.jdvop_blocklist = lines(b.jdvop_blocklist) || J.compliance.BLOCKLIST_DEFAULT;
+    if (typeof b.jdvop_allowlist === 'string') vals.jdvop_allowlist = lines(b.jdvop_allowlist) || J.compliance.ALLOWLIST_DEFAULT; // 清空视为恢复默认(不允许「全部放开」)
+    const listChanged = ['jdvop_blocklist', 'jdvop_allowlist'].some(k => vals[k] !== undefined && vals[k] !== svc.S(k));
     for (const [k, v] of Object.entries(vals)) svc.setSetting(k, v);
-    log(req, '修改供应商设置', JSON.stringify({ ...vals, jdvop_blocklist: vals.jdvop_blocklist ? '(已更新)' : undefined }).slice(0, 300));
-    flash(req, 'success', '供应商设置已保存(加价规则在下次价格刷新时生效,可点「立即刷新价格」)'); res.redirect('/admin/jdvop/settings');
+    const rc = listChanged ? J.recheckCategories() : null; // 清单变更:立即复检已导入商品,不再通过的自动下架
+    log(req, '修改供应商设置', JSON.stringify({ ...vals, jdvop_blocklist: vals.jdvop_blocklist ? '(已更新)' : undefined, jdvop_allowlist: vals.jdvop_allowlist ? '(已更新)' : undefined, recheck: rc || undefined }).slice(0, 300));
+    flash(req, 'success', '供应商设置已保存(加价规则在下次价格刷新时生效,可点「立即刷新价格」)' + (rc ? `;类目清单已更新,复检 ${rc.checked} 个已导入商品,自动下架 ${rc.delisted} 个(恢复上架在下次价格刷新时确认可售后进行)` : '')); res.redirect('/admin/jdvop/settings');
   });
   r.post('/jdvop/poll', need('system'), aw(async (req, res) => { const x = await J.poll(); log(req, '供应商订单轮询', JSON.stringify(x)); flash(req, 'success', `已轮询 ${x.orders} 个供应商订单、${x.aftersales} 个售后单`); back(req, res, '/admin/jdvop/settings'); }));
   r.post('/jdvop/alerts/:id/resolve', need('system'), (req, res) => { db.exec1('UPDATE supplier_alerts SET resolved=1 WHERE id=?', int(req.params.id)); log(req, '处理供应商告警', '#' + req.params.id); back(req, res, '/admin/jdvop/settings'); });

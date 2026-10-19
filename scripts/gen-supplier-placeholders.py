@@ -67,8 +67,33 @@ def earbuds(d, c=G):  # 耳机
 def powerbank(d, c=G):  # 充电宝
     d.rounded_rectangle((280, 200, 520, 620), 40, fill=c); d.rounded_rectangle((370, 230, 430, 250), 8, fill=G2)
     for i in range(4): d.ellipse((330 + i * 40, 540, 350 + i * 40, 560), fill=G3)
-SHAPES = {'roll': roll, 'box': box, 'carton': carton, 'fruit': fruit, 'shrimp': shrimp, 'pot': pot, 'kettle': kettle, 'fryer': fryer, 'shirt': shirt, 'bottle': bottle, 'tube': tube, 'nuts': nuts, 'chips': chips, 'shoe': shoe, 'mouse': mouse, 'keyboard': keyboard, 'bag': bag, 'cable': cable, 'wok': wok, 'pen': pen, 'jar': jar, 'bowl': bowl, 'earbuds': earbuds, 'powerbank': powerbank}
-VARIANTS = {'shirt-blue': ('shirt', tint(G, (120, 160, 210))), 'carton-2': ('carton', tint(G, (220, 210, 170))), 'bag-grey': ('bag', tint(G, (120, 125, 135)))}
+def case(d, c=G):  # 手机壳
+    d.rounded_rectangle((290, 180, 510, 640), 50, fill=c); d.rounded_rectangle((320, 210, 400, 330), 24, fill=G2); d.ellipse((340, 230, 380, 270), fill=G3); d.ellipse((340, 280, 380, 320), fill=G3)
+def sdcard(d, c=G):  # 存储卡
+    d.polygon([(300, 220), (460, 220), (520, 280), (520, 600), (300, 600)], fill=c)
+    for i in range(5): d.rectangle((320 + i * 34, 240, 340 + i * 34, 300), fill=G2)
+def speaker(d, c=G):  # 蓝牙音箱
+    d.rounded_rectangle((200, 300, 600, 560), 120, fill=c); d.ellipse((260, 350, 420, 510), fill=G2); d.ellipse((440, 380, 540, 480), fill=G2)
+def router(d, c=G):  # 路由器
+    d.rounded_rectangle((180, 440, 620, 560), 30, fill=c)
+    for x in (240, 340, 460, 560): d.rounded_rectangle((x - 12, 230, x + 12, 450), 10, fill=G2)
+    for i in range(4): d.ellipse((240 + i * 40, 490, 260 + i * 40, 510), fill=G3)
+def hdd(d, c=G):  # 移动硬盘
+    d.rounded_rectangle((260, 220, 540, 600), 36, fill=c); d.ellipse((370, 520, 430, 560), fill=G2); d.rectangle((300, 260, 500, 270), fill=G3)
+def veg(d, c=G):  # 蔬菜
+    for (x, y, r) in ((320, 420, 120), (470, 430, 110), (400, 330, 110)): d.ellipse((x - r, y - r, x + r, y + r), fill=c)
+    d.rounded_rectangle((370, 450, 430, 620), 20, fill=G2)
+def egg(d, c=G):  # 鸡蛋
+    d.rounded_rectangle((180, 470, 620, 600), 30, fill=G2)
+    for x in (260, 360, 460, 560): d.ellipse((x - 48, 330, x + 48, 490), fill=c)
+def phone(d, c=G):  # 手机整机
+    d.rounded_rectangle((290, 170, 510, 640), 40, fill=c); d.rounded_rectangle((310, 210, 490, 590), 16, fill=G3); d.rounded_rectangle((370, 185, 430, 197), 6, fill=G2)
+def printer(d, c=G):  # 打印机
+    d.rectangle((300, 200, 500, 320), fill=G3, outline=G2, width=4); d.rounded_rectangle((200, 300, 600, 520), 30, fill=c); d.rectangle((290, 480, 510, 620), fill=G3, outline=G2, width=4)
+def rice(d, c=G):  # 大米(预包装)
+    d.polygon([(250, 260), (550, 260), (580, 620), (220, 620)], fill=c); d.rectangle((250, 230, 550, 270), fill=G2); d.ellipse((340, 380, 460, 500), fill=G3)
+SHAPES = {'case': case, 'sdcard': sdcard, 'speaker': speaker, 'router': router, 'hdd': hdd, 'veg': veg, 'egg': egg, 'phone': phone, 'printer': printer, 'rice': rice, 'roll': roll, 'box': box, 'carton': carton, 'fruit': fruit, 'shrimp': shrimp, 'pot': pot, 'kettle': kettle, 'fryer': fryer, 'shirt': shirt, 'bottle': bottle, 'tube': tube, 'nuts': nuts, 'chips': chips, 'shoe': shoe, 'mouse': mouse, 'keyboard': keyboard, 'bag': bag, 'cable': cable, 'wok': wok, 'pen': pen, 'jar': jar, 'bowl': bowl, 'earbuds': earbuds, 'powerbank': powerbank}
+VARIANTS = {'shirt-blue': ('shirt', tint(G, (120, 160, 210))), 'carton-2': ('carton', tint(G, (220, 210, 170))), 'bag-grey': ('bag', tint(G, (120, 125, 135))), 'mango': ('fruit', tint(G, (230, 190, 90))), 'case-blue': ('case', tint(G, (120, 160, 210)))}
 for n, f in SHAPES.items():
     im, d = canvas(); f(d); im.save(os.path.join(OUT, n + '.png'), optimize=True)
 for n, (s, c) in VARIANTS.items():

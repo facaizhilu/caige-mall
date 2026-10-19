@@ -15,7 +15,9 @@
  <div class="form-row"><label>可售库存显示(虚拟)</label><input type="number" name="jdvop_virtual_stock" min="1" value="<%= s.jdvop_virtual_stock %>"></div>
  <div class="form-row"><label>推单最多重试次数</label><input type="number" name="jdvop_max_push_attempts" min="1" max="10" value="<%= s.jdvop_max_push_attempts %>"></div></div>
  <% if(mi.cfg.mode==='mock'){ %><label class="form-row" style="display:block"><input type="checkbox" name="jdvop_mock_auto" value="1" <%= s.jdvop_mock_auto==='1'?'checked':'' %> style="width:auto"> 演示订单随轮询自动推进(拆单→发货→签收→完成)</label><% } %>
- <div class="form-row"><label>禁售类目(每行「分组:关键词,关键词」;匹配供应商分类名称,命中则不能导入/上架;关键词前加「=」表示分类名称完全相同才命中)</label><textarea name="jdvop_blocklist" rows="8"><%= s.jdvop_blocklist %></textarea></div>
+ <div class="flash info" style="font-size:13px">类目规则按 2026-10-19 实际登记的经营范围:变更完成前<b>只允许数码(配件/电脑外设/网络设备)与食用农产品(新鲜水果、蔬菜、鲜蛋、原粮)</b>上架。供应商商品须<b>命中允许清单且不命中禁售清单</b>才能导入/上架;办公设备经营范围仅为租赁,不可销售;预包装食品需经营范围变更 + 食品经营备案后再开;图书不开放。保存后立即复检已导入商品,不再通过的自动下架(自营商品不自动处理,仅在编辑时提示)。</div>
+ <div class="form-row"><label>允许上架类目(允许清单;每行「分组:关键词,关键词」,匹配供应商一/二/三级分类名称,命中任一组才可导入/上架;关键词前加「=」表示分类名称完全相同才命中;清空保存=恢复默认)</label><textarea name="jdvop_allowlist" rows="5"><%= s.jdvop_allowlist %></textarea></div>
+ <div class="form-row"><label>禁售类目(禁售清单;格式同上,命中则不能导入/上架,优先于允许清单;「预包装食品」组为下一批优先开放类目,可在分类映射页单独筛选)</label><textarea name="jdvop_blocklist" rows="10"><%= s.jdvop_blocklist %></textarea></div>
  <button class="btn primary">保存设置</button></form></div>
 </div>
 <div class="card"><div class="flex between"><h3 style="margin:0">待处理告警(<%= alerts.length %>)</h3><% if(alerts.length){ %><form method="post" action="/admin/jdvop/alerts/resolve-all"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">全部标记已处理</button></form><% } %></div>

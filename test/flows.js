@@ -13,8 +13,20 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   const items = t => JSON.parse(t.match(/name="items" value='([^']+)'/)[1].replace(/&#34;/g, '"'));
   const itemsRaw = t => t.match(/name="items" value='([^']+)'/)[1].replace(/&#34;/g, '"');
   const a = new C(), b = new C(), adm = new C();
+  // 演示环境启动后会异步导入 mock 供应商商品:等它完成,避免与「商品数量」类断言竞争
+  for (let t = Date.now(); Date.now() - t < 30000 && !/^done|^$/.test((db.get("SELECT value FROM settings WHERE key='jdvop_demo_seed'") || { value: process.env.DEMO_MODE === '1' ? 'pending' : '' }).value);) await new Promise(r => setTimeout(r, 100));
   await a.login('13800000002', '123456'); await b.login('13800000003', '123456'); // 小美 / 老王
   console.log('== 拼团 ==');
+  console.log('== 演示数据经营范围(2026-10-19 实际登记:仅数码、食用农产品上架) ==');
+  { let x; const CC = require('../lib/suppliers/jdvop/compliance');
+    const own = db.all('SELECT p.id, p.name, c.name cn, pc.name pn, c.no_7day FROM products p JOIN categories c ON c.id=p.category_id LEFT JOIN categories pc ON pc.id=c.parent_id WHERE p.supplier IS NULL AND p.status=1');
+    const bad = own.filter(p => CC.scopeWarning([p.pn, p.cn])); ok(own.length >= 10 && !bad.length, '上架的演示自营商品均在经营范围内(数码/新鲜农产品)', bad.map(p => p.name).join('|'));
+    ok(own.filter(p => p.pn === '新鲜农产品').every(p => p.no_7day === 1) && own.some(p => p.cn === '新鲜水果') && own.some(p => p.cn === '新鲜蔬菜') && own.some(p => p.cn === '鲜蛋'), '新鲜水果/蔬菜/鲜蛋演示商品,分类标记不支持7天无理由');
+    const navs = db.all('SELECT c.name, pc.name pn FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.status=1'); ok(navs.every(c => !CC.scopeWarning([c.pn, c.name].filter(Boolean)) || !c.pn && ['数码电脑', '新鲜农产品'].includes(c.name)), '前台分类只含经营范围内类目', navs.map(c => c.name).join(','));
+    x = await a.get('/products'); ok(!/服饰鞋包|美妆个护|家居日用|运动户外|零食坚果|食品生鲜/.test(x.text) && x.text.includes('新鲜农产品'), '「全部商品」分类标签无范围外类目');
+    x = await a.get('/points-mall'); ok(!/帆布袋|保温杯/.test(x.text), '积分商城演示礼品无日用百货/箱包');
+    x = await a.get('/'); ok(!/日用|百货|护肤|美妆|服饰|零食|坚果|茶叶/.test(x.text.replace(/<script[\s\S]*?<\/script>/g, '')), '首页(横幅/专区卡/精选)无范围外品类文案');
+    x = await a.get('/activity'); ok(!/面霜|坚果|T恤|衬衫|连衣裙/.test(x.text), '活动专区演示内容仅范围内商品'); }
   // 老王已发起一个团(已付),小美参团
   let r = await a.get('/groupbuy'); ok(r.text.includes('正在拼团'), '拼团专区展示进行中的团');
   const gid = (r.text.match(/\/group\/(\d+)/) || [])[1]; r = await a.get('/group/' + gid); ok(r.text.includes('立即参团'), '参团页');

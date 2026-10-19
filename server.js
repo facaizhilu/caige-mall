@@ -101,6 +101,24 @@ svc.cloud.ensureDefaults();
       mark('brand_yunnong');
     })();
   }
+  if (!done('scope_20261019') && process.env.DEMO_MODE === '1') { // 演示库:按 2026-10-19 实际登记的经营范围,下架范围外的「原始演示自营商品」(按种子原名精确匹配,后台新建/改名的不动),隐藏范围外演示分类
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      const ph = a => a.map(() => '?').join(',');
+      const n = db.prepare(`UPDATE products SET status=0 WHERE supplier IS NULL AND status=1 AND name IN (${ph(T.OLD_SEED_OUT_OF_SCOPE)})`).run(...T.OLD_SEED_OUT_OF_SCOPE).changes;
+      for (const [o, nw] of [['数码家电', '数码电脑'], ['食品生鲜', '新鲜农产品'], ['水果生鲜', '新鲜水果']]) db.exec1('UPDATE categories SET name=? WHERE name=?', nw, o);
+      for (const c of db.all(`SELECT id FROM categories WHERE status=1 AND name IN (${ph(T.OLD_SEED_OUT_OF_SCOPE_CATS)})`, ...T.OLD_SEED_OUT_OF_SCOPE_CATS)) {
+        const ids = [c.id, ...db.all('SELECT id FROM categories WHERE parent_id=?', c.id).map(x => x.id)];
+        if (!db.get(`SELECT 1 FROM products WHERE status=1 AND category_id IN (${ph(ids)})`, ...ids)) db.exec1('UPDATE categories SET status=0 WHERE id=?', c.id);
+      }
+      for (const [o, nw] of T.OLD_SEED_RENAMES.keywords) db.exec1('UPDATE keywords SET word=? WHERE word=?', nw, o);
+      for (const [o, nw, emoji] of T.OLD_SEED_RENAMES.points) db.exec1('UPDATE points_goods SET name=?, image=? WHERE name=?', nw, U.genImg(emoji, 'f59e0b', 'fde68a', 0, nw.slice(0, 6)), o);
+      const fruit = db.get("SELECT id FROM categories WHERE name='新鲜水果' AND parent_id>0");
+      if (fruit) db.exec1("UPDATE coupons SET name='新鲜水果满59减8', description='仅限新鲜水果分类商品', category_id=? WHERE name='食品生鲜满59减8'", fruit.id);
+      if (n) console.log(`[scope] 演示库:已下架 ${n} 个经营范围外的演示自营商品`);
+      mark('scope_20261019');
+    })();
+  }
   if (!done('home_carousel_banners')) { // 首页恢复轮播:旧库若仍是未改动过的旧默认 Banner(无图片),替换为合规演示 Banner;后台已改动过的不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {
@@ -256,5 +274,5 @@ app.use((err, req, res, next) => { console.error(err); if (res.headersSent) retu
 setInterval(svc.sweep, 60000).unref(); svc.sweep();
 // 供应商定时任务:待推送订单、状态轮询兜底(回调只推一次不重试)、价格/可售定时刷新
 setInterval(() => jdvop.tick(), Math.max(5000, U.int(process.env.JDVOP_TICK_MS, 60000))).unref();
-if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 韵农甄选(caige-mall)已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e))); });
+if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 韵农甄选(caige-mall)已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => { try { const rc = jdvop.recheckCategories(); if (rc.delisted) console.log(`[jdvop] 类目复检:自动下架 ${rc.delisted} 个不在允许范围的供应商商品`); } catch (e) { console.error('[jdvop] recheck', e); } jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e)); }); });
 module.exports = app;

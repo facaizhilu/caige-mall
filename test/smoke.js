@@ -135,7 +135,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.get('/groupbuy'); ok(r.text.includes('发起拼团，成团即发货；超时未成团自动全额退款') && !r.text.includes('邀请好友'), '拼团文案无邀请好友');
   r = await shop.get('/group/1'); ok(!/<span class="tag gold">[^<*]{2,}<\/span>/.test(r.text) && r.text.includes('**</span>'), '团员昵称脱敏');
   r = await shop.get('/products'); ok(!r.text.includes('ribbon">热卖'), '无真实销量≥阈值时不显示「热卖」');
-  r = await shop.get('/product/9'); ok(r.text.includes('60S 长绒棉 · 透气亲肤') && !r.text.includes('親'), '商品9副标题修正');
+  r = await shop.get('/product/9'); ok(r.text.includes('千兆网口 · 双频并发 · 穿墙覆盖') && !r.text.includes('親'), '商品9(演示:无线路由器,经营范围内)副标题');
   r = await shop.get('/activity'); ok(!r.text.includes('class="bar"') && r.text.includes('进行中') && r.text.includes('活动专区') && !r.text.includes('data-countdown') && !r.text.includes('限时'), '活动专区进行中且无倒计时');
   r = await shop.get('/product/8'); const sk8 = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1]; const skid = (r.text.match(/SK=\{"sku":\d+,"price":[\d.]+,"id":(\d+)/) || [])[1]; ok(!!skid, '秒杀商品详情'); ok(r.text.includes('活动专区') && r.text.includes('活动价') && !/秒杀|限时|倒计时|仅剩|抢购|data-countdown/.test(r.text), '详情页活动专区文案,无倒计时/紧迫用语');
   r = await shop.post('/checkout', { sku_id: (r.text.match(/SK=\{"sku":(\d+)/) || [])[1], qty: 1, promo_type: 'activity', promo_id: skid, no7_ok: '1' }); ok(r.status === 200 && r.text.includes('确认订单'), '秒杀结算');
