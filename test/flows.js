@@ -556,7 +556,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     x = await a.get('/points-mall');
     ok(x.text.includes('class="pm-ptag">3000 积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && x.text.includes('class="tag demo">演示'), '积分专区卡片:金色「xxx 积分」+「包邮」+「立即兑换」+演示标记');
     const grid = x.text.slice(x.text.indexOf('class="grid"')); ok(!/¥|退换|无理由/.test(grid), '积分商品卡片无金额、无退换说明');
-    ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('兑换包邮') && x.text.includes('#9e1712'), '积分专区:无顶部横幅/占位,头卡朱红金,文案「兑换包邮」');
+    ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('class="pm-head"') && x.text.includes('#9e1712'), '积分专区:无顶部横幅/占位,顶部一行「我的积分 · 去签到」(朱红金)');
     const demoGoods = db.all('SELECT g.*, c.name cn, pc.name pn FROM points_goods g LEFT JOIN categories c ON c.id=g.category_id LEFT JOIN categories pc ON pc.id=c.parent_id');
     const CC = require('../lib/suppliers/jdvop/compliance');
     ok(demoGoods.length >= 6 && demoGoods.every(g => g.is_demo === 1) && demoGoods.every(g => g.type === 'coupon' || (g.category_id && !CC.scopeWarning([g.pn, g.cn]))) && demoGoods.some(g => g.pn === '新鲜农产品') && demoGoods.some(g => g.pn === '数码电脑') && demoGoods.some(g => g.type === 'coupon'), '演示积分商品均在经营范围(数码配件/新鲜农产品/优惠券)并标记演示');

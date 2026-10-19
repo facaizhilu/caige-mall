@@ -4,7 +4,7 @@
 <div class="form-row" style="grid-column:1/-1"><label>顶部公告条(留空则不显示)</label><input name="announcement" value="<%= s.announcement %>"></div>
 <div class="form-row"><label>客服电话</label><input name="service_phone" value="<%= s.service_phone %>"><div class="help">默认 400-888-6666 为演示号码,前台标「演示」</div></div><div class="form-row"><label>客服微信号</label><input name="service_wechat" value="<%= s.service_wechat || '' %>" maxlength="40"><div class="help">默认 yunnong-kefu 为演示值,前台标「演示」;留空不显示</div></div><div class="form-row"><label>客服时间</label><input name="service_hours" value="<%= s.service_hours %>"></div>
 <div class="form-row"><label>客服邮箱</label><input name="service_email" value="<%= s.service_email %>"></div><div class="form-row"><label>备案号</label><input name="icp" value="<%= s.icp %>"></div>
-<div class="form-row" style="grid-column:1/-1"><label>公司/发货地址</label><input name="address" value="<%= s.address %>"></div></div></div>
+<div class="form-row"><label>默认发货地(商品页「配送」)</label><input name="ship_from" value="<%= s.ship_from || '' %>" maxlength="20"><div class="help">如「海口发货」;单个商品可在商品编辑中覆盖</div></div><div class="form-row" style="grid-column:1/-1"><label>公司/发货地址</label><input name="address" value="<%= s.address %>"></div></div></div>
 <div class="card"><h3>交易与会员规则</h3><div class="form-grid">
 <div class="form-row" style="grid-column:1/-1"><div class="help">积分不可购买、转让或提现。邀请奖励请在「<a href="/admin/invites">邀请管理</a>」配置,云商卡权益请在「<a href="/admin/cloud-settings">云商卡配置</a>」配置。</div></div>
 <div class="form-row"><label>注册奖励积分</label><input type="number" name="register_points" value="<%= s.register_points %>"></div><div class="form-row"><label>发表评价奖励积分(与评分、审核结果无关)</label><input type="number" name="review_points" value="<%= s.review_points %>"></div>

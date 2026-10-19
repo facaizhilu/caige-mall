@@ -417,3 +417,4 @@ textarea{resize:vertical}
 .me-grid .qbadge{position:absolute;top:4px;left:calc(50% + 8px)}
 .me-kf{color:#9e1712!important;font-weight:600}
 .me-logout{margin-top:10px}.me-logout button{width:100%;min-height:44px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink2);font-size:14px;cursor:pointer}
+.kv.pd-kv{grid-template-columns:4em minmax(0,1fr)!important}.kv.pd-kv dt,.kv dt{white-space:nowrap}

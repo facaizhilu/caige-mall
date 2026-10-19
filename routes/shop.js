@@ -650,7 +650,7 @@ module.exports = function (app, { filesOf }) {
   app.get('/points-mall', (req, res) => {
     const goods = db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY (stock<=0), sort, id');
     goods.forEach(g => { g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g); });
-    res.page('shop/points-mall', { title: '积分商城', goods });
+    res.page('shop/points-mall', { title: '积分专区', goods });
   });
   app.get('/points-mall/:id', (req, res, next) => {
     const g = db.get('SELECT * FROM points_goods WHERE id=? AND status=1', int(req.params.id)); if (!g) return next();

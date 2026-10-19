@@ -101,6 +101,15 @@ svc.cloud.ensureDefaults();
       mark('brand_yunnong');
     })();
   }
+  if (!done('points_img_ivory_20261020')) { // 积分商品演示图:橙/红底 → 米白底(仅原生成图)
+    db.exec1("UPDATE points_goods SET image=REPLACE(REPLACE(REPLACE(REPLACE(image,'a=f59e0b','a=fbf6ec'),'b=fde68a','b=f3e7cf'),'a=b8231c','a=fbf6ec'),'b=e9b84f','b=f3e7cf') WHERE instr(image,'/img/gen.svg')=1");
+    // 演示生成图上的商品名原先被截断(8/6 字),改为完整名称(生成器自动缩字号/折行)
+    for (const t of ['products', 'points_goods']) for (const r of db.all(`SELECT id, name, ${t === 'products' ? 'images' : 'image'} v FROM ${t} WHERE instr(${t === 'products' ? 'images' : 'image'}, '/img/gen.svg')>0`)) {
+      const nv = r.v.replace(/([?&]n=)([^&"]*)/g, (m, k, n) => { let d = ''; try { d = decodeURIComponent(n); } catch (e) { return m; } return d && r.name.startsWith(d) ? k + encodeURIComponent(r.name.slice(0, 20)) : m; });
+      if (nv !== r.v) db.exec1(`UPDATE ${t} SET ${t === 'products' ? 'images' : 'image'}=? WHERE id=?`, nv, r.id);
+    }
+    mark('points_img_ivory_20261020');
+  }
   if (!done('brand_hainan_20261020')) { // 去除旧「财哥」品牌与深圳地址:仅替换仍等于旧默认值的设置/演示数据,后台改过的不动
     db.transaction(() => {
       if (svc.S('slogan') === '好货不贵,财源广进') svc.setSetting('slogan', '韵农甄选 · 新鲜好物');
@@ -203,6 +212,14 @@ svc.cloud.ensureDefaults();
       mark('home_carousel_banners');
     })();
   }
+  if (!done('brand_nanshanju_20261020')) { // 演示品牌「南山居」(近似真实品牌)→「韵农甄选」:仅改原种子品牌与以「南山居 」开头的演示商品名
+    db.transaction(() => {
+      const has = db.get("SELECT id FROM brands WHERE name='韵农甄选'"), old = db.get("SELECT id FROM brands WHERE name='南山居' AND description='南山居品牌官方旗舰'");
+      if (old) { if (has) db.exec1('UPDATE products SET brand_id=? WHERE brand_id=?', has.id, old.id), db.exec1('UPDATE brands SET status=0 WHERE id=?', old.id); else db.exec1("UPDATE brands SET name='韵农甄选', description='韵农甄选品牌官方旗舰' WHERE id=?", old.id); }
+      for (const r of db.all("SELECT id, name, images FROM products WHERE name LIKE '南山居 %'")) db.exec1('UPDATE products SET name=?, images=? WHERE id=?', '韵农甄选 ' + r.name.slice(4), String(r.images || '').split(encodeURIComponent('南山居')).join(encodeURIComponent('韵农甄选')), r.id);
+      mark('brand_nanshanju_20261020');
+    })();
+  }
 })();
 
 const app = express();
@@ -226,8 +243,17 @@ app.get('/img/gen.svg', (req, res) => {
     `<circle cx="100" cy="100" r="150" fill="#fff" opacity=".13"/><circle cx="500" cy="500" r="200" fill="#fff" opacity=".1"/>`,
     `<polygon points="600,0 600,300 300,0" fill="#fff" opacity=".14"/><polygon points="0,600 0,350 250,600" fill="#fff" opacity=".12"/>`
   ][v % 4];
+  // 浅色底(如积分商品米白底)用深红文字/金色装饰;名称按长度自动缩字号,超过 9 字折两行,保证不被裁切
+  const lum = h => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; };
+  const light = (lum(a) + lum(b)) / 2 > 0.75, ink = light ? '#9e1712' : '#fff', deco = light ? '#c48f2f' : '#fff';
+  const raw = String(req.query.n || '').slice(0, 20);
+  let cut = Math.ceil(raw.length / 2); { let best = -1; for (let k = 1; k < raw.length - 1; k++) if (raw[k] === ' ' && Math.abs(k - raw.length / 2) <= 4 && (best < 0 || Math.abs(k - raw.length / 2) < Math.abs(best - raw.length / 2))) best = k; if (best > 0) cut = best; }
+  const lines = raw.length > 9 ? [raw.slice(0, cut).trim(), raw.slice(cut).trim()] : (raw ? [raw] : []);
+  const fs = lines.length ? Math.min(44, Math.floor(520 / Math.max(...lines.map(l => [...l].length)))) : 0;
+  const ty = lines.length === 2 ? [470, 470 + fs + 8] : [500];
+  const names = lines.map((l, k) => `<text x="300" y="${ty[k]}" font-size="${fs}" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="${ink}" opacity=".95">${U.esc(l)}</text>`).join('');
   res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${shapes}<text x="300" y="${n ? 330 : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="#fff">${t}</text>${n ? `<text x="300" y="500" font-size="44" font-weight="700" text-anchor="middle" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".95">${n}</text>` : ''}<text x="580" y="585" font-size="22" text-anchor="end" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="#fff" opacity=".55">韵农甄选</text></svg>`);
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><defs><linearGradient id="g" x1="${angle[0]}" y1="${angle[1]}" x2="${angle[2]}" y2="${angle[3]}"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/>${light ? shapes.replace(/fill="#fff"/g, 'fill="' + deco + '"') : shapes}<text x="300" y="${n ? (lines.length === 2 ? 300 : 330) : 365}" font-size="${n ? 190 : 230}" text-anchor="middle" font-family="Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji,Noto Sans CJK SC,sans-serif" fill="${ink}">${t}</text>${names}<text x="580" y="585" font-size="22" text-anchor="end" font-family="Noto Sans CJK SC,PingFang SC,Microsoft YaHei,sans-serif" fill="${ink}" opacity=".45">韵农甄选</text></svg>`);
 });
 app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'public', 'favicon.ico'), { maxAge: '1d' }));
 app.get('/apple-touch-icon.png', (req, res) => res.sendFile(path.join(__dirname, 'public', 'img', 'apple-touch-icon.png'), { maxAge: '1d' }));
