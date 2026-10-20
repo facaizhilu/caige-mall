@@ -220,6 +220,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('请填写经办员工'), '开通需登记经办员工');
   r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '冒烟店员', receipt_note: '收据 NO.SMOKE' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('生效中') && r.text.includes('冒烟店员'), '后台开通云商卡并记录线下销售');
   r = await act.get('/me/cloud'); ok(r.text.includes('有效期') && r.text.includes('白银月卡'), '用户端显示云商卡有效期');
+  { const c = (r.text.match(/<main[\s\S]*<\/main>/) || [r.text])[0]; ok(!/¥\s*\d/.test(c) && !c.includes('199') && c.includes('联系客服办理') && c.includes('href="/service') && c.includes('线下') && !c.includes('cloud-hero'), '云商卡页:无顶部横幅、前台不显示卡价格,每行「联系客服办理」'); }
   r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
   r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
   r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');

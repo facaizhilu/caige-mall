@@ -668,6 +668,33 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       const om = db.get('SELECT * FROM messages WHERE user_id=?', old), rm2 = db.get('SELECT payload FROM messages WHERE id=?', im.id);
       ok(had && !fs.existsSync(fp) && om.payload === null && rm2.payload && fs.existsSync(path.join(chat.DIR, path.basename(urls[0]))), '客服图片:会话结束 180 天后自动删除,近期会话保留');
       x = await b.get('/privacy'); ok(x.text.includes('售后图片'), '隐私政策含「售后图片」条目');
+      // 自动回复规则:手动输入仅首条回复一次(通用兜底/非客服时间提示),之后不回复(不做关键词匹配);快捷问题每次回答;人工回复后重置
+      { const S2 = require('../lib/svc'), U3 = require('../lib/util');
+        const cid = db.get("SELECT id FROM users WHERE phone='13800000002'").id; db.exec1('DELETE FROM messages WHERE user_id=?', cid);
+        const bots = () => db.all("SELECT content FROM messages WHERE user_id=? AND sender='bot' ORDER BY id", cid).map(r => r.content);
+        await a.get('/service'); const HA = { 'X-Requested-With': 'fetch' };
+        await a.req('POST', '/service', { content: '你好在吗' }, { json: true, h: HA });
+        let bb = bots(); ok(bb.length === 1 && [S2.BOT_FALLBACK, S2.BOT_OFFHOURS].includes(bb[0]) && bb[0] === (S2.isOffHours() ? S2.BOT_OFFHOURS : S2.BOT_FALLBACK), '自动回复:首条手动消息回复一次(按客服时间选择兜底/非客服时间提示)', bb);
+        await a.req('POST', '/service', { content: '还有问题' }, { json: true, h: HA }); await a.req('POST', '/service', { content: '什么时候发货' }, { json: true, h: HA }); await a.req('POST', '/service', { content: '积分怎么用' }, { json: true, h: HA });
+        ok(bots().length === 1, '自动回复:后续手动消息(含关键词)不再自动回复', bots().length);
+        await a.req('POST', '/service', { content: '积分怎么用', quick: '1' }, { json: true, h: HA }); await a.req('POST', '/service', { content: '积分怎么用', quick: '1' }, { json: true, h: HA }); await a.req('POST', '/service', { content: '什么时候发货', quick: '1' }, { json: true, h: HA });
+        bb = bots(); const pts = bb.filter(v => v.startsWith('积分可在「积分专区」兑换商品'));
+        ok(pts.length === 2 && bb.some(v => v.includes('24 小时内发货')) && bb.length === 4, '快捷问题:每次点击都回答', bb.length);
+        ok(S2.S('points_deduct_enable') !== '1' && pts[0] === '积分可在「积分专区」兑换商品,每日签到可得积分,具体见帮助中心《积分规则》。', '「积分怎么用」答案:未开启抵扣时不提抵扣、无「不可」条款', pts[0]);
+        S2.setSetting('points_deduct_enable', '1'); ok(S2.quickAnswer('积分怎么用').startsWith('积分可在下单时抵扣部分金额或在「积分专区」'), '「积分怎么用」答案:开启抵扣时提及抵扣'); S2.setSetting('points_deduct_enable', '0');
+        await a.req('POST', '/service', { content: '我编的问题', quick: '1' }, { json: true, h: HA }); ok(bots().length === 4, '非快捷问题文本带 quick=1 不触发答案');
+        await adm.get('/admin/service?uid=' + cid); await adm.post('/admin/service/' + cid + '/reply', { content: '您好,我是人工客服' });
+        await a.req('POST', '/service', { content: '好的谢谢' }, { json: true, h: HA }); await a.req('POST', '/service', { content: '再问一下' }, { json: true, h: HA });
+        ok(bots().length === 5, '人工客服回复后,下一条手动消息重新回复一次', bots().length);
+        ok(S2.isOffHours('2026-10-20 08:59:00') && S2.isOffHours('2026-10-20 22:00:00') && S2.isOffHours('2026-10-21 02:00:00') && !S2.isOffHours('2026-10-20 09:00:00') && !S2.isOffHours('2026-10-20 21:59:00'), '客服时间判断(北京时间 9:00-22:00,读取 service_hours)');
+        ok(S2.botReply('x', null, { now: '2026-10-20 23:30:00' }) === S2.BOT_OFFHOURS && S2.BOT_OFFHOURS.includes('客服上班后会尽快回复您') && S2.botReply('x', null, { now: '2026-10-20 10:00:00' }) === S2.BOT_FALLBACK, '非客服时间首条回复「客服上班后会尽快回复您」');
+        // 「积分怎么用」固定显示:后台快捷问题清空/删去它也保留
+        const st2 = await adm.get('/admin/settings'); const form = {}; for (const m of st2.text.matchAll(/<input[^>]*name="([a-z_]+)"[^>]*value="([^"]*)"/g)) form[m[1]] = m[2]; for (const m of st2.text.matchAll(/<textarea[^>]*name="([a-z_]+)"[^>]*>([^<]*)<\/textarea>/g)) form[m[1]] = m[2]; delete form._csrf;
+        await adm.post('/admin/settings', { ...form, service_quick_questions: '什么时候发货' });
+        x = await a.get('/service'); ok(x.text.includes('data-q="积分怎么用"') && x.text.includes('data-q="什么时候发货"') && !x.text.includes('data-q="怎么退换货"'), '后台删去「积分怎么用」后快捷问题仍固定显示');
+        await adm.post('/admin/settings', { ...form, service_quick_questions: '什么时候发货\n怎么退换货\n积分怎么用' });
+        x = await a.get('/service'); ok((x.text.match(/data-q="积分怎么用"/g) || []).length === 1, '「积分怎么用」不重复显示');
+      }
     }
   }
 

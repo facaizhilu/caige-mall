@@ -25,10 +25,10 @@
     return fetch(url, o).then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); }).then(function (j) { if (!j.ok) toast(j.msg || '发送失败'); return refresh(); });
   }
   function toast(m) { var t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2200); }
-  function sendText(v) { v = (v || '').trim(); if (!v) return; return post('/service', '_csrf=' + encodeURIComponent(csrf) + '&content=' + encodeURIComponent(v)); }
+  function sendText(v, quick) { v = (v || '').trim(); if (!v) return; return post('/service', '_csrf=' + encodeURIComponent(csrf) + '&content=' + encodeURIComponent(v) + (quick ? '&quick=1' : '')); }
   bar && bar.addEventListener('submit', function (e) { e.preventDefault(); var v = ta.value; if (!v.trim()) return; ta.value = ''; grow(); sendText(v); ta.focus(); });
   ta && ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !('ontouchstart' in window)) { e.preventDefault(); bar.requestSubmit ? bar.requestSubmit() : bar.dispatchEvent(new Event('submit')); } });
-  document.querySelectorAll('.chip-q').forEach(function (b) { b.addEventListener('click', function () { sendText(b.dataset.q); }); });
+  document.querySelectorAll('.chip-q').forEach(function (b) { b.addEventListener('click', function () { sendText(b.dataset.q, true); }); });
   // 底部弹层
   var bg = document.getElementById('sheetBg');
   function open(id) { closeAll(); bg.hidden = false; document.getElementById(id).hidden = false; }

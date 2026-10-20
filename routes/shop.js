@@ -718,7 +718,7 @@ module.exports = function (app, { filesOf }) {
       return { ...m, divider };
     });
   };
-  const quickQs = () => String(svc.S('service_quick_questions') || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean).slice(0, 6);
+  const quickQs = () => { const q = [...new Set(String(svc.S('service_quick_questions') || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean))].filter(x => x !== svc.PINNED_QUICK).slice(0, 5); q.push(svc.PINNED_QUICK); return q; }; // 「积分怎么用」固定保留
   app.get('/service', (req, res) => {
     let items = [], orders = [];
     if (req.user) {
@@ -733,7 +733,7 @@ module.exports = function (app, { filesOf }) {
     const c = String(req.body.content || '').trim().slice(0, 500);
     if (!c) return chatDone(req, res, false, '请输入内容');
     chat.addMessage(req.user.id, 'user', 'text', c);
-    chat.addMessage(req.user.id, 'bot', 'text', svc.botReply(c)); // 自动回复(sender=bot,前台标「自动回复」)
+    { const a = svc.botReply(c, req.user.id, { quick: req.body.quick === '1' && quickQs().includes(c) }); if (a) chat.addMessage(req.user.id, 'bot', 'text', a); } // 自动回复(sender=bot,前台标「自动回复」)
     chatDone(req, res, true);
   });
   // 图片:仅本路由接收 multipart(内存暂存,按文件头校验后落盘 /uploads/svc/);单张 ≤5MB,每次 ≤3 张
