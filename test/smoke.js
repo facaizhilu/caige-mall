@@ -30,10 +30,10 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   let r = await shop.get('/register');
   ok(r.text.includes('name="agree"') && !/name="agree"[^>]*checked/.test(r.text) && r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '注册页:协议勾选框默认未勾选且有链接');
   r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会在后台访问') && r.text.includes('售后图片') && r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(仅主动选图、售后图片、占位符、版本号)');
-  r = await shop.get('/terms'); ok(r.text.includes('鲜活易腐') && r.text.includes('不可提现'), '用户协议含七天无理由例外与积分不可提现');
+  r = await shop.get('/terms'); ok(r.text.includes('不可提现') && !r.text.includes('不支持七天无理由退货'), '用户协议:积分不可提现,生鲜不再排除七天无理由');
   r = await shop.get('/'); { const ft = (r.text.match(/<footer class="zq-foot">([\s\S]*?)<\/footer>/) || [])[1] || ''; ok(ft && !/href="\/(help|service|terms|privacy)"/.test(ft) && !ft.includes('<nav') && /© 2026 韵农甄选 · 琼ICP备00000000号\(演示\)/.test(ft) && !ft.includes('演示站点') && !r.text.includes('粤ICP'), '首页页脚仅一行 ©+备案号(无帮助/客服/协议/隐私链接,无演示站点长句)'); }
   { const pg = await shop.get('/products'); ok(pg.text.includes('href="/privacy"') && pg.text.includes('href="/terms"') && pg.text.includes('本站为演示站点'), '其他页面页脚仍有隐私政策/用户协议链接与演示说明'); }
-  ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('<i>退</i>7天无理由</div>') && !r.text.includes('鲜活易腐除外') && r.text.indexOf('class="svc"') < r.text.indexOf('class="picks"') && (r.text.match(/class="pk"/g) || []).length >= 6 && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
+  ok(r.text.includes('活动专区') && r.text.includes('云商会员') && r.text.includes('<i>退</i>七天无理由退货</div>') && !r.text.includes('鲜活易腐除外') && r.text.indexOf('class="svc"') < r.text.indexOf('class="picks"') && (r.text.match(/class="pk"/g) || []).length >= 6 && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条,无秒杀与倒计时');
   { const names = [...r.text.matchAll(/<span class="pk-n">([^<]*)<\/span>/g)].map(m => m[1]).slice(0, 6); const fresh = names.filter(n => /苹果|脐橙|芒果|鸡蛋|蔬菜/.test(n)).length; ok(names.length === 6 && fresh >= 4 && names.length - fresh <= 2 && !r.text.includes('智能手机') && !/今日推荐|为你推荐|猜你喜欢/.test(r.text), '好物精选演示 6 件以新鲜农产品为主(数码配件≤2),无整机手机与个性化文案', names.join('|')); }
   ok(r.text.includes('韵农甄选') && r.text.includes('src="/static/img/logo-horizontal-onred-64.png?v=1"') && r.text.includes('alt="韵农甄选"') && r.text.includes('logo-horizontal-onred.svg') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
   { const n = (r.text.match(/class="bnr-s/g) || []).length; const bt = (r.text.match(/<div class="hero bnr"[\s\S]*?<nav class="ents"/) || [''])[0];
@@ -248,18 +248,14 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok((await kefu.get('/admin/cloud-members')).status === 200, 'RBAC: 客服可访问云商卡会员');
   // ===== 七天无理由 =====
   console.log('== 七天无理由 ==');
-  r = await cg.get('/product/8'); ok(r.text.includes('该商品不支持7天无理由退货') && r.text.includes('我已知晓'), '鲜活易腐类商品详情明确提示不支持7天无理由');
+  r = await cg.get('/product/8'); ok(r.text.includes('<span class="tag green">7天无理由退货</span>') && !r.text.includes('不支持7天无理由') && !r.text.includes('不支持七天无理由') && !r.text.includes('id="no7ok"') && !r.text.includes('我已知晓') && !/need-no7" disabled/.test(r.text), '生鲜商品详情:显示7天无理由退货,无「不支持」提示与确认勾选');
   const sku8 = (r.text.match(/\{"id":(\d+),"attrs"/) || [])[1];
-  r = await cg.get('/product/9'); ok(r.text.includes('支持7天无理由退货') && !r.text.includes('该商品不支持'), '普通商品显示支持7天无理由');
-  r = await cg.post('/cart/add', { sku_id: sku8, qty: 1 }, { accept: 'application/json' }); ok(JSON.parse(r.text).no7, '未确认不能加购不支持7天无理由的商品');
-  r = await cg.post('/cart/add', { sku_id: sku8, qty: 1, no7_ok: '1' }, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '确认后可加购');
-  r = await cg.post('/checkout', { sku_id: sku8, qty: 1 }); ok(r.status === 302 && !r.text.includes('确认订单'), '立即购买未勾选「我已知晓」被服务端拒绝');
-  r = await cg.get('/product/8'); ok(!r.text.includes('confirm(') && /class="btn [^"]*need-no7" disabled/.test(r.text) && r.text.includes('id="no7ok" required'), '详情页用必选勾选框,未勾选时购买按钮置灰');
-  r = await cg.post('/checkout', { sku_id: sku8, qty: 1, no7_ok: '1' }); ok(r.text.includes('name="no7_confirm"'), '结算页再次要求确认');
+  r = await cg.get('/product/9'); ok(r.text.includes('7天无理由退货') && !r.text.includes('该商品不支持'), '普通商品显示7天无理由退货');
+  r = await cg.post('/cart/add', { sku_id: sku8, qty: 1 }, { accept: 'application/json' }); ok(JSON.parse(r.text).ok, '生鲜商品无需确认即可加购');
+  r = await cg.post('/checkout', { sku_id: sku8, qty: 1 }); ok(r.status === 200 && r.text.includes('确认订单') && !r.text.includes('no7_confirm') && !r.text.includes('我已知晓'), '生鲜商品立即购买:结算页无「我已知晓」确认');
   const i8 = ((r.text.match(/name="items" value='([^']+)'/) || [])[1] || '').replace(/&#34;/g, '"'); const a8 = (r.text.match(/name="address_id" value="(\d+)"/) || [])[1];
-  r = await cg.post('/order/create', { items: i8, address_id: a8 }); ok(r.loc === '/cart', '未确认时服务端拒绝创建订单');
-  r = await cg.post('/order/create', { items: i8, address_id: a8, no7_confirm: '1' }); const o8 = ((r.loc || '').match(/order\/(\d+)\/pay/) || [])[1]; ok(!!o8, '确认后可下单');
-  r = await adm.get('/admin/orders/' + o8); ok(r.text.includes('用户下单时已确认知晓'), '后台订单显示用户已确认');
+  r = await cg.post('/order/create', { items: i8, address_id: a8 }); const o8 = ((r.loc || '').match(/order\/(\d+)\/pay/) || [])[1]; ok(!!o8, '生鲜商品无需确认即可下单');
+  r = await shop.get('/terms'); ok(!r.text.includes('不支持七天无理由') && r.text.includes('均支持签收后 7 天内无理由退货'), '用户协议:常规商品(含生鲜)均支持七天无理由');
   r = await adm.get('/admin/categories/' + 7 + '/edit'); ok(r.status !== 200 || r.text.includes('鲜活易腐类'), '后台分类编辑含鲜活易腐类开关');
   r = await adm.get('/admin/products/9/edit'); ok(r.text.includes('支持七天无理由退货'), '后台商品编辑含七天无理由设置');
   // ===== 浏览记录删除 =====

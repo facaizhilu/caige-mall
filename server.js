@@ -229,6 +229,14 @@ svc.cloud.ensureDefaults();
     if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('隐私政策已修订(售后图片),版本号提升为 v' + svc.S('policy_version')); }
     mark('policy_v12_svc_images');
   }
+  if (!done('all_7day_20261020')) { // 常规商品(含生鲜)均支持七天无理由:清除分类/商品「不支持」旧标记,协议与帮助文同步(改动时协议版本 +0.1)
+    db.exec1('UPDATE categories SET no_7day=0 WHERE no_7day=1'); db.exec1('UPDATE products SET no_reason_return=1 WHERE no_reason_return=0');
+    const [o, nw] = require('./lib/seed-texts').RETURN_HELP_7DAY_EDIT;
+    for (const a of db.all("SELECT id, content FROM articles WHERE category='help' AND title='退款退货政策'")) if (String(a.content).includes(o)) db.exec1('UPDATE articles SET content=? WHERE id=?', a.content.split(o).join(nw), a.id);
+    const n = require('./lib/policies').applyV13Edits(db), m = String(svc.S('policy_version') || '1.1').match(/^(\d+)\.(\d+)$/);
+    if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由),版本号提升为 v' + svc.S('policy_version')); }
+    mark('all_7day_20261020');
+  }
   if (!done('demo_plain_names_20261020')) { // 去除全部虚构演示品牌:自营演示商品/积分商品名去品牌前缀(仅匹配原种子默认名),品牌统一「韵农甄选」,生成图文字同步;供应商商品不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {

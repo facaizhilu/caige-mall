@@ -21,7 +21,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   { let x; const CC = require('../lib/suppliers/jdvop/compliance');
     const own = db.all('SELECT p.id, p.name, c.name cn, pc.name pn, c.no_7day FROM products p JOIN categories c ON c.id=p.category_id LEFT JOIN categories pc ON pc.id=c.parent_id WHERE p.supplier IS NULL AND p.status=1');
     const bad = own.filter(p => CC.scopeWarning([p.pn, p.cn])); ok(own.length >= 10 && !bad.length, '上架的演示自营商品均在经营范围内(数码/新鲜农产品)', bad.map(p => p.name).join('|'));
-    ok(own.filter(p => p.pn === '新鲜农产品').every(p => p.no_7day === 1) && own.some(p => p.cn === '新鲜水果') && own.some(p => p.cn === '新鲜蔬菜') && own.some(p => p.cn === '鲜蛋'), '新鲜水果/蔬菜/鲜蛋演示商品,分类标记不支持7天无理由');
+    ok(own.filter(p => p.pn === '新鲜农产品').every(p => p.no_7day === 0) && own.some(p => p.cn === '新鲜水果') && own.some(p => p.cn === '新鲜蔬菜') && own.some(p => p.cn === '鲜蛋'), '新鲜水果/蔬菜/鲜蛋演示商品(分类不再标记不支持7天无理由)');
     const navs = db.all('SELECT c.name, pc.name pn FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.status=1'); ok(navs.every(c => !CC.scopeWarning([c.pn, c.name].filter(Boolean)) || !c.pn && ['数码电脑', '新鲜农产品'].includes(c.name)), '前台分类只含经营范围内类目', navs.map(c => c.name).join(','));
     x = await a.get('/products'); ok(!/服饰鞋包|美妆个护|家居日用|运动户外|零食坚果|食品生鲜/.test(x.text) && x.text.includes('新鲜农产品'), '「全部商品」分类标签无范围外类目');
     x = await a.get('/points-mall'); ok(!/帆布袋|保温杯/.test(x.text), '积分商城演示礼品无日用百货/箱包');
@@ -117,7 +117,21 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   // 鲜活易腐类商品订单不可走7天无理由,但可选质量问题
   const apple = db.get("SELECT o.* FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE oi.product_id=8 AND o.status='completed' LIMIT 1");
   if (apple) { r = await adm.post('/admin/service/' + apple.user_id + '/aftersale', { order_id: apple.id, type: 'no_reason', reason: 'x' }); ok((r.loc || '').includes('/admin/service'), '鲜活易腐类订单不能创建7天无理由退货'); }
-  ok(!svcm.noReasonOf(8) && svcm.noReasonOf(9), '七天无理由:分类标记鲜活易腐类的商品默认不支持');
+  ok(svcm.noReasonOf(8) && svcm.noReasonOf(9), '七天无理由:常规商品(含生鲜)一律支持');
+  { const oc = db.get("SELECT * FROM orders WHERE status='completed' AND type<>'points' AND id NOT IN (SELECT order_id FROM aftersales WHERE status IN ('pending','approved_return','returned')) ORDER BY id DESC LIMIT 1");
+    if (oc) { const it = db.get('SELECT id, product_id FROM order_items WHERE order_id=? LIMIT 1', oc.id), U4 = require('../lib/util');
+      db.exec1('UPDATE order_items SET product_id=8 WHERE id=?', it.id); db.exec1('UPDATE orders SET completed_at=? WHERE id=?', U4.offset(-2 * 86400000), oc.id);
+      await adm.get('/admin/orders/' + oc.id); const n0 = db.get('SELECT COUNT(*) n FROM aftersales WHERE order_id=?', oc.id).n;
+      await adm.post('/admin/orders/' + oc.id + '/aftersale', { type: 'no_reason', amount: '0', reason: '生鲜七天无理由测试' });
+      const as = db.get("SELECT id FROM aftersales WHERE order_id=? AND type='no_reason' ORDER BY id DESC", oc.id);
+      ok(as && db.get('SELECT COUNT(*) n FROM aftersales WHERE order_id=?', oc.id).n === n0 + 1, '售后:含生鲜商品的已签收订单可创建7天无理由退货');
+      if (as) { db.exec1('DELETE FROM aftersales WHERE id=?', as.id); }
+      db.exec1('UPDATE order_items SET product_id=? WHERE id=?', it.product_id, it.id); db.exec1('UPDATE orders SET completed_at=? WHERE id=?', oc.completed_at, oc.id); }
+    const po = db.get("SELECT id FROM orders WHERE type='points' AND status IN ('paid','shipped','completed') LIMIT 1");
+    if (po) { const k = db.get('SELECT COUNT(*) n FROM aftersales').n; await adm.post('/admin/orders/' + po.id + '/aftersale', { type: 'no_reason', amount: '0', reason: 'x' }); ok(db.get('SELECT COUNT(*) n FROM aftersales').n === k, '积分兑换订单不可创建7天无理由退货(非质量问题不退不换)'); }
+    ok(/非质量问题不退不换/.test(require('../lib/svc').S('points_redeem_notice') || ''), '积分兑换须知保留「非质量问题不退不换」'); }
+  ok(db.get('SELECT COUNT(*) n FROM categories WHERE no_7day=1').n === 0 && db.get("SELECT COUNT(*) n FROM products WHERE no_reason_return=0 AND COALESCE(supplier,'')=''").n === 0, '迁移:清除分类/商品「不支持七天无理由」旧标记');
+  { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && hp.content.includes('含生鲜') && !hp.content.includes('除鲜活易腐类商品'), '帮助中心退货政策:含生鲜均支持七天无理由'); }
   console.log('== 前台禁止上传 ==');
   const rc = db.get("SELECT o.id, oi.id iid FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.user_id=1 AND o.status='completed' AND oi.reviewed=0 LIMIT 1");
   if (rc) { const fd = new FormData(); fd.append('rating_' + rc.iid, '4'); fd.append('content_' + rc.iid, '带图评价测试'); fd.append('images_' + rc.iid, new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')], { type: 'image/png' }), 'a.png');
@@ -207,7 +221,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/orders'); ok2(r.text.includes('/order/' + o1.id + '/aftersale'), 'C2:订单列表也保留售后入口');
     r = await c1.post('/order/' + o1.id + '/aftersale'); ok2(r.loc === '/service#end', 'C2:售后申请转客服');
     // C1:鲜活易腐商品页
-    r = await c1.get('/product/8'); ok2(r.text.includes('本商品属于鲜活易腐类,不支持七天无理由退货') && !r.text.includes('签收后 7 天内可申请') && !r.text.includes('7天无理由退换') && !r.text.includes('全国联保'), 'C1:鲜活易腐商品页无七天无理由模板文案');
+    r = await c1.get('/product/8'); ok2(!r.text.includes('不支持七天无理由') && r.text.includes('本商品支持七天无理由退货') && !r.text.includes('7天无理由退换') && !r.text.includes('全国联保'), 'C1:生鲜商品页按支持七天无理由展示(无旧模板文案)');
     r = await c1.get('/product/9'); ok2(!/全国联保|假一赔十|财哥严选/.test(r.text), 'G6:商品详情无全国联保/假一赔十/财哥严选');
     // G3:无评价不显示好评率
     const noRv = db.get("SELECT id FROM products WHERE status=1 AND id NOT IN (SELECT product_id FROM reviews WHERE status='approved') LIMIT 1");

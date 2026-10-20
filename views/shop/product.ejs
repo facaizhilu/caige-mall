@@ -15,13 +15,12 @@
     </div>
     <dl class="kv pd-kv" style="margin:12px 0"><% const supBrand = p.supplier ? (p.supplier_brand || (brand && brand.name) || '') : ''; if (supBrand) { %><dt>品牌</dt><dd class="pd-brand"><%= supBrand %></dd><% } %><dt>配送</dt><dd><% if (p.ship_from) { %><span class="<%= p.supplier ? 'sup-ship' : '' %>"><%= p.ship_from %></span><% } else if (p.supplier) { %><span class="sup-ship">供应商发货</span><% } else { %><%= shop.ship_from || '海口发货' %><% } %></dd>
       <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
-      <dt>服务</dt><dd><span class="tag green">正品保证</span><% if (noReason) { %><span class="tag green">支持7天无理由退货</span><% } else { %><span class="tag no7">该商品不支持7天无理由退货</span><% } %><% if (p.supplier) { %><span class="tag gray">由供应商发货</span><% } else { %><span class="tag green">极速发货</span><% } %><% if (!noReason) { %><div class="no7-note"><%= p.supplier && !p.is_perishable ? '该商品按供应商规则签收后不支持七天无理由退货' : '鲜活易腐等商品签收后不支持七天无理由退货' %>;如有质量问题,仍可联系客服退换。</div><% } %></dd>
+      <dt>服务</dt><dd><span class="tag green">正品保证</span><span class="tag green">7天无理由退货</span><% if (p.supplier) { %><span class="tag gray">由供应商发货</span><% } else { %><span class="tag green">极速发货</span><% } %></dd>
       <% if (shop.show_sales === '1' && +p.sales > 0) { %><dt>销量</dt><dd>已售 <%= p.sales %> 件 · <%= rateText %></dd><% } else { %><dt>评价</dt><dd><%= rateText %></dd><% } %></dl>
     <% specs.forEach((s,si)=>{ %><div class="opt"><label><%= s.name %></label><div class="opts" data-spec="<%= s.name %>"><% s.values.forEach((v,vi)=>{ %><span class="chip<%= vi===0?' on':'' %>" data-v="<%= v %>"><%= v %></span><% }) %></div></div><% }) %>
     <div class="opt"><label>数量</label><div class="flex"><div class="qty"><button type="button" id="qm">−</button><input id="qty" value="1" inputmode="numeric"><button type="button" id="qp">+</button></div><span class="muted">库存 <b id="stock">-</b> 件</span></div></div>
     <% const canGroup = groupbuy, canSk = seckill && seckill.live; %>
-    <% const dis = noReason ? '' : ' disabled aria-disabled="true"'; %>
-    <% if (!noReason) { %><label class="agree no7-ack"><input type="checkbox" id="no7ok" required> 本商品不支持7天无理由退货,我已知晓<span class="no7-tip">(勾选后才可购买/加入购物车)</span></label><% } %>
+    <% const dis = ''; %>
     <div class="flex wrapf mt pd-bar">
       <%# 小程序端:改为 <button open-type="contact"> 使用微信原生客服;Web 端打开联系客服页(电话/微信号/在线对话) %><a class="pd-kf" data-mp-open-type="contact" href="/service?from=<%= encodeURIComponent('/product/' + p.id) %>" aria-label="联系客服"><svg class="kf-ic" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="url(#kfg2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><linearGradient id="kfg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d63a2c"/><stop offset="1" stop-color="#c48f2f"/></linearGradient></defs><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/></svg><span>客服</span></a>
       <% if (canSk) { %>
@@ -48,17 +47,16 @@
   <% reviews.forEach(r=>{ %><div class="review"><div class="avatar" style="width:40px;height:40px;font-size:16px"><%= r.nickname.slice(0,1) %></div><div style="flex:1"><div class="flex between"><b><%= r.nick %></b><span class="muted"><%= r.created_at.slice(0,10) %></span></div><div class="stars"><%= '★'.repeat(r.rating)+'☆'.repeat(5-r.rating) %></div><div><%= r.content %></div>
     <% if (r.reply) { %><div class="reply"><b>商家回复:</b><%= r.reply %></div><% } %></div></div><% }) %>
 </div>
-<div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc"><% if (noReason) { %>正品保障;本商品支持七天无理由退货,签收后 7 天内可申请退货退款(商品需保持完好);商品存在质量问题的,超过 7 天仍可联系客服申请售后;<% } else if (p.supplier && !p.is_perishable) { %>本商品按供应商售后规则不支持七天无理由退货;如商品存在质量问题,请于签收后联系客服处理;<% } else { %>本商品属于鲜活易腐类,不支持七天无理由退货;如商品存在质量问题(如坏果、变质),请于签收后联系客服,核实后为您退款或补发。<% } %>发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>
+<div class="card sec" id="after"><div class="sec-h"><h2>售后保障</h2></div><div class="desc">正品保障;本商品支持七天无理由退货,签收后 7 天内可申请退货退款(商品需保持完好);商品存在质量问题的,超过 7 天仍可联系客服申请售后;发票支持个人及企业电子发票;物流信息可在订单中实时查看。</div></div>
 <% if (related.length) { %><div class="sec"><div class="sec-h"><h2>相关推荐</h2></div><div class="grid"><% related.forEach(p=>{ %><%- include('../partials/card',{p}) %><% }) %></div></div><% } %>
 <script>
 (function(){
   var SKUS=<%- JSON.stringify(skus.map(s=>({id:s.id,attrs:s.attrs,price:s.price,stock:s.stock}))) %>, SPECS=<%- JSON.stringify(specs.map(s=>s.name)) %>;
   var SK=<%- JSON.stringify(seckill&&seckill.live?{sku:seckill.sku_id,price:seckill.price,id:seckill.id,left:seckill.stock-seckill.sold,limit:seckill.limit_per_user}:null) %>;
   var GB=<%- JSON.stringify(groupbuy?{sku:groupbuy.sku_id,id:groupbuy.id}:null) %>;
-  var PID=<%= p.id %>, LOGGED=<%= user?'true':'false' %>, NO7=<%= noReason?'false':'true' %>;
-  function no7(){if(!NO7)return true;var c=document.getElementById('no7ok');if(c&&c.checked)return true;toast('请先勾选「本商品不支持7天无理由退货,我已知晓」');return false}
-  (function(){var c=document.getElementById('no7ok');if(!NO7||!c)return;var sync=function(){document.querySelectorAll('.need-no7').forEach(function(b){b.disabled=!c.checked;b.setAttribute('aria-disabled',c.checked?'false':'true')})};c.addEventListener('change',sync);sync()})();
-  function no7ok(){var c=document.getElementById('no7ok');return c&&c.checked?'1':''}
+  var PID=<%= p.id %>, LOGGED=<%= user?'true':'false' %>;
+  function no7(){return true}
+  function no7ok(){return ''}
   function cur(){var sel={};document.querySelectorAll('[data-spec]').forEach(function(g){var o=g.querySelector('.chip.on');sel[g.dataset.spec]=o&&o.dataset.v});
     return SKUS.find(function(s){return SPECS.every(function(n){return s.attrs[n]===sel[n]})})||(SPECS.length?null:SKUS[0])}
   function refresh(){var s=cur();document.getElementById('stock').textContent=s?s.stock:0;
