@@ -8,7 +8,7 @@
       <li>好友通过您的邀请码或链接注册,注册本身不产生任何奖励。</li>
       <li>好友的<b>首个订单确认收货</b>,且之后 <%= windowDays %> 天内未发生退款,您将一次性获得 <b><%= invitePts %></b> 积分;观察期内退款则不发放。</li>
       <li><% if (coupon) { %>新注册的好友可获得首单优惠券「<%= coupon.name %>」(<%= coupon.threshold>0 ? '满'+coupon.threshold+'减'+coupon.amount : '无门槛减'+coupon.amount %> 元)。<% } else { %>新注册的好友可领取平台新人福利(以实际发放为准)。<% } %></li>
-      <li>邀请奖励仅限一级好友、每位好友仅奖励一次;积分规则详见<a href="/points-rules">《积分规则》</a>,积分不可购买、转让或提现。</li>
+      <li>邀请奖励仅限一级好友、每位好友仅奖励一次;积分规则详见<a href="/points-rules">《积分规则》</a>。</li>
     </ol>
   </div>
 </div>

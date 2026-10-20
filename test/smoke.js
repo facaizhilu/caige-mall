@@ -267,8 +267,10 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/me/history'); ok(r.text.includes('清空浏览记录') && r.text.includes('/me/history/8/delete'), '浏览记录有清空与单条删除');
   await cg.post('/me/history/8/delete'); r = await cg.get('/me/history'); ok(!r.text.includes('/me/history/8/delete') && r.text.includes('/me/history/9/delete'), '单条删除浏览记录');
   await cg.post('/me/history/clear'); r = await cg.get('/me/history'); ok(r.text.includes('暂无浏览记录'), '清空浏览记录');
-  // 积分不可转让/提现
-  r = await cg.get('/me/points'); ok(r.text.includes('不可转让') && r.text.includes('不可提现'), '积分页说明不可转让、不可提现');
+  // 限制性条款(不可购买/转让/提现)只保留在《积分规则》与协议中,普通前台页面不展示
+  { const bad = []; for (const u of ['/me/points', '/me/cloud', '/me/invite', '/points-mall', '/me', '/service']) { const y = await cg.get(u); const m = (y.text.match(/<main[\s\S]*<\/main>/) || [y.text])[0]; if (/不可购买|不可转让|不可提现|转让或提现|兑换现金/.test(m)) bad.push(u); }
+    ok(!bad.length, '前台页面不展示积分不可购买/转让/提现条款(仅规则/协议页保留)', bad); }
+  r = await cg.get('/points-rules'); ok(r.text.includes('不可转让') && r.text.includes('不可提现'), '《积分规则》仍保留不可转让、不可提现');
   // 注销:有未完成订单时被拦截
   r = await cg.get('/me/cancel'); ok(r.text.includes('暂不能注销'), '有未完成订单时不能注销');
   // 新用户注销
