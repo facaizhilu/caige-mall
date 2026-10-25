@@ -27,15 +27,27 @@
     ids.forEach(function (id) { reported[id] = 1; });
     fetch('/service/read', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' }, body: 'ids=' + ids.join(',') }).catch(function () { ids.forEach(function (id) { delete reported[id]; }); });
   }
-  var lastHtml = null;
-  function refresh(keep) { return fetch('/service?partial=1', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (h) {
-    if (h === lastHtml) return; lastHtml = h;
-    var near = list.scrollHeight - list.scrollTop - list.clientHeight < 120, top = list.scrollTop;
-    list.innerHTML = h; if (!keep || near) { toBottom(); list.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', toBottom, { once: true }); }); } else list.scrollTop = top; reportRead();
-  }).catch(function () {}); }
-  // 轮询:页面可见时每 8 秒刷新一次(撤回/编辑/新消息);切回前台立即刷新
+  // 刷新会话:拉取完整消息列表(按消息 id 渲染,天然去重;同时带上撤回/编辑/新消息)。并发请求合并为一次
+  var lastHtml = null, busy = null, again = false;
+  function refresh(keep) {
+    if (busy) { again = true; return busy; }
+    busy = fetch('/service?partial=1', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (h) {
+      if (h === lastHtml) return; lastHtml = h;
+      var near = list.scrollHeight - list.scrollTop - list.clientHeight < 120, top = list.scrollTop;
+      list.innerHTML = h; if (!keep || near) { toBottom(); list.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', toBottom, { once: true }); }); } else list.scrollTop = top; reportRead();
+    }).catch(function () {}).then(function () { busy = null; if (again) { again = false; refresh(true); } });
+    return busy;
+  }
+  // 实时:SSE 推送;不支持或连接出错时每 3 秒轮询;重连/切回前台时补拉,不丢消息
   if (pg.dataset.login === '1') {
-    setInterval(function () { if (document.visibilityState === 'visible') refresh(true); }, 8000);
+    var es = null, pollT = null;
+    function poll(on) { if (on && !pollT) pollT = setInterval(function () { if (document.visibilityState === 'visible') refresh(true); }, 3000); if (!on && pollT) { clearInterval(pollT); pollT = null; } }
+    if (window.EventSource) {
+      es = new EventSource('/service/stream');
+      es.addEventListener('open', function () { poll(false); refresh(true); });
+      es.addEventListener('chat', function (e) { var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type !== 'read') refresh(true); });
+      es.addEventListener('error', function () { poll(true); });
+    } else poll(true);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { refresh(true); reportRead(); } });
     setTimeout(reportRead, 300);
   }

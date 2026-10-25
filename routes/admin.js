@@ -647,9 +647,11 @@ module.exports = function (r, { filesOf }) {
     log(req, '编辑' + title, topic); flash(req, 'success', title + '已保存' + (newV && newV !== oldV ? `,版本号更新为 v${newV}(用户下次访问时需重新同意)` : '')); res.redirect('/admin/policies?tab=' + topic);
   });
   // 客服
+  // 实时推送(SSE):需客服权限,接收全部会话事件
+  r.get('/service/stream', need('service'), (req, res) => require('../lib/push-sse').sse(req, res, require('../lib/bus').scopes.staff()));
   r.get('/service', need('service'), (req, res) => {
     const uid = int(req.query.uid);
-    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; return c; });
+    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; c.unread = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='user' AND id > COALESCE((SELECT MAX(id) FROM messages WHERE user_id=? AND sender='staff'),0)", c.user_id, c.user_id).n; return c; });
     const cur = uid ? db.get('SELECT id,nickname,phone FROM users WHERE id=?', uid) : (convs[0] ? { id: convs[0].user_id, nickname: convs[0].nickname, phone: convs[0].phone } : null);
     const days = int(svc.S('aftersale_days'), 7);
     const orders = cur ? db.all("SELECT * FROM orders WHERE user_id=? AND status IN ('paid','shipped','completed','refunded') ORDER BY id DESC LIMIT 8", cur.id).map(o => {

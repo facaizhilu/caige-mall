@@ -350,7 +350,7 @@ module.exports = function (app, { filesOf }) {
     const recent = db.get("SELECT 1 FROM messages WHERE user_id=? AND sender='user' AND content LIKE ? AND created_at>?", req.user.id, '我要申请售后:订单号 ' + o.order_no + '%', U.offset(-600000));
     if (!recent) {
       svc.notifyService(req.user.id, 'user', `我要申请售后:订单号 ${o.order_no},商品:${items},实付 ¥${o.pay_amount.toFixed(2)}`);
-      db.exec1('INSERT INTO messages(user_id,sender,content,created_at,is_read) VALUES(?,?,?,?,1)', req.user.id, 'bot', '【智能助手】已收到您的售后申请,客服核实订单后会为您创建售后单。请在下方补充说明问题(如:退货原因、商品情况),售后进度可在「我的 - 退款/售后」查看。', now());
+      db.exec1('INSERT INTO messages(user_id,sender,content,created_at,is_read) VALUES(?,?,?,?,1)', req.user.id, 'bot', '【智能助手】已收到您的售后申请,客服核实订单后会为您创建售后单。请在下方补充说明问题(如:退货原因、商品情况),售后进度可在「我的 - 退款/售后」查看。', now()); require('../lib/bus').pub(req.user.id, 'msg', 0, 'bot');
     }
     res.redirect('/service#end');
   });
@@ -730,6 +730,8 @@ module.exports = function (app, { filesOf }) {
   });
   const chatDone = (req, res, ok, msg, code) => (req.xhr || wantsJson(req) || (req.headers['x-requested-with'] === 'fetch')) ? res.status(ok ? 200 : (code || 400)).json({ ok, msg }) : (ok ? res.redirect('/service#end') : (req.session.flash = { type: 'error', msg }, res.redirect('/service')));
   // 已读回执:仅当会员在 /service 页面可见且消息已渲染时由前端上报(送达不算已读)
+  // 实时推送(SSE):会员只接收自己会话的事件
+  app.get('/service/stream', needLogin, (req, res) => require('../lib/push-sse').sse(req, res, require('../lib/bus').scopes.member(req.user.id)));
   app.post('/service/read', needLogin, (req, res) => { const ids = String(req.body.ids || '').split(',').map(Number); res.json({ ok: true, n: chat.markRead(req.user.id, ids) }); });
   app.post('/service', needLogin, (req, res) => {
     const c = String(req.body.content || '').trim().slice(0, 500);

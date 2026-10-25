@@ -721,6 +721,26 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
         x = await b.get('/'); ok(x.text.includes('href="/service?from=coop"') && x.text.includes('合作专区') && x.text.includes('icon-coop@2x'), '首页「合作专区」入口 → 在线客服');
         x = await b.get('/service?from=coop'); ok(x.text.includes('供应商、门店合作，请留言说明合作内容，我们会尽快联系您。') && !/招商|加盟|投资|代理|回报/.test(x.text), '合作专区进入客服页显示合作提示(无招商/投资类用语)');
         x = await b.get('/service'); ok(!x.text.includes('id="coopNote"'), '普通进入客服页不显示合作提示');
+        // 实时推送(SSE):鉴权、事件隔离、心跳头
+        { const open = async (cl, path) => { const ac = new AbortController(); const r = await fetch(base + path, { headers: { Cookie: Object.entries(cl.k).map(([k, v]) => k + '=' + v).join('; '), Accept: 'text/event-stream' }, redirect: 'manual', signal: ac.signal });
+            const st = { status: r.status, ct: r.headers.get('content-type') || '', xab: r.headers.get('x-accel-buffering'), buf: '', ac };
+            if (r.status === 200) (async () => { const rd = r.body.getReader(), dec = new TextDecoder(); try { for (;;) { const { value, done } = await rd.read(); if (done) break; st.buf += dec.decode(value); } } catch (e) {} })();
+            return st; };
+          const wait = ms => new Promise(r => setTimeout(r, ms));
+          const anon = new C(); const s0 = await open(anon, '/service/stream'); ok(s0.status !== 200, '未登录不能订阅客服推送', s0.status); s0.ac.abort();
+          const s1 = await open(b, '/admin/service/stream'); ok(s1.status !== 200, '会员不能订阅后台客服推送', s1.status); s1.ac.abort();
+          const sb = await open(b, '/service/stream'), sa = await open(a, '/service/stream'), sm = await open(adm, '/admin/service/stream');
+          ok(sb.status === 200 && /text\/event-stream/.test(sb.ct) && sb.xab === 'no' && sm.status === 200, 'SSE 连接:event-stream、X-Accel-Buffering:no、后台需客服权限', [sb.status, sb.ct, sb.xab, sm.status]);
+          await wait(100); const t0 = Date.now();
+          await adm.post('/admin/service/' + bid + '/reply', { content: '实时推送测试' }); const ms = lastStaff(); await wait(300);
+          ok(sb.buf.includes(`"id":${ms.id}`) && sb.buf.includes('"type":"msg"'), '会员实时收到客服新消息事件', sb.buf.slice(-200));
+          ok(!sa.buf.includes(`"id":${ms.id}`) && !sa.buf.includes(`"uid":${bid}`), '其他会员收不到他人会话事件', sa.buf.slice(-200));
+          await b.get('/service'); await b.req('POST', '/service', { content: '会员实时消息' }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await wait(300);
+          ok(sm.buf.includes(`"uid":${bid}`) && sm.buf.includes('"sender":"user"'), '后台实时收到会员新消息事件', sm.buf.slice(-300));
+          await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/edit', { content: '实时推送测试(改)' }); await b.req('POST', '/service/read', { ids: String(ms.id) }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/recall', {}); await wait(300);
+          ok(sb.buf.includes('"type":"edit"') && sb.buf.includes('"type":"recall"') && sm.buf.includes('"type":"read"'), '编辑/撤回/已读事件实时推送', sm.buf.slice(-300));
+          ok(Date.now() - t0 < 5000, 'SSE 测试耗时正常'); x = await adm.get('/admin/service?uid=' + bid); ok(/<span class="un-dot"[^>]*>1<\/span>/.test(x.text), '后台会话列表显示未回复消息数红点');
+          { const bus = require('../lib/bus'); const got = []; const off = bus.subscribe(bus.scopes.member(99), e => got.push(e)); bus.pub(99, 'msg', 5, 'staff'); bus.pub(98, 'msg', 6, 'staff'); off(); bus.pub(99, 'msg', 7, 'staff'); ok(got.length === 1 && got[0].id === 5, '推送层与传输无关:订阅/范围/取消订阅'); } [sb, sa, sm].forEach(x => x.ac.abort()); }
         x = await b.get('/privacy'); ok(x.text.includes('我们会记录客服消息的阅读状态，用于售后跟进。'), '隐私政策补充客服消息阅读状态说明');
       }
       // 自动回复规则:手动输入仅首条回复一次(通用兜底/非客服时间提示),之后不回复(不做关键词匹配);快捷问题每次回答;人工回复后重置

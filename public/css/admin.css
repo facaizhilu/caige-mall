@@ -99,3 +99,4 @@ input[type=file]{max-width:100%}
 .so-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;font-size:13px}.as-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block}
 .svc-order[open]>.so-line{border-bottom:1px dashed #eee;margin-bottom:6px}
 .arr{transform:none!important}.arr::before{content:"▸"}details[open]>summary .arr::before{content:"▾"}.msg-ops>form{display:inline-flex}
+.un-dot{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:9px;background:#e53935;color:#fff;font-size:12px;text-align:center;vertical-align:middle}
