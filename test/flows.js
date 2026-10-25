@@ -739,7 +739,13 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
           ok(sm.buf.includes(`"uid":${bid}`) && sm.buf.includes('"sender":"user"'), '后台实时收到会员新消息事件', sm.buf.slice(-300));
           await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/edit', { content: '实时推送测试(改)' }); await b.req('POST', '/service/read', { ids: String(ms.id) }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/recall', {}); await wait(300);
           ok(sb.buf.includes('"type":"edit"') && sb.buf.includes('"type":"recall"') && sm.buf.includes('"type":"read"'), '编辑/撤回/已读事件实时推送', sm.buf.slice(-300));
-          ok(Date.now() - t0 < 5000, 'SSE 测试耗时正常'); x = await adm.get('/admin/service?uid=' + bid); ok(/<span class="un-dot"[^>]*>1<\/span>/.test(x.text), '后台会话列表显示未回复消息数红点');
+          ok(Date.now() - t0 < 5000, 'SSE 测试耗时正常'); ok(sb.buf.includes('event: ping') && sb.buf.length > 2048, 'SSE 首包填充+ping 心跳事件(防代理缓冲/看门狗)');
+          { await adm.post('/admin/service/' + bid + '/reply', { content: '推送后已读' }); const mr = lastStaff();
+            await b.req('POST', '/service/read', { ids: String(mr.id) }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await wait(300);
+            ok(sm.buf.includes(`"uid":${bid},"type":"read","id":${mr.id}`) && db.get('SELECT read_at FROM messages WHERE id=?', mr.id).read_at, '推送到达的新消息上报已读 → 发布 read 事件给后台');
+            x = await adm.get('/admin/service?uid=' + bid); ok(new RegExp('id="m' + mr.id + '"[\\s\\S]*?已读 \\d').test(x.text), '后台该消息显示已读'); }
+          { const bot = db.get("SELECT content FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", bid); db.exec1("INSERT INTO messages(user_id,sender,content,created_at) VALUES(?,?,?,?)", bid, 'bot', '自动回复预览不应显示', require('../lib/util').now());
+            x = await adm.get('/admin/service?uid=' + bid); const conv = x.text.split('id="convs"')[1].split('</div>')[0]; ok(conv.includes(bot.content.slice(0, 24)) && !conv.includes('自动回复预览不应显示'), '会话列表预览显示会员最后一条消息(而非自动回复)'); } x = await adm.get('/admin/service?uid=' + bid); ok(/<span class="un-dot"[^>]*>1<\/span>/.test(x.text), '后台会话列表显示未回复消息数红点');
           { const bus = require('../lib/bus'); const got = []; const off = bus.subscribe(bus.scopes.member(99), e => got.push(e)); bus.pub(99, 'msg', 5, 'staff'); bus.pub(98, 'msg', 6, 'staff'); off(); bus.pub(99, 'msg', 7, 'staff'); ok(got.length === 1 && got[0].id === 5, '推送层与传输无关:订阅/范围/取消订阅'); } [sb, sa, sm].forEach(x => x.ac.abort()); }
         x = await b.get('/privacy'); ok(x.text.includes('我们会记录客服消息的阅读状态，用于售后跟进。'), '隐私政策补充客服消息阅读状态说明');
       }

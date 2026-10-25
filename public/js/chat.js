@@ -25,14 +25,15 @@
     var ids = [].slice.call(list.querySelectorAll('.cmsg[data-st]')).map(function (e) { return e.getAttribute('data-id'); }).filter(function (id) { return id && !reported[id]; });
     if (!ids.length || !csrf) return;
     ids.forEach(function (id) { reported[id] = 1; });
-    fetch('/service/read', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' }, body: 'ids=' + ids.join(',') }).catch(function () { ids.forEach(function (id) { delete reported[id]; }); });
+    fetch('/service/read', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' }, body: 'ids=' + ids.join(',') })
+      .then(function (r) { if (!r.ok) throw r; }).catch(function () { ids.forEach(function (id) { delete reported[id]; }); setTimeout(reportRead, 3000); });
   }
   // 刷新会话:拉取完整消息列表(按消息 id 渲染,天然去重;同时带上撤回/编辑/新消息)。并发请求合并为一次
   var lastHtml = null, busy = null, again = false;
   function refresh(keep) {
     if (busy) { again = true; return busy; }
     busy = fetch('/service?partial=1', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (h) {
-      if (h === lastHtml) return; lastHtml = h;
+      if (h === lastHtml) return reportRead(); lastHtml = h;
       var near = list.scrollHeight - list.scrollTop - list.clientHeight < 120, top = list.scrollTop;
       list.innerHTML = h; if (!keep || near) { toBottom(); list.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', toBottom, { once: true }); }); } else list.scrollTop = top; reportRead();
     }).catch(function () {}).then(function () { busy = null; if (again) { again = false; refresh(true); } });
@@ -43,10 +44,16 @@
     var es = null, pollT = null;
     function poll(on) { if (on && !pollT) pollT = setInterval(function () { if (document.visibilityState === 'visible') refresh(true); }, 3000); if (!on && pollT) { clearInterval(pollT); pollT = null; } }
     if (window.EventSource) {
+      var seen = Date.now();
       es = new EventSource('/service/stream');
-      es.addEventListener('open', function () { poll(false); refresh(true); });
-      es.addEventListener('chat', function (e) { var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type !== 'read') refresh(true); });
+      es.addEventListener('open', function () { seen = Date.now(); poll(false); refresh(true); });
+      es.addEventListener('ping', function () { seen = Date.now(); poll(false); });
+      // 推送到达:立即拉取并渲染,页面可见时随即上报已读
+      es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type !== 'read') refresh(true); });
       es.addEventListener('error', function () { poll(true); });
+      // 看门狗:45 秒无心跳(代理缓冲/静默断开)则改为 3 秒轮询;另每 15 秒兜底刷新一次
+      setInterval(function () { if (Date.now() - seen > 45000) poll(true); }, 5000);
+      setInterval(function () { if (document.visibilityState === 'visible') refresh(true); }, 15000);
     } else poll(true);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { refresh(true); reportRead(); } });
     setTimeout(reportRead, 300);

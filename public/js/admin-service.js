@@ -25,9 +25,12 @@
   var pollT = null;
   function poll(on) { if (on && !pollT) pollT = setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, 3000); if (!on && pollT) { clearInterval(pollT); pollT = null; } }
   if (window.EventSource) {
-    var es = new EventSource('/admin/service/stream'), opened = false;
-    es.addEventListener('open', function () { poll(false); if (opened) refresh(); opened = true; });
-    es.addEventListener('chat', function (e) { var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'user') ding(); refresh(); });
+    var es = new EventSource('/admin/service/stream'), opened = false, seen = Date.now();
+    es.addEventListener('open', function () { seen = Date.now(); poll(false); if (opened) refresh(); opened = true; });
+    es.addEventListener('ping', function () { seen = Date.now(); poll(false); });
+    setInterval(function () { if (Date.now() - seen > 45000) poll(true); }, 5000);
+    setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, 15000);
+    es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'user') ding(); refresh(); });
     es.addEventListener('error', function () { poll(true); });
   } else poll(true);
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refresh(); });
