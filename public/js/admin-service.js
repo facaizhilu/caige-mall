@@ -26,11 +26,13 @@
   function poll(on) { if (on && !pollT) pollT = setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, 3000); if (!on && pollT) { clearInterval(pollT); pollT = null; } }
   if (window.EventSource) {
     var es = new EventSource('/admin/service/stream'), opened = false, seen = Date.now();
-    es.addEventListener('open', function () { seen = Date.now(); poll(false); if (opened) refresh(); opened = true; });
-    es.addEventListener('ping', function () { seen = Date.now(); poll(false); });
+    // 连接建立(含首次)都补拉一次:页面加载到推送连上之间发生的事件(如会员刚读了客服的回复)不会漏掉
+    es.addEventListener('open', function () { seen = Date.now(); poll(false); refresh(); opened = true; });
+    // 心跳兜底:当前会话还有未读的客服消息时顺便刷新一次
+    es.addEventListener('ping', function () { seen = Date.now(); poll(false); var c = chatEl(); if (c && c.querySelector('.rd-un')) refresh(); });
     setInterval(function () { if (Date.now() - seen > 45000) poll(true); }, 5000);
     setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, 15000);
-    es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'user') ding(); refresh(); });
+    es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'user') ding(); refresh(); }); // 所有类型(msg/recall/edit/read)都刷新
     es.addEventListener('error', function () { poll(true); });
   } else poll(true);
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refresh(); });

@@ -744,6 +744,18 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             await b.req('POST', '/service/read', { ids: String(mr.id) }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await wait(300);
             ok(sm.buf.includes(`"uid":${bid},"type":"read","id":${mr.id}`) && db.get('SELECT read_at FROM messages WHERE id=?', mr.id).read_at, '推送到达的新消息上报已读 → 发布 read 事件给后台');
             x = await adm.get('/admin/service?uid=' + bid); ok(new RegExp('id="m' + mr.id + '"[\\s\\S]*?已读 \\d').test(x.text), '后台该消息显示已读'); }
+          // 真实运行后台客户端脚本(vm + 假 DOM/EventSource):事件名与服务端一致,read 事件/首次连接/有未读时心跳都会触发补拉
+          { const vm = require('vm'), src = require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'js', 'admin-service.js'), 'utf8');
+            const sent = [...new Set([...sm.buf.matchAll(/^event: (\w+)$/gm)].map(m => m[1]))]; let fetches = 0, unread = true; const L = {};
+            const el = { innerHTML: '', dataset: { uid: String(bid) }, querySelector: q => q === '.rd-un' && unread ? {} : null, querySelectorAll: () => [], scrollHeight: 0, scrollTop: 0, clientHeight: 0 };
+            const ctx = { document: { title: 'x', visibilityState: 'visible', getElementById: () => el, addEventListener() {} }, window: {}, setInterval() {}, clearInterval() {}, DOMParser: function () { this.parseFromString = () => ({ getElementById: () => null }); },
+              fetch: () => { fetches++; return Promise.resolve({ ok: true, redirected: false, text: () => Promise.resolve('') }); }, JSON, Date, parseInt, Promise };
+            ctx.window.EventSource = ctx.EventSource = function () { this.addEventListener = (n, f) => { L[n] = f; }; }; vm.runInNewContext(src, ctx);
+            const tick = () => new Promise(r => setTimeout(r, 20)); const fire = async (n, d) => { const f0 = fetches; L[n]({ data: JSON.stringify(d || {}) }); await tick(); return fetches - f0; };
+            ok(sent.includes('chat') && sent.includes('ping') && L.chat && L.ping && L.open, '后台客户端监听的事件名与服务端发送一致(chat/ping)', sent);
+            ok(await fire('open') === 1, '后台推送首次连上即补拉(不漏加载期间的已读)');
+            ok(await fire('chat', { uid: bid, type: 'read', id: 1, sender: 'user' }) === 1, '后台收到 read 事件即刷新会话');
+            ok(await fire('ping') === 1, '心跳时会话仍有未读客服消息 → 刷新'); unread = false; ok(await fire('ping') === 0, '无未读时心跳不额外刷新'); }
           { const bot = db.get("SELECT content FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", bid); db.exec1("INSERT INTO messages(user_id,sender,content,created_at) VALUES(?,?,?,?)", bid, 'bot', '自动回复预览不应显示', require('../lib/util').now());
             x = await adm.get('/admin/service?uid=' + bid); const conv = x.text.split('id="convs"')[1].split('</div>')[0]; ok(conv.includes(bot.content.slice(0, 24)) && !conv.includes('自动回复预览不应显示'), '会话列表预览显示会员最后一条消息(而非自动回复)'); } x = await adm.get('/admin/service?uid=' + bid); ok(/<span class="un-dot"[^>]*>1<\/span>/.test(x.text), '后台会话列表显示未回复消息数红点');
           { const bus = require('../lib/bus'); const got = []; const off = bus.subscribe(bus.scopes.member(99), e => got.push(e)); bus.pub(99, 'msg', 5, 'staff'); bus.pub(98, 'msg', 6, 'staff'); off(); bus.pub(99, 'msg', 7, 'staff'); ok(got.length === 1 && got[0].id === 5, '推送层与传输无关:订阅/范围/取消订阅'); } [sb, sa, sm].forEach(x => x.ac.abort()); }
