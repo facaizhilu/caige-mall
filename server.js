@@ -237,6 +237,9 @@ svc.cloud.ensureDefaults();
     if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由),版本号提升为 v' + svc.S('policy_version')); }
     mark('all_7day_20261020');
   }
+  if (!done('privacy_read_status_20261025')) { // 隐私政策补充「记录客服消息阅读状态」;措辞补充,不提升版本号
+    require('./lib/policies').applyV14Edits(db); mark('privacy_read_status_20261025');
+  }
   if (!done('demo_plain_names_20261020')) { // 去除全部虚构演示品牌:自营演示商品/积分商品名去品牌前缀(仅匹配原种子默认名),品牌统一「韵农甄选」,生成图文字同步;供应商商品不动
     const T = require('./lib/seed-texts');
     db.transaction(() => {

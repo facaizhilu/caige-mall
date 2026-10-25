@@ -3,10 +3,11 @@
 <div class="cmsg left"><img class="cav" src="/static/img/badge-chip.svg?v=1" alt="" width="32" height="32"><div class="cbody"><div class="cname">自动回复</div><div class="cb">您好,我是<%= shop.shop_name %>客服,请问有什么可以帮您?发送文字、图片或订单都可以哦。</div></div></div>
 <% items.forEach(m => { const mine = m.sender === 'user'; %>
 <% if (m.divider) { %><div class="ctime"><%= m.divider %></div><% } %>
-<div class="cmsg <%= mine ? 'right' : 'left' %>" data-id="<%= m.id %>"><% if (!mine) { %><img class="cav" src="/static/img/badge-chip.svg?v=1" alt="" width="32" height="32"><% } %><div class="cbody"><% if (!mine) { %><div class="cname"><%= LBL[m.sender] || '客服' %></div><% } %>
+<% if (m.recalled_at) { %><div class="crecall" data-id="<%= m.id %>">客服撤回了一条消息</div><% return; } %>
+<div class="cmsg <%= mine ? 'right' : 'left' %>" data-id="<%= m.id %>"<%- m.sender === 'staff' ? ' data-st="1"' : '' %>><% if (!mine) { %><img class="cav" src="/static/img/badge-chip.svg?v=1" alt="" width="32" height="32"><% } %><div class="cbody"><% if (!mine) { %><div class="cname"><%= LBL[m.sender] || '客服' %></div><% } %>
 <% if (m.kind === 'image' && m.data && m.data.images) { %><div class="cimgs n<%= m.data.images.length %>"><% m.data.images.forEach(u => { %><a class="cimg" href="<%= u %>" data-full="<%= u %>"><img src="<%= u %>" alt="图片" loading="lazy" decoding="async"></a><% }) %></div>
 <% } else if (m.kind === 'order') { %><% if (m.order) { const o = m.order; %><a class="cord" href="/order/<%= o.id %>"><div class="co-h">订单 <%= o.order_no %></div><div class="co-b"><% if (o.item && o.item.image) { %><img src="<%= o.item.image %>" alt="" width="52" height="52"><% } %><div class="co-t"><div class="co-n"><%= o.item ? o.item.name : '' %><%= o.n > 1 ? ' 等' + o.n + '件' : '' %></div><div class="co-m"><span class="co-a">¥<%= Number(o.pay_amount).toFixed(2) %></span><span class="co-s"><%= ORDER_STATUS[o.status] || o.status %></span></div></div></div></a><% } else { %><div class="cb"><%= m.content %></div><% } %>
-<% } else { %><div class="cb"><%= m.content %></div><% } %>
+<% } else { %><div class="cb"><%= m.content %></div><% if (m.edited_at) { %><span class="cedit">已编辑</span><% } %><% } %>
 </div></div>
 <% }) %>
 <span id="end"></span>

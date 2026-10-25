@@ -92,3 +92,5 @@ body.pg-chat main>.wrap{padding:0;max-width:none}
 /* 云商卡页:红金按钮(同首页)、联系客服办理链接 */
 .btn-rg{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 20px;border-radius:18px;background:linear-gradient(135deg,#f8dc9a,#c99236);color:#7d1210;font-weight:700;font-size:14px;box-shadow:0 2px 6px rgba(125,18,16,.18)}.btn-rg:hover{color:#7d1210}
 .cc-kf{flex:none;font-size:12px;color:#b8231c;white-space:nowrap;padding:6px 0 6px 8px}
+.crecall{align-self:center;font-size:12px;color:#9a9087;padding:2px 8px}.cedit{font-size:12px;color:#9a9087;margin:2px 4px 0}
+.coop-note{margin:8px 12px 0;padding:8px 12px;border-radius:10px;background:#fff7e6;border:1px solid #f2d79a;color:#7d1210;font-size:13px;line-height:1.5}

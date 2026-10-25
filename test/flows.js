@@ -682,6 +682,47 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       const om = db.get('SELECT * FROM messages WHERE user_id=?', old), rm2 = db.get('SELECT payload FROM messages WHERE id=?', im.id);
       ok(had && !fs.existsSync(fp) && om.payload === null && rm2.payload && fs.existsSync(path.join(chat.DIR, path.basename(urls[0]))), '客服图片:会话结束 180 天后自动删除,近期会话保留');
       x = await b.get('/privacy'); ok(x.text.includes('售后图片'), '隐私政策含「售后图片」条目');
+      // 客服撤回/编辑(限时、留痕仅后台可见)+ 已读回执 + 合作专区
+      { const U5 = require('../lib/util'); const H2 = { 'X-Requested-With': 'fetch' };
+        const lastStaff = () => db.get("SELECT * FROM messages WHERE user_id=? AND sender='staff' ORDER BY id DESC LIMIT 1", bid);
+        await adm.get('/admin/service?uid=' + bid); await adm.post('/admin/service/' + bid + '/reply', { content: '原文:您的订单明天发货' }); const m1 = lastStaff();
+        await adm.post('/admin/service/' + bid + '/reply', { content: '这条会被撤回的原文' }); const m2 = lastStaff();
+        // 会员不能撤回/编辑
+        let y = await b.post('/admin/service/' + bid + '/msg/' + m1.id + '/edit', { content: '会员篡改' }); const y2 = await b.post('/admin/service/' + bid + '/msg/' + m2.id + '/recall', {});
+        ok(db.get('SELECT content, recalled_at FROM messages WHERE id=?', m1.id).content === '原文:您的订单明天发货' && !db.get('SELECT recalled_at FROM messages WHERE id=?', m2.id).recalled_at && y.status !== 200 && y2.status !== 200, '会员不能撤回/编辑客服消息', [y.status, y2.status]);
+        y = await b.req('POST', '/service/' + m1.id + '/edit', { content: 'x' }, { json: true, h: H2 }); ok(y.status === 404 || y.status === 403 || y.status === 302, '前台无撤回/编辑接口', y.status);
+        // 管理员编辑 / 撤回
+        x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes(`/msg/${m1.id}/recall`) && x.text.includes(`/msg/${m1.id}/edit`), '后台:2 分钟内显示撤回/编辑按钮');
+        await adm.post('/admin/service/' + bid + '/msg/' + m1.id + '/edit', { content: '更正:您的订单今天发货' });
+        await adm.post('/admin/service/' + bid + '/msg/' + m2.id + '/recall', {});
+        const e1 = db.get('SELECT * FROM messages WHERE id=?', m1.id), r2 = db.get('SELECT * FROM messages WHERE id=?', m2.id);
+        const au = db.all('SELECT * FROM message_audit WHERE message_id IN (?,?) ORDER BY id', m1.id, m2.id);
+        ok(e1.content === '更正:您的订单今天发货' && e1.edited_at && r2.recalled_at && r2.content === '' && au.length === 2 && au[0].action === 'edit' && au[0].old_content === '原文:您的订单明天发货' && au[1].action === 'recall' && au[1].old_content === '这条会被撤回的原文' && au.every(q => q.operator && q.created_at), '编辑/撤回留痕:原文、操作人、时间', au);
+        for (const u of ['/service', '/service?partial=1']) { x = await b.get(u); ok(x.text.includes('更正:您的订单今天发货') && x.text.includes('已编辑') && x.text.includes('客服撤回了一条消息') && !x.text.includes('原文:您的订单明天发货') && !x.text.includes('这条会被撤回的原文') && !x.text.includes('操作记录'), '会员端显示新内容+已编辑、撤回提示,看不到原文 ' + u); }
+        x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes('原文:您的订单明天发货') && x.text.includes('这条会被撤回的原文') && x.text.includes('操作记录') && x.text.includes('【已撤回】'), '后台可查原文与操作记录');
+        // 只能撤回人工客服消息;超时拒绝
+        const ub = db.get("SELECT id FROM messages WHERE user_id=? AND sender IN ('user','bot') ORDER BY id DESC LIMIT 1", bid);
+        await adm.post('/admin/service/' + bid + '/msg/' + ub.id + '/recall', {}); ok(!db.get('SELECT recalled_at FROM messages WHERE id=?', ub.id).recalled_at, '会员消息/自动回复不可撤回');
+        await adm.post('/admin/service/' + bid + '/reply', { content: '超时测试消息' }); const m3 = lastStaff(); db.exec1('UPDATE messages SET created_at=? WHERE id=?', U5.offset(-3 * 60000), m3.id);
+        x = await adm.get('/admin/service?uid=' + bid); const noBtn = !x.text.includes(`/msg/${m3.id}/recall`);
+        await adm.post('/admin/service/' + bid + '/msg/' + m3.id + '/recall', {}); await adm.post('/admin/service/' + bid + '/msg/' + m3.id + '/edit', { content: '超时改' });
+        const m3b = db.get('SELECT * FROM messages WHERE id=?', m3.id); ok(noBtn && !m3b.recalled_at && m3b.content === '超时测试消息', '超过 2 分钟:隐藏按钮且服务端拒绝撤回/编辑');
+        ok(require('../lib/chat').recallMinutes() === 2, '撤回/编辑时限默认 2 分钟(后台可设置)');
+        // 已读回执:打开页面(送达)不算已读,页面可见上报后才记已读;不能标记他人消息
+        await adm.post('/admin/service/' + bid + '/reply', { content: '回执测试' }); const m4 = lastStaff();
+        await b.get('/service'); ok(!db.get('SELECT read_at FROM messages WHERE id=?', m4.id).read_at, '送达/打开页面不等于已读');
+        x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes('未读'), '后台显示未读');
+        const other = db.get("SELECT id FROM messages WHERE user_id<>? AND sender='staff' AND read_at IS NULL LIMIT 1", bid);
+        await b.req('POST', '/service/read', { ids: m4.id + (other ? ',' + other.id : '') }, { json: true, h: { ...H2, 'x-csrf-token': b.t } });
+        ok(db.get('SELECT read_at FROM messages WHERE id=?', m4.id).read_at && (!other || !db.get('SELECT read_at FROM messages WHERE id=?', other.id).read_at), '会员上报后记录已读时间;不能标记他人消息');
+        x = await adm.get('/admin/service?uid=' + bid); ok(/已读 \d\d-\d\d \d\d:\d\d/.test(x.text), '后台显示已读及时间');
+        x = await b.get('/service?partial=1'); ok(!/已读|未读/.test(x.text), '会员端会话不显示已读/未读', (x.text.match(/.{40}(已读|未读).{40}/) || [])[0]);
+        // 合作专区
+        x = await b.get('/'); ok(x.text.includes('href="/service?from=coop"') && x.text.includes('合作专区') && x.text.includes('icon-coop@2x'), '首页「合作专区」入口 → 在线客服');
+        x = await b.get('/service?from=coop'); ok(x.text.includes('供应商、门店合作，请留言说明合作内容，我们会尽快联系您。') && !/招商|加盟|投资|代理|回报/.test(x.text), '合作专区进入客服页显示合作提示(无招商/投资类用语)');
+        x = await b.get('/service'); ok(!x.text.includes('id="coopNote"'), '普通进入客服页不显示合作提示');
+        x = await b.get('/privacy'); ok(x.text.includes('我们会记录客服消息的阅读状态，用于售后跟进。'), '隐私政策补充客服消息阅读状态说明');
+      }
       // 自动回复规则:手动输入仅首条回复一次(通用兜底/非客服时间提示),之后不回复(不做关键词匹配);快捷问题每次回答;人工回复后重置
       { const S2 = require('../lib/svc'), U3 = require('../lib/util');
         const cid = db.get("SELECT id FROM users WHERE phone='13800000002'").id; db.exec1('DELETE FROM messages WHERE user_id=?', cid);

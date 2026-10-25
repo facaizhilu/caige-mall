@@ -662,7 +662,7 @@ module.exports = function (r, { filesOf }) {
       const canCreate = ['paid', 'shipped', 'completed'].includes(o.status) && o.type !== 'points' && !active;
       return { ...o, items, active, refunded, maxAmount: round2(Math.max(0, o.pay_amount - refunded)), noReason, daysSince, can7, canCreate };
     }) : [];
-    res.page('admin/service', { title: '客服中心', convs, cur, orders, days, msgs: cur ? db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', cur.id).map(require('../lib/chat').parse).map(m => m.kind === 'order' && m.data ? { ...m, order: db.get('SELECT id, order_no, status, pay_amount FROM orders WHERE id=? AND user_id=?', int(m.data.id), cur.id) } : m) : [] });
+    res.page('admin/service', { title: '客服中心', convs, cur, orders, days, msgs: cur ? db.all('SELECT * FROM messages WHERE user_id=? ORDER BY id', cur.id).map(require('../lib/chat').parse).map(m => m.kind === 'order' && m.data ? { ...m, order: db.get('SELECT id, order_no, status, pay_amount FROM orders WHERE id=? AND user_id=?', int(m.data.id), cur.id) } : m).map(m => ({ ...m, canMod: require('../lib/chat').canModify(m), audit: db.all('SELECT * FROM message_audit WHERE message_id=? ORDER BY id', m.id) })) : [], recallMin: require('../lib/chat').recallMinutes() });
   });
   // 客服/订单详情页为用户创建售后单(售后统一由工作人员发起)
   const createAftersale = (req, o, b) => {
@@ -729,6 +729,17 @@ module.exports = function (r, { filesOf }) {
     back();
   });
 
+  // 撤回 / 重新编辑人工客服消息(限时;原文与操作人留痕,仅后台可见)
+  for (const act of ['recall', 'edit']) r.post('/service/:uid/msg/:mid/' + act, need('service'), (req, res) => {
+    const uid = int(req.params.uid), mid = int(req.params.mid), chat = require('../lib/chat');
+    const m = db.get('SELECT id FROM messages WHERE id=? AND user_id=?', mid, uid);
+    const op = req.session.admin.name || req.session.admin.username || ('#' + req.session.admin.id);
+    const x = !m ? { ok: false, msg: '消息不存在' } : act === 'recall' ? chat.recall(mid, op) : chat.edit(mid, req.body.content, op);
+    if (x.ok) log(req, act === 'recall' ? '撤回客服消息' : '编辑客服消息', `#${uid} 消息 ${mid}`);
+    flash(req, x.ok ? 'success' : 'error', x.ok ? (act === 'recall' ? '已撤回' : '已修改') : x.msg);
+    res.redirect('/admin/service?uid=' + uid + '#m' + mid);
+  });
+
   // ================= 统计报表 =================
   r.get('/stats', need('stats'), (req, res) => {
     const range = [7, 30, 90].includes(int(req.query.days)) ? int(req.query.days) : 30;
@@ -755,7 +766,7 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
     const numeric = ['signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];

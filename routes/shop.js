@@ -726,9 +726,11 @@ module.exports = function (app, { filesOf }) {
       orders = db.all('SELECT id, order_no, status, pay_amount, created_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id).map(o => ({ ...o, item: db.get('SELECT name, image FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', o.id) }));
     }
     if (req.query.partial === '1') return res.render('shop/_chat-list', { items, user: req.user, shop: svc.settings(), ORDER_STATUS: U.ORDER_STATUS });
-    res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
+    res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), coop: req.query.from === 'coop', from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
   });
   const chatDone = (req, res, ok, msg, code) => (req.xhr || wantsJson(req) || (req.headers['x-requested-with'] === 'fetch')) ? res.status(ok ? 200 : (code || 400)).json({ ok, msg }) : (ok ? res.redirect('/service#end') : (req.session.flash = { type: 'error', msg }, res.redirect('/service')));
+  // 已读回执:仅当会员在 /service 页面可见且消息已渲染时由前端上报(送达不算已读)
+  app.post('/service/read', needLogin, (req, res) => { const ids = String(req.body.ids || '').split(',').map(Number); res.json({ ok: true, n: chat.markRead(req.user.id, ids) }); });
   app.post('/service', needLogin, (req, res) => {
     const c = String(req.body.content || '').trim().slice(0, 500);
     if (!c) return chatDone(req, res, false, '请输入内容');

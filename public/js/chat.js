@@ -18,7 +18,27 @@
   // 输入框自适应高度(1~4 行)
   function grow() { ta.style.height = '40px'; ta.style.height = Math.min(ta.scrollHeight, 100) + 'px'; }
   ta && ta.addEventListener('input', grow);
-  function refresh() { return fetch('/service?partial=1', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (h) { list.innerHTML = h; toBottom(); list.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', toBottom, { once: true }); }); }); }
+  // 已读回执:页面可见且消息已渲染时上报(仅人工客服消息);后台显示已读/未读
+  var reported = {};
+  function reportRead() {
+    if (document.visibilityState !== 'visible') return;
+    var ids = [].slice.call(list.querySelectorAll('.cmsg[data-st]')).map(function (e) { return e.getAttribute('data-id'); }).filter(function (id) { return id && !reported[id]; });
+    if (!ids.length || !csrf) return;
+    ids.forEach(function (id) { reported[id] = 1; });
+    fetch('/service/read', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf, 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' }, body: 'ids=' + ids.join(',') }).catch(function () { ids.forEach(function (id) { delete reported[id]; }); });
+  }
+  var lastHtml = null;
+  function refresh(keep) { return fetch('/service?partial=1', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (h) {
+    if (h === lastHtml) return; lastHtml = h;
+    var near = list.scrollHeight - list.scrollTop - list.clientHeight < 120, top = list.scrollTop;
+    list.innerHTML = h; if (!keep || near) { toBottom(); list.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', toBottom, { once: true }); }); } else list.scrollTop = top; reportRead();
+  }).catch(function () {}); }
+  // 轮询:页面可见时每 8 秒刷新一次(撤回/编辑/新消息);切回前台立即刷新
+  if (pg.dataset.login === '1') {
+    setInterval(function () { if (document.visibilityState === 'visible') refresh(true); }, 8000);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { refresh(true); reportRead(); } });
+    setTimeout(reportRead, 300);
+  }
   function post(url, body, isForm) {
     var o = { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf, 'Accept': 'application/json', 'X-Requested-With': 'fetch' }, body: body };
     if (!isForm) o.headers['Content-Type'] = 'application/x-www-form-urlencoded';
