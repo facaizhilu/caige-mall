@@ -756,6 +756,18 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             ok(await fire('open') === 1, '后台推送首次连上即补拉(不漏加载期间的已读)');
             ok(await fire('chat', { uid: bid, type: 'read', id: 1, sender: 'user' }) === 1, '后台收到 read 事件即刷新会话');
             ok(await fire('ping') === 1, '心跳时会话仍有未读客服消息 → 刷新'); unread = false; ok(await fire('ping') === 0, '无未读时心跳不额外刷新'); }
+          // 客服备注名:独立字段 admin_remark,不改会员昵称,会员端不可见,改动记入操作日志
+          { const R = '大师兄上海客户 张丽丽', nick0 = db.get('SELECT nickname FROM users WHERE id=?', bid).nickname;
+            await adm.get('/admin/service?uid=' + bid); await adm.post('/admin/service/' + bid + '/remark', { admin_remark: R, nickname: '黑客昵称' });
+            const u = db.get('SELECT nickname, admin_remark FROM users WHERE id=?', bid); ok(u.admin_remark === R && u.nickname === nick0, '客服页保存备注名只写 admin_remark,不改会员昵称', u);
+            await adm.get('/admin/members/' + bid); await adm.post('/admin/members/' + bid + '/edit', { admin_remark: R + '2', nickname: '黑客昵称' });
+            const u2 = db.get('SELECT nickname, admin_remark FROM users WHERE id=?', bid); ok(u2.admin_remark === R + '2' && u2.nickname === nick0, '会员详情保存备注名也不改昵称(后台无昵称编辑)', u2);
+            const lg = db.all("SELECT * FROM admin_logs WHERE action='修改会员备注' ORDER BY id DESC LIMIT 2"); ok(lg.length === 2 && lg[0].detail.includes(`「${R}」→「${R}2」`) && lg[0].admin_name && lg[0].created_at, '备注修改记入操作日志(谁、何时、旧→新)', lg.map(l => l.detail));
+            x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes(`${R}2（${nick0}）`), '后台会话列表/标题显示「备注名（会员昵称）」');
+            x = await adm.get('/admin/members/' + bid); ok(!/name="nickname"/.test(x.text) && x.text.includes('会员昵称'), '后台会员详情不可编辑会员昵称');
+            let leak = []; for (const pth of ['/me', '/me/profile', '/service', '/service?partial=1', '/orders', '/me/points', '/aftersales']) { const y = await b.get(pth); if (y.text.includes('大师兄')) leak.push(pth); }
+            x = await b.get('/me'); ok(x.text.includes(nick0) && !leak.length, '会员端 /me 等页面显示原昵称,不出现备注名', leak);
+            const j = await b.req('POST', '/service', { content: '备注泄露检查' }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); ok(!j.text.includes('大师兄'), '会员端 JSON 不含备注名'); }
           { const bot = db.get("SELECT content FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", bid); db.exec1("INSERT INTO messages(user_id,sender,content,created_at) VALUES(?,?,?,?)", bid, 'bot', '自动回复预览不应显示', require('../lib/util').now());
             x = await adm.get('/admin/service?uid=' + bid); const conv = x.text.split('id="convs"')[1].split('</div>')[0]; ok(conv.includes(bot.content.slice(0, 24)) && !conv.includes('自动回复预览不应显示'), '会话列表预览显示会员最后一条消息(而非自动回复)'); } x = await adm.get('/admin/service?uid=' + bid); ok(/<span class="un-dot"[^>]*>1<\/span>/.test(x.text), '后台会话列表显示未回复消息数红点');
           { const bus = require('../lib/bus'); const got = []; const off = bus.subscribe(bus.scopes.member(99), e => got.push(e)); bus.pub(99, 'msg', 5, 'staff'); bus.pub(98, 'msg', 6, 'staff'); off(); bus.pub(99, 'msg', 7, 'staff'); ok(got.length === 1 && got[0].id === 5, '推送层与传输无关:订阅/范围/取消订阅'); } [sb, sa, sm].forEach(x => x.ac.abort()); }

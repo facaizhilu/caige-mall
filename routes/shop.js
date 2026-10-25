@@ -557,7 +557,7 @@ module.exports = function (app, { filesOf }) {
       for (const uo of db.all("SELECT id FROM orders WHERE user_id=? AND status='unpaid'", uid)) svc.cancelOrder(uo.id, '账号注销自动取消');
       const ptsNow = db.get('SELECT points FROM users WHERE id=?', uid).points;
       // 账号本身:去标识化,保留 id 以便订单等法定留存记录匿名关联
-      db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, remark=NULL,
+      db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, admin_remark=NULL, remark=NULL,
         signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
       db.exec1('UPDATE users SET referrer_id=NULL WHERE referrer_id=?', uid); // 解除邀请关系
       db.exec1("UPDATE invite_rewards SET status='cancelled', note='账号注销' WHERE (referrer_id=? OR invitee_id=?) AND status='pending'", uid, uid);

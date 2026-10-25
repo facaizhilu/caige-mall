@@ -460,7 +460,15 @@ module.exports = function (r, { filesOf }) {
     const lv = db.get('SELECT * FROM member_levels WHERE id=?', int(req.body.level_id)); if (lv) { db.exec1('UPDATE users SET level_id=?, growth=MAX(growth,?) WHERE id=?', lv.id, lv.min_growth, int(req.params.id)); log(req, '设置会员等级', `#${req.params.id} → ${lv.name}`); flash(req, 'success', '等级已更新'); }
     res.redirect('/admin/members/' + int(req.params.id));
   });
-  r.post('/members/:id/edit', need('member'), (req, res) => { db.exec1('UPDATE users SET nickname=?, remark=? WHERE id=?', String(req.body.nickname || '').slice(0, 20), String(req.body.remark || '').slice(0, 200), int(req.params.id)); log(req, '编辑会员', '#' + req.params.id); flash(req, 'success', '已保存'); res.redirect('/admin/members/' + int(req.params.id)); });
+  // 会员备注名(仅后台可见):只写 users.admin_remark,绝不修改会员昵称(昵称仅会员本人可改)
+  const saveRemark = (req, uid) => {
+    const u = db.get('SELECT id, phone, admin_remark FROM users WHERE id=?', uid); if (!u) return false;
+    const v = String(req.body.admin_remark || '').trim().slice(0, 50), old = u.admin_remark || '';
+    if (v === old) return true;
+    db.exec1('UPDATE users SET admin_remark=? WHERE id=?', v, uid); log(req, '修改会员备注', `#${uid} ${u.phone}:「${old}」→「${v}」`); return true;
+  };
+  r.post('/members/:id/edit', need('member'), (req, res) => { const uid = int(req.params.id); saveRemark(req, uid); flash(req, 'success', '备注已保存(仅后台可见,不影响会员昵称)'); res.redirect('/admin/members/' + uid); });
+  r.post('/service/:uid/remark', need('service'), (req, res) => { const uid = int(req.params.uid); saveRemark(req, uid); flash(req, 'success', '备注已保存(仅后台可见)'); res.redirect('/admin/service?uid=' + uid); });
   r.post('/members/:id/reset-password', need('member'), (req, res) => { const pw = String(req.body.password || ''); if (pw.length < 6) flash(req, 'error', '新密码至少 6 位'); else { db.exec1('UPDATE users SET password_hash=? WHERE id=?', bcrypt.hashSync(pw, 10), int(req.params.id)); log(req, '重置会员密码', '#' + req.params.id); flash(req, 'success', '密码已重置'); } res.redirect('/admin/members/' + int(req.params.id)); });
   r.post('/members/:id/coupon', need('member'), (req, res) => { const x = svc.grantCoupon(int(req.params.id), int(req.body.coupon_id), true); log(req, '发放优惠券', `#${req.params.id} coupon ${req.body.coupon_id}`); flash(req, x.ok ? 'success' : 'error', x.ok ? '优惠券已发放' : x.msg); res.redirect('/admin/members/' + int(req.params.id)); });
   // 积分明细(全站 / 单个会员),积分不可购买、提现、转赠,此处只读;人工调整在会员详情页进行且必须填写原因
@@ -651,8 +659,8 @@ module.exports = function (r, { filesOf }) {
   r.get('/service/stream', need('service'), (req, res) => require('../lib/push-sse').sse(req, res, require('../lib/bus').scopes.staff()));
   r.get('/service', need('service'), (req, res) => {
     const uid = int(req.query.uid);
-    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get("SELECT * FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", c.user_id) || db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; c.unread = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='user' AND id > COALESCE((SELECT MAX(id) FROM messages WHERE user_id=? AND sender='staff'),0)", c.user_id, c.user_id).n; return c; });
-    const cur = uid ? db.get('SELECT id,nickname,phone FROM users WHERE id=?', uid) : (convs[0] ? { id: convs[0].user_id, nickname: convs[0].nickname, phone: convs[0].phone } : null);
+    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, u.admin_remark, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get("SELECT * FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", c.user_id) || db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; c.unread = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='user' AND id > COALESCE((SELECT MAX(id) FROM messages WHERE user_id=? AND sender='staff'),0)", c.user_id, c.user_id).n; return c; });
+    const cur = uid ? db.get('SELECT id,nickname,phone,admin_remark FROM users WHERE id=?', uid) : (convs[0] ? { id: convs[0].user_id, nickname: convs[0].nickname, admin_remark: convs[0].admin_remark, phone: convs[0].phone } : null);
     const days = int(svc.S('aftersale_days'), 7);
     const orders = cur ? db.all("SELECT * FROM orders WHERE user_id=? AND status IN ('paid','shipped','completed','refunded') ORDER BY id DESC LIMIT 8", cur.id).map(o => {
       const items = db.all('SELECT * FROM order_items WHERE order_id=?', o.id);

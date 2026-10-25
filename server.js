@@ -237,6 +237,16 @@ svc.cloud.ensureDefaults();
     if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由),版本号提升为 v' + svc.S('policy_version')); }
     mark('all_7day_20261020');
   }
+  if (!done('admin_remark_20261025')) { // 会员备注独立字段 admin_remark;旧 remark 迁入。演示环境:被后台覆盖的演示会员昵称恢复为种子昵称,被覆盖的内容转为备注
+    db.exec1("UPDATE users SET admin_remark=remark WHERE (admin_remark IS NULL OR admin_remark='') AND remark IS NOT NULL AND remark<>''");
+    if (process.env.DEMO_MODE === '1') for (const [phone, nick] of require('./lib/seed').SEED_MEMBERS) {
+      const u = db.get('SELECT id, nickname, admin_remark FROM users WHERE phone=?', phone); if (!u || u.nickname === nick) continue;
+      db.exec1('UPDATE users SET nickname=?, admin_remark=? WHERE id=?', nick, u.admin_remark || u.nickname, u.id);
+      db.exec1('INSERT INTO admin_logs(admin_id,admin_name,action,detail,ip,created_at) VALUES(?,?,?,?,?,?)', null, '系统', '恢复会员昵称', `#${u.id} ${phone}:「${u.nickname}」→「${nick}」(原内容转为备注)`, '', require('./lib/util').now());
+      console.log(`恢复演示会员昵称 #${u.id} ${phone}:「${u.nickname}」→「${nick}」`);
+    }
+    mark('admin_remark_20261025');
+  }
   if (!done('privacy_read_status_20261025')) { // 隐私政策补充「记录客服消息阅读状态」;措辞补充,不提升版本号
     require('./lib/policies').applyV14Edits(db); mark('privacy_read_status_20261025');
   }
