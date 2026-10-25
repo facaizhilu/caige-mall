@@ -699,7 +699,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
         const au = db.all('SELECT * FROM message_audit WHERE message_id IN (?,?) ORDER BY id', m1.id, m2.id);
         ok(e1.content === '更正:您的订单今天发货' && e1.edited_at && r2.recalled_at && r2.content === '' && au.length === 2 && au[0].action === 'edit' && au[0].old_content === '原文:您的订单明天发货' && au[1].action === 'recall' && au[1].old_content === '这条会被撤回的原文' && au.every(q => q.operator && q.created_at), '编辑/撤回留痕:原文、操作人、时间', au);
         for (const u of ['/service', '/service?partial=1']) { x = await b.get(u); ok(x.text.includes('更正:您的订单今天发货') && x.text.includes('已编辑') && x.text.includes('客服撤回了一条消息') && !x.text.includes('原文:您的订单明天发货') && !x.text.includes('这条会被撤回的原文') && !x.text.includes('操作记录'), '会员端显示新内容+已编辑、撤回提示,看不到原文 ' + u); }
-        x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes('原文:您的订单明天发货') && x.text.includes('这条会被撤回的原文') && x.text.includes('操作记录') && x.text.includes('【已撤回】'), '后台可查原文与操作记录');
+        x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes('原文:您的订单明天发货') && x.text.includes('这条会被撤回的原文') && x.text.includes('操作记录') && x.text.includes('【已撤回】'), '后台可查原文与操作记录'); ok(/<details class="svc-ords"><summary><h3>该用户近期订单（\d+）/.test(x.text) && !/<details class="svc-ords" open/.test(x.text) && x.text.includes('class="so-line"'), '后台近期订单默认折叠(单行订单可展开)');
         // 只能撤回人工客服消息;超时拒绝
         const ub = db.get("SELECT id FROM messages WHERE user_id=? AND sender IN ('user','bot') ORDER BY id DESC LIMIT 1", bid);
         await adm.post('/admin/service/' + bid + '/msg/' + ub.id + '/recall', {}); ok(!db.get('SELECT recalled_at FROM messages WHERE id=?', ub.id).recalled_at, '会员消息/自动回复不可撤回');

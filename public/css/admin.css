@@ -85,3 +85,17 @@ input[type=file]{max-width:100%}
 @media (max-width:640px){.sup-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sup-item{padding:8px}}
 
 .msg.recalled{opacity:.7}.msg-ops{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.msg-ops form{display:inline}.msg-ops textarea{width:100%;min-width:200px;margin:4px 0}.msg-audit{font-size:12px;color:#6b7280;margin-top:4px}.msg-audit summary{cursor:pointer}
+
+/* 客服:红色气泡内的撤回/编辑控件显式配色 */
+.msg-ops{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;margin-top:6px;color:#333}.msg-ops>form,.msg-ops>details:not([open]){display:inline-block}
+.msg-ops .btn,.msg-ops summary.btn{color:#B23A2E;background:#fff;border:1px solid #e3c5c1;list-style:none}.msg-ops summary::-webkit-details-marker{display:none}.msg-ops .btn.cancel{color:#333;border-color:#ddd}
+.msg-edit[open]{flex-basis:100%}.msg-edit form{display:block;background:#fff;color:#333;border-radius:8px;padding:8px;margin-top:6px}.msg-edit label{display:block;font-size:12px;color:#555}
+.msg-ops textarea{display:block;width:100%;min-width:220px;box-sizing:border-box;margin:4px 0 6px;color:#333;background:#fff;caret-color:#333;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:14px}.msg-ops textarea::placeholder{color:#999}.msg-edit-btns{display:flex;gap:6px}
+.msg.staff .msg-audit{background:#fff;color:#555;border-radius:6px;padding:4px 8px}
+/* 客服:近期订单折叠 */
+.svc-ords>summary,.so-line{list-style:none;cursor:pointer}.svc-ords>summary::-webkit-details-marker,.so-line::-webkit-details-marker{display:none}.svc-ords>summary h3{margin:0;display:flex;align-items:center;gap:8px}
+.arr{display:inline-block;transition:transform .15s;color:#999}details[open]>summary .arr{transform:rotate(90deg)}.svc-ords[open]>summary{margin-bottom:8px}
+.tag-as{font-size:12px;font-weight:400;color:#fff;background:#f59e0b;border-radius:10px;padding:1px 8px}
+.so-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;font-size:13px}.as-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block}
+.svc-order[open]>.so-line{border-bottom:1px dashed #eee;margin-bottom:6px}
+.arr{transform:none!important}.arr::before{content:"▸"}details[open]>summary .arr::before{content:"▾"}.msg-ops>form{display:inline-flex}
