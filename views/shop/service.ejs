@@ -1,6 +1,7 @@
 <%# 在线客服(微信风格):全屏会话,底部固定输入栏(+ / 输入框 / 发送),快捷问题,图片与订单卡片;联系方式在会话顶部「联系方式」入口(不占右上角胶囊区) %>
 <div class="chatpg" id="chatpg" data-login="<%= user ? 1 : 0 %>">
   <div class="chat-top"><span class="muted"><%= shop.service_hours %></span><button type="button" class="ct-link" id="ctBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>联系方式</button></div>
+  <% if (storecardFrom) { %><div class="coop-note" id="scNote">您正在购买：线下门店优惠卡，客服将为您办理</div><% } %>
   <% if (coop) { %><div class="coop-note" id="coopNote">供应商、门店合作，请留言说明合作内容，我们会尽快联系您。</div><% } %>
   <div class="chat-list" id="chatList" aria-live="polite">
     <% if (!user) { %><div class="cmsg left"><img class="cav" src="/static/img/badge-chip.svg?v=1" alt="" width="32" height="32"><div class="cbody"><div class="cname">自动回复</div><div class="cb">登录后即可咨询客服 <a href="/login?next=/service">去登录 ›</a></div></div></div>

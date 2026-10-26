@@ -100,3 +100,4 @@ input[type=file]{max-width:100%}
 .svc-order[open]>.so-line{border-bottom:1px dashed #eee;margin-bottom:6px}
 .arr{transform:none!important}.arr::before{content:"▸"}details[open]>summary .arr::before{content:"▾"}.msg-ops>form{display:inline-flex}
 .un-dot{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:9px;background:#e53935;color:#fff;font-size:12px;text-align:center;vertical-align:middle}
+.tag-src{display:inline-block;font-size:12px;font-weight:400;color:#B23A2E;background:#fff3e6;border:1px solid #f2d79a;border-radius:10px;padding:0 8px;vertical-align:middle}

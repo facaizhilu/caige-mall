@@ -659,8 +659,8 @@ module.exports = function (r, { filesOf }) {
   r.get('/service/stream', need('service'), (req, res) => require('../lib/push-sse').sse(req, res, require('../lib/bus').scopes.staff()));
   r.get('/service', need('service'), (req, res) => {
     const uid = int(req.query.uid);
-    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, u.admin_remark, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get("SELECT * FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", c.user_id) || db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; c.unread = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='user' AND id > COALESCE((SELECT MAX(id) FROM messages WHERE user_id=? AND sender='staff'),0)", c.user_id, c.user_id).n; return c; });
-    const cur = uid ? db.get('SELECT id,nickname,phone,admin_remark FROM users WHERE id=?', uid) : (convs[0] ? { id: convs[0].user_id, nickname: convs[0].nickname, admin_remark: convs[0].admin_remark, phone: convs[0].phone } : null);
+    const convs = db.all("SELECT m.user_id, u.nickname, u.phone, u.admin_remark, u.svc_from, u.svc_from_at, MAX(m.id) last_id, COUNT(*) n, SUM(CASE WHEN m.sender='user' THEN 1 ELSE 0 END) un FROM messages m JOIN users u ON u.id=m.user_id GROUP BY m.user_id ORDER BY last_id DESC").map(c => { const l = db.get("SELECT * FROM messages WHERE user_id=? AND sender='user' ORDER BY id DESC LIMIT 1", c.user_id) || db.get('SELECT * FROM messages WHERE id=?', c.last_id); c.last = l.content; c.lastSender = l.sender; c.time = l.created_at; c.unread = db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='user' AND id > COALESCE((SELECT MAX(id) FROM messages WHERE user_id=? AND sender='staff'),0)", c.user_id, c.user_id).n; return c; });
+    const cur = uid ? db.get('SELECT id,nickname,phone,admin_remark,svc_from,svc_from_at FROM users WHERE id=?', uid) : (convs[0] ? { id: convs[0].user_id, nickname: convs[0].nickname, admin_remark: convs[0].admin_remark, svc_from: convs[0].svc_from, svc_from_at: convs[0].svc_from_at, phone: convs[0].phone } : null);
     const days = int(svc.S('aftersale_days'), 7);
     const orders = cur ? db.all("SELECT * FROM orders WHERE user_id=? AND status IN ('paid','shipped','completed','refunded') ORDER BY id DESC LIMIT 8", cur.id).map(o => {
       const items = db.all('SELECT * FROM order_items WHERE order_id=?', o.id);
@@ -774,7 +774,7 @@ module.exports = function (r, { filesOf }) {
   });
 
   // ================= 系统 =================
-  r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings() }));
+  r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings(), SC: require('../lib/storecard') }));
   r.post('/settings', need('system'), (req, res) => {
     const keys = ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
@@ -786,6 +786,16 @@ module.exports = function (r, { filesOf }) {
     log(req, '修改站点设置', ''); flash(req, 'success', '设置已保存'); res.redirect('/admin/settings');
   });
   // 积分设置:有效期清零日、到期提醒、积分专区横幅、兑换须知;下单积分抵现(默认关闭,关闭时前台不出现积分折现比例)
+  // 线下门店优惠卡(置顶条目)设置
+  r.post('/settings/storecard', need('system'), (req, res) => {
+    const SC = require('../lib/storecard'), b = req.body, go = (t, m) => { flash(req, t, m); res.redirect('/admin/settings#storecard'); };
+    for (const k of ['storecard_image', 'storecard_detail_image']) { const v = String(b[k] || '').trim(); if (v && v !== 'none' && !SC.safeImg(v)) return go('error', '图片地址需为站内 /static/… /uploads/… 或 https 地址'); }
+    const txt = SC.KEYS.filter(k => k !== 'storecard_on').map(k => String(b[k] || '')).join(' ');
+    if (/储值|充值|全场|限量|倒计时/.test(txt.replace(/不可充值或储值|不能充值|不可充值/g, ''))) return go('error', '文案不能包含「储值/充值/全场/限量/倒计时」等表述');
+    svc.setSetting('storecard_on', b.storecard_on === '1' ? '1' : '0');
+    for (const k of SC.KEYS) if (k !== 'storecard_on') svc.setSetting(k, String(b[k] == null ? '' : b[k]).trim().slice(0, k === 'storecard_store_list' ? 3000 : 300));
+    log(req, '修改门店优惠卡设置', b.storecard_on === '1' ? '显示' : '隐藏'); go('success', '门店优惠卡设置已保存');
+  });
   r.post('/settings/points', need('system'), (req, res) => {
     const b = req.body, go = (t, m) => { flash(req, t, m); res.redirect('/admin/settings#points'); };
     const cd = String(b.points_clear_day || '').trim();

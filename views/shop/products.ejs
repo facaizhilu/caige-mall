@@ -45,8 +45,8 @@
       <a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
       <a class="<%= sort==='new'?'on':'' %>" href="<%= qs(req,{sort:'new',page:''}) %>">新品</a>
     </div>
-    <% if (!pg.rows.length) { %><div class="card empty"><div class="e">📦</div>暂无商品<% if (q||cat||brand||min!==''||max!=='') { %><br><br><a class="btn" href="/products">查看全部商品</a><% } %></div>
-    <% } else { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)" data-infinite data-page="<%= pg.page %>" data-pages="<%= pg.pages %>"><%- include('../partials/cards',{rows:pg.rows}) %></div><div class="pmore muted" data-more hidden>加载中…</div><% } %>
+    <% if (!pg.rows.length) { %><% if (storecard && storecard.on) { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)"><%- include('../partials/storecard-card',{sc:storecard}) %></div><% } %><div class="card empty"><div class="e">📦</div>暂无商品<% if (q||cat||brand||min!==''||max!=='') { %><br><br><a class="btn" href="/products">查看全部商品</a><% } %></div>
+    <% } else { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)" data-infinite data-page="<%= pg.page %>" data-pages="<%= pg.pages %>"><% if (storecard && storecard.on) { %><%- include('../partials/storecard-card',{sc:storecard}) %><% } %><%- include('../partials/cards',{rows:pg.rows}) %></div><div class="pmore muted" data-more hidden>加载中…</div><% } %>
     <%- include('../partials/pager') %>
   </section>
 </div>

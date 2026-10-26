@@ -21,3 +21,14 @@
 <div class="form-row"><label>下单积分抵现</label><label style="font-weight:400"><input type="checkbox" name="points_deduct_enable" value="1" <%= s.points_deduct_enable==='1'?'checked':'' %>> 启用(默认关闭)</label><div class="help">关闭时前台不展示任何积分折现比例,结算页无积分抵扣</div></div>
 <div class="form-row"><label>积分抵现比例(多少积分抵 ¥1)</label><input type="number" name="points_rate" min="1" value="<%= s.points_rate %>"></div><div class="form-row"><label>积分最高抵扣订单百分比(%)</label><input type="number" name="points_max_percent" min="0" max="100" value="<%= s.points_max_percent %>"></div>
 </div></div><button class="btn primary" style="padding:9px 30px">保存积分设置</button></form>
+
+<div class="card mt" id="storecard"><h3>线下门店优惠卡(列表置顶)</h3>
+<form method="post" action="/admin/settings/storecard"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="grid g2">
+<div class="form-row"><label>显示</label><label style="font-weight:400"><input type="checkbox" name="storecard_on" value="1" <%= s.storecard_on!=='0'?'checked':'' %>> 在首页、全部商品、分类、搜索结果第一位显示</label></div>
+<div class="form-row"><label>名称</label><input name="storecard_name" maxlength="20" value="<%= s.storecard_name || SC.DEFAULTS.storecard_name %>"></div>
+<div class="form-row" style="grid-column:1/-1"><label>简介</label><textarea name="storecard_intro" rows="2" maxlength="300"><%= s.storecard_intro || SC.DEFAULTS.storecard_intro %></textarea></div>
+<div class="form-row"><label>主图地址(800×800)</label><input name="storecard_image" value="<%= s.storecard_image || SC.DEFAULTS.storecard_image %>"><div class="help">替换文件:public/img/storecard/main.jpg</div></div>
+<div class="form-row"><label>详情长图地址(宽 750)</label><input name="storecard_detail_image" value="<%= s.storecard_detail_image || SC.DEFAULTS.storecard_detail_image %>"><div class="help">替换文件:public/img/storecard/detail.jpg;填 none 不显示</div></div>
+<% SC.FIELDS.forEach(([k,label])=>{ %><div class="form-row"><label><%= label %>(留空显示「待确认」)</label><textarea name="<%= k %>" rows="2" maxlength="300"><%= s[k]||'' %></textarea></div><% }) %>
+<div class="form-row" style="grid-column:1/-1"><label>门店列表(每行一家:门店名称|地址;留空显示「门店名单整理中，可咨询客服」)</label><textarea name="storecard_store_list" rows="4" maxlength="3000"><%= s.storecard_store_list||'' %></textarea></div>
+</div><div class="help">本卡为折扣资格卡,请勿使用「储值」「充值」「全场」「限量」等表述。</div><button class="btn primary mt">保存门店优惠卡设置</button></form></div>

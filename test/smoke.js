@@ -37,7 +37,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   { const names = [...r.text.matchAll(/<span class="pk-n">([^<]*)<\/span>/g)].map(m => m[1]).slice(0, 6); const fresh = names.filter(n => /苹果|脐橙|芒果|鸡蛋|蔬菜/.test(n)).length; ok(names.length === 6 && fresh >= 4 && names.length - fresh <= 2 && !r.text.includes('智能手机') && !/今日推荐|为你推荐|猜你喜欢/.test(r.text), '好物精选演示 6 件以新鲜农产品为主(数码配件≤2),无整机手机与个性化文案', names.join('|')); }
   ok(r.text.includes('韵农甄选') && r.text.includes('src="/static/img/logo-horizontal-onred-64.png?v=1"') && r.text.includes('alt="韵农甄选"') && r.text.includes('logo-horizontal-onred.svg') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
   { const n = (r.text.match(/class="bnr-s/g) || []).length; const bt = (r.text.match(/<div class="hero bnr"[\s\S]*?<nav class="ents"/) || [''])[0];
-    ok(n >= 2 && n <= 3 && r.text.includes('class="bnr-d"') && /home\.css\?v=12/.test(r.text) && /home\.js\?v=8/.test(r.text), '首页横幅轮播(' + n + ' 张演示 Banner,带圆点)');
+    ok(n >= 2 && n <= 3 && r.text.includes('class="bnr-d"') && /home\.css\?v=13/.test(r.text) && /home\.js\?v=8/.test(r.text), '首页横幅轮播(' + n + ' 张演示 Banner,带圆点)');
     { const p2 = await shop.get('/product/2'); ok(p2.status === 200 && p2.text.includes('Type-C 七合一扩展坞') && !p2.text.includes('轻薄本'), '演示商品 ID 2 为电脑配件(扩展坞),无整机笔记本'); }
     ok(bt && !/京东|财哥|倒计时|已售|销量|限时|仅剩/.test(bt) && [...bt.matchAll(/href="([^"]*)"/g)].every(m => /^\/(?!\/)/.test(m[1])) && [...bt.matchAll(/<img class="bnr-i" src="([^"]+)"[^>]*width="\d+" height="\d+"/g)].length === n, '演示 Banner 合规:无外部平台/倒计时/销量文案,仅站内链接,图片带宽高'); }
   { const ids = [...r.text.matchAll(/class="pk" href="\/product\/(\d+)"/g)].map(m => m[1]);

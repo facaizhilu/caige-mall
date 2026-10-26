@@ -30,7 +30,7 @@ module.exports = function (app, { filesOf }) {
     const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
     const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 8')
       .map(b => ({ ...b, link: U.isInternalLink(b.link) ? b.link : '', bg1: hex(b.bg1, '#d4202a'), bg2: hex(b.bg2, '#f2a93b') }));
-    res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon, picks, banners, PH: U.PLACEHOLDER_PNG, IMG_FALLBACK: U.IMG_FALLBACK });
+    res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon, picks, storecard: require('../lib/storecard').get(), banners, PH: U.PLACEHOLDER_PNG, IMG_FALLBACK: U.IMG_FALLBACK });
   });
 
   // ---------------- 商品列表 ----------------
@@ -54,7 +54,7 @@ module.exports = function (app, { filesOf }) {
     pg.rows = withImg(pg.rows);
     const subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');
-    res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, q, cat, brand, sort, min, max, curCat, subCats, brands });
+    res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
   });
 
   // ---------------- 商品详情 ----------------
@@ -719,14 +719,17 @@ module.exports = function (app, { filesOf }) {
     });
   };
   const quickQs = () => { const q = [...new Set(String(svc.S('service_quick_questions') || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean))].filter(x => x !== svc.PINNED_QUICK).slice(0, 5); q.push(svc.PINNED_QUICK); return q; }; // 「积分怎么用」固定保留
+  // 线下门店优惠卡详情(非商品:无价格/购物车/下单;「购买」直接进入在线客服由客服办理)
+  app.get('/storecard', (req, res) => { const sc = require('../lib/storecard').get(); if (!sc.on) return res.status(404).page('shop/error', { title: '页面不存在', code: 404, message: '该页面暂未开放' }); res.page('shop/storecard', { title: sc.name, sc }); });
   app.get('/service', (req, res) => {
     let items = [], orders = [];
     if (req.user) {
       items = chatItems(req.user.id); db.exec1("UPDATE messages SET is_read=1 WHERE user_id=? AND sender IN ('staff','bot','system')", req.user.id);
       orders = db.all('SELECT id, order_no, status, pay_amount, created_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id).map(o => ({ ...o, item: db.get('SELECT name, image FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', o.id) }));
     }
+    if (req.user && req.query.partial !== '1' && ['coop', 'storecard'].includes(req.query.from)) db.exec1('UPDATE users SET svc_from=?, svc_from_at=? WHERE id=?', req.query.from, U.now(), req.user.id); // 入口来源(仅后台显示)
     if (req.query.partial === '1') return res.render('shop/_chat-list', { items, user: req.user, shop: svc.settings(), ORDER_STATUS: U.ORDER_STATUS });
-    res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), coop: req.query.from === 'coop', from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
+    res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), coop: req.query.from === 'coop', storecardFrom: req.query.from === 'storecard', from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
   });
   const chatDone = (req, res, ok, msg, code) => (req.xhr || wantsJson(req) || (req.headers['x-requested-with'] === 'fetch')) ? res.status(ok ? 200 : (code || 400)).json({ ok, msg }) : (ok ? res.redirect('/service#end') : (req.session.flash = { type: 'error', msg }, res.redirect('/service')));
   // 已读回执:仅当会员在 /service 页面可见且消息已渲染时由前端上报(送达不算已读)
