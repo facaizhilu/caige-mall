@@ -790,6 +790,7 @@ module.exports = function (r, { filesOf }) {
   r.post('/settings/storecard', need('system'), (req, res) => {
     const SC = require('../lib/storecard'), b = req.body, go = (t, m) => { flash(req, t, m); res.redirect('/admin/settings#storecard'); };
     for (const k of ['storecard_image', 'storecard_detail_image']) { const v = String(b[k] || '').trim(); if (v && v !== 'none' && !SC.safeImg(v)) return go('error', '图片地址需为站内 /static/… /uploads/… 或 https 地址'); }
+    const pr = String(b.storecard_price || '').trim(); if (pr && !(/^\d{1,6}(\.\d{1,2})?$/.test(pr) && +pr > 0)) return go('error', '售价需为大于 0 的金额,或留空');
     const txt = SC.KEYS.filter(k => k !== 'storecard_on').map(k => String(b[k] || '')).join(' ');
     if (/储值|充值|全场|限量|倒计时/.test(txt.replace(/不可充值或储值|不能充值|不可充值/g, ''))) return go('error', '文案不能包含「储值/充值/全场/限量/倒计时」等表述');
     svc.setSetting('storecard_on', b.storecard_on === '1' ? '1' : '0');

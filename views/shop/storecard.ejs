@@ -2,7 +2,7 @@
 <div class="sc-page">
   <div class="card sc-hero"><img src="<%= sc.image %>" alt="<%= sc.name %>" width="800" height="800" onerror="<%= U.IMG_FALLBACK %>">
     <div class="sc-hd"><h1><%= sc.name %></h1><span class="sc-badge">7.5折</span></div>
-    <div class="sc-tl"><%= sc.tagline %></div><div class="sc-pt">价格详询客服</div>
+    <div class="sc-tl"><%= sc.tagline %></div><div class="sc-pt"><%= sc.priceText %></div>
     <p class="sc-intro"><%= sc.intro %></p></div>
   <div class="card sc-info"><h3>使用须知</h3><dl><% sc.info.forEach(f=>{ %><dt><%= f.label %></dt><dd class="<%= f.pending?'pending':'' %>"><%= f.value %></dd><% }) %></dl></div>
   <div class="card sc-stores" id="stores"><h3>适用门店</h3><% if (sc.stores.length) { %><ul><% sc.stores.forEach(st=>{ %><li><b><%= st.name %></b><% if (st.addr) { %><span><%= st.addr %></span><% } %></li><% }) %></ul><% } else { %><div class="muted">门店名单整理中，可咨询客服</div><% } %></div>

@@ -26,6 +26,8 @@
 <form method="post" action="/admin/settings/storecard"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="grid g2">
 <div class="form-row"><label>显示</label><label style="font-weight:400"><input type="checkbox" name="storecard_on" value="1" <%= s.storecard_on!=='0'?'checked':'' %>> 在首页、全部商品、分类、搜索结果第一位显示</label></div>
 <div class="form-row"><label>名称</label><input name="storecard_name" maxlength="20" value="<%= s.storecard_name || SC.DEFAULTS.storecard_name %>"></div>
+<div class="form-row"><label>售价(元,留空显示「价格详询客服」)</label><input name="storecard_price" inputmode="decimal" maxlength="10" value="<%= s.storecard_price||'' %>" placeholder="如 99"></div>
+<div class="form-row"><label>售价单位</label><input name="storecard_price_unit" maxlength="10" value="<%= s.storecard_price_unit || SC.DEFAULTS.storecard_price_unit %>"><div class="help">显示为「¥售价 / 单位」,如 ¥99 / 1年</div></div>
 <div class="form-row" style="grid-column:1/-1"><label>简介</label><textarea name="storecard_intro" rows="2" maxlength="300"><%= s.storecard_intro || SC.DEFAULTS.storecard_intro %></textarea></div>
 <div class="form-row"><label>主图地址(800×800)</label><input name="storecard_image" value="<%= s.storecard_image || SC.DEFAULTS.storecard_image %>"><div class="help">替换文件:public/img/storecard/main.jpg</div></div>
 <div class="form-row"><label>详情长图地址(宽 750)</label><input name="storecard_detail_image" value="<%= s.storecard_detail_image || SC.DEFAULTS.storecard_detail_image %>"><div class="help">替换文件:public/img/storecard/detail.jpg;填 none 不显示</div></div>
