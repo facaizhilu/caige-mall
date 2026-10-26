@@ -2,11 +2,10 @@
 <div class="pcard sc-card" data-storecard>
   <a class="sc-link" href="/storecard" aria-label="<%= sc.name %>"></a>
   <span class="ribbon">置顶</span>
-  <div class="pic"><img decoding="async" src="<%= sc.image %>" alt="<%= sc.name %>" onerror="<%= U.IMG_FALLBACK %>"></div>
+  <div class="pic"><span class="sc-badge sc-badge-pic">7.5折</span><img decoding="async" src="<%= sc.image %>" alt="<%= sc.name %>" onerror="<%= U.IMG_FALLBACK %>"></div>
   <div class="info">
     <div class="name"><%= sc.name %></div>
     <div class="sub">线下门店消费享7.5折</div>
-    <div class="meta"><span class="sc-badge">7.5折</span><a class="sc-buy" href="/service?from=storecard">购买</a></div>
-    <div class="sc-pt"><%= storecard.priceText %></div>
+    <div class="meta"><span class="price sc-price"><big><%= storecard.cardPrice %></big></span><a class="sc-buy" href="/service?from=storecard">购买</a></div>
   </div>
 </div>
