@@ -24,6 +24,8 @@ svc.cloud.ensureDefaults();
 (function oneTimeMigrations() {
   const done = k => !!db.get('SELECT 1 FROM settings WHERE key=?', 'migr_' + k);
   const mark = k => db.exec1('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', 'migr_' + k, U.now());
+  // 门店优惠卡「适用门店」旧默认文案升级(仅未被后台改过时)
+  db.exec1('UPDATE settings SET value=? WHERE key=? AND value=?', '全国韵农甄选线下门店均可使用，门店名单和地址见本页下方的门店列表', 'storecard_stores', '韵农甄选合作线下门店，门店名单和地址见本页下方的门店列表');
   if (!done('no7_fresh')) { // 鲜活易腐类分类默认不支持七天无理由
     db.exec1("UPDATE categories SET no_7day=1 WHERE name='水果生鲜' OR name LIKE '%蔬菜%' OR name LIKE '%鲜活%' OR name LIKE '%海鲜%'");
     mark('no7_fresh');
