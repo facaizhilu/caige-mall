@@ -1,6 +1,6 @@
 <% if (typeof layoutless!=='undefined' && layoutless) { %><%- body %><% } else { %>
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="csrf" content="<%= csrf %>">
-<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=11"></head><body>
+<title><%= title %> - <%= shop.shop_name %> 管理后台</title><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/static/css/admin.css?v=12"></head><body>
 <div class="layout">
 <aside class="side" id="side">
   <div class="brand"><i>韵</i><span><%= shop.shop_name %><small>管理后台</small></span></div>
@@ -21,10 +21,11 @@
 </aside><div class="side-mask" onclick="document.getElementById('side').classList.remove('open')"></div>
 <div class="main">
   <div class="top"><button class="menu-btn" aria-label="菜单" onclick="document.getElementById('side').classList.toggle('open')">☰</button><b><%= title %></b>
-    <div class="u"><a href="/" target="_blank">🛒 查看商城</a><a href="/admin/password"><%= admin.name %>(<%= admin.role_name %>)</a>
+    <div class="u"><% if (can('service')) { %><button type="button" class="btn sm snd-btn" id="sndBtn">🔔 开启提示音</button><% } %><a href="/" target="_blank">🛒 查看商城</a><a href="/admin/password"><%= admin.name %>(<%= admin.role_name %>)</a>
     <form method="post" action="/admin/logout" style="margin:0"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">退出</button></form></div></div>
-  <div class="content"><% if (typeof pwSkipped!=='undefined' && pwSkipped) { %><div class="flash warn">演示环境:当前账号仍在使用默认密码,正式运营前请 <a href="/admin/password"><u>修改密码</u></a>(正式环境不设置 DEMO_MODE 时将强制修改)。</div><% } %><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %><%- body %></div>
+  <% if (can('service')) { %><div class="flash warn snd-hint" id="sndHint" hidden>浏览器已暂停提示音,<a href="javascript:void(0)" onclick="document.getElementById('sndBtn').click()"><u>点击开启提示音</u></a></div><% } %><div class="content"><% if (typeof pwSkipped!=='undefined' && pwSkipped) { %><div class="flash warn">演示环境:当前账号仍在使用默认密码,正式运营前请 <a href="/admin/password"><u>修改密码</u></a>(正式环境不设置 DEMO_MODE 时将强制修改)。</div><% } %><% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %><%- body %></div>
 </div></div>
+<% if (can('service')) { %><script src="/static/js/admin-notify.js?v=1" defer></script><% } %>
 <script>
 var CSRF=document.querySelector('meta[name=csrf]').content;
 document.querySelectorAll('table.t').forEach(function(t){if(!t.closest('.tbl-wrap')){var w=document.createElement('div');w.className='tbl-wrap';t.parentNode.insertBefore(w,t);w.appendChild(t)}});

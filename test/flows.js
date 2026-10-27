@@ -737,6 +737,18 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
           ok(!sa.buf.includes(`"id":${ms.id}`) && !sa.buf.includes(`"uid":${bid}`), '其他会员收不到他人会话事件', sa.buf.slice(-200));
           await b.get('/service'); await b.req('POST', '/service', { content: '会员实时消息' }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await wait(300);
           ok(sm.buf.includes(`"uid":${bid}`) && sm.buf.includes('"sender":"user"'), '后台实时收到会员新消息事件', sm.buf.slice(-300));
+          { // 会员进入客服页:后台收到 enter 事件(含昵称/来源,30 秒节流,不写库);会员自己的推送里没有 enter
+            const ec = new C(), ep = '139' + String(Date.now()).slice(-8); await ec.get('/register'); await ec.post('/register', { phone: ep, password: 'abc12345', password2: 'abc12345', nickname: '进店提醒测', agree: '1' }); await ec.get('/me');
+            const eu = db.get('SELECT id FROM users WHERE phone=?', ep).id, se = await open(ec, '/service/stream'); await wait(100);
+            const cols0 = db.all('PRAGMA table_info(users)').length, msgs0 = db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', eu).n;
+            await ec.get('/service?from=storecard'); await wait(300);
+            const evs = sm.buf.split('\n').filter(l => l.startsWith('data: ') && l.includes('"type":"enter"') && l.includes(`"uid":${eu}`));
+            ok(evs.length === 1 && evs[0].includes('进店提醒测') && evs[0].includes('"from":"storecard"') && evs[0].includes('"sender":"user"'), '会员进入客服页 → 后台实时收到「正在咨询」事件(含昵称、来源)', evs);
+            await ec.get('/service'); await ec.get('/service?partial=1'); await wait(300);
+            ok(sm.buf.split('\n').filter(l => l.includes('"type":"enter"') && l.includes(`"uid":${eu}`)).length === 1, '进入提醒节流:30 秒内重复进入/局部刷新不重复提醒');
+            ok(!se.buf.includes('"type":"enter"'), '会员推送不包含进入事件(备注名不外泄)');
+            ok(db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', eu).n === msgs0 && db.all('PRAGMA table_info(users)').length === cols0 && !db.get("SELECT 1 FROM settings WHERE key LIKE '%enter%'"), '进入提醒不写数据库');
+            se.ac.abort(); }
           await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/edit', { content: '实时推送测试(改)' }); await b.req('POST', '/service/read', { ids: String(ms.id) }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); await adm.post('/admin/service/' + bid + '/msg/' + ms.id + '/recall', {}); await wait(300);
           ok(sb.buf.includes('"type":"edit"') && sb.buf.includes('"type":"recall"') && sm.buf.includes('"type":"read"'), '编辑/撤回/已读事件实时推送', sm.buf.slice(-300));
           ok(Date.now() - t0 < 5000, 'SSE 测试耗时正常'); ok(sb.buf.includes('event: ping') && sb.buf.length > 2048, 'SSE 首包填充+ping 心跳事件(防代理缓冲/看门狗)');
@@ -785,7 +797,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             await adm.get('/admin/settings'); await adm.post('/admin/settings/storecard', { storecard_name: '线下门店优惠卡', storecard_intro: '可储值使用' }); const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; ok(sv('storecard_on') !== '0' && !String(sv('storecard_intro') || '').includes('储值'), '后台拒绝「储值」类文案');
             await adm.post('/admin/settings/storecard', { storecard_on: '', storecard_name: '线下门店优惠卡', storecard_store_list: '海口国贸店|海口市龙华区国贸路 1 号' }); x = await b.get('/products'); y = await b.get('/storecard'); ok(!x.text.includes('data-storecard') && y.status === 404, '后台可关闭门店优惠卡');
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_store_list: '海口国贸店|海口市龙华区国贸路 1 号' }); y = await b.get('/storecard'); ok(y.text.includes('海口国贸店') && y.text.includes('海口市龙华区国贸路 1 号') && y.text.includes('卡的性质') && y.text.includes('待确认'), '后台编辑门店列表;留空字段显示「待确认」');
-            x = await b.get('/products'); ok(y.text.includes('到店或联系客服办理') && !y.text.includes('/ 1年') && x.text.includes('<big>客服办理</big>') && !x.text.includes('到店或联系客服办理'), '未设售价显示「到店或联系客服办理」');
+            x = await b.get('/products'); ok(y.text.includes('到店或联系客服办理') && !y.text.includes('/ 1年') && !x.text.includes('客服办理') && !(await b.get('/')).text.includes('客服办理'), '未设售价:详情显示「到店或联系客服办理」,列表/首页卡片不显示价格文案');
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_price: '99', storecard_price_unit: '1年' }); y = await b.get('/storecard'); x = await b.get('/products'); const hm = await b.get('/'); ok(y.text.includes('¥99 / 1年') && x.text.includes('<big>¥99</big>') && hm.text.includes('sc-row">¥99<'), '设置售价后详情显示「¥99 / 1年」,列表/首页显示 ¥99');
             
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_price: 'abc' }); ok((db.get("SELECT value FROM settings WHERE key='storecard_price'") || {}).value === '99', '非法售价被拒绝');

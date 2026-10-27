@@ -32,7 +32,7 @@
     es.addEventListener('ping', function () { seen = Date.now(); poll(false); var c = chatEl(); if (c && c.querySelector('.rd-un')) refresh(); });
     setInterval(function () { if (Date.now() - seen > 45000) poll(true); }, 5000);
     setInterval(function () { if (document.visibilityState === 'visible') refresh(); }, 15000);
-    es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'user') ding(); refresh(); }); // 所有类型(msg/recall/edit/read)都刷新
+    es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (window.AdmNotify) window.AdmNotify.handle(d); else if (d.type === 'msg' && d.sender === 'user') ding(); if (d.type !== 'enter') refresh(); }); // 所有类型(msg/recall/edit/read)都刷新
     es.addEventListener('error', function () { poll(true); });
   } else poll(true);
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refresh(); });

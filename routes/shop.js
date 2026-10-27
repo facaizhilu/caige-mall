@@ -728,6 +728,7 @@ module.exports = function (app, { filesOf }) {
       orders = db.all('SELECT id, order_no, status, pay_amount, created_at FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10', req.user.id).map(o => ({ ...o, item: db.get('SELECT name, image FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', o.id) }));
     }
     if (req.user && req.query.partial !== '1' && ['coop', 'storecard'].includes(req.query.from)) db.exec1('UPDATE users SET svc_from=?, svc_from_at=? WHERE id=?', req.query.from, U.now(), req.user.id); // 入口来源(仅后台显示)
+    if (req.user && req.query.partial !== '1') { const u = db.get('SELECT nickname, admin_remark, phone FROM users WHERE id=?', req.user.id) || {}; const nick = u.nickname || ('会员' + String(u.phone || req.user.id).slice(-4)); require('../lib/bus').enter(req.user.id, u.admin_remark ? u.admin_remark + '（' + nick + '）' : nick, ['coop', 'storecard'].includes(req.query.from) ? req.query.from : ''); } // 后台「某某会员正在咨询」提示
     if (req.query.partial === '1') return res.render('shop/_chat-list', { items, user: req.user, shop: svc.settings(), ORDER_STATUS: U.ORDER_STATUS });
     res.page('shop/service', { title: '在线客服', items, orders, quick: quickQs(), coop: req.query.from === 'coop', storecardFrom: req.query.from === 'storecard', from: typeof req.query.from === 'string' && /^\/(?!\/)/.test(req.query.from) ? req.query.from : '' });
   });

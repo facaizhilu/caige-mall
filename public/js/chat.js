@@ -39,6 +39,21 @@
     }).catch(function () {}).then(function () { busy = null; if (again) { again = false; refresh(true); } });
     return busy;
   }
+  // 客服回复提示音:仅在页面处于后台(document.hidden)时轻响一声,正在看聊天时不响;可静音(localStorage)
+  var SK = 'svcSound', actx = null, lastDing = 0, sb = document.getElementById('sndToggle'), tFlash = null;
+  function muted() { try { return localStorage.getItem(SK) === '0'; } catch (e) { return false; } }
+  function actxGet() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== 'running') actx.resume(); } catch (e) {} return actx; }
+  ['pointerdown', 'touchend', 'keydown'].forEach(function (ev) { document.addEventListener(ev, function () { if (!muted()) actxGet(); }, { passive: true }); }); // 首次点击解锁音频
+  function sbRender() { if (sb) { sb.textContent = muted() ? '🔕' : '🔔'; sb.setAttribute('aria-label', muted() ? '提示音已关闭,点击开启' : '提示音已开启,点击关闭'); sb.title = sb.getAttribute('aria-label'); } }
+  sb && sb.addEventListener('click', function () { try { localStorage.setItem(SK, muted() ? '1' : '0'); } catch (e) {} sbRender(); toast(muted() ? '已关闭客服回复提示音' : '已开启客服回复提示音(页面在后台时提醒)'); });
+  sbRender();
+  function replyAlert() {
+    if (!document.hidden || muted() || Date.now() - lastDing < 3000) return; lastDing = Date.now();
+    var c = actx; // 后台页面不能新建/解锁音频,只能使用此前点击时已解锁的
+    if (c && c.state === 'running') try { var o = c.createOscillator(), g = c.createGain(), t = c.currentTime; o.type = 'sine'; o.frequency.value = 740; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.04, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.32); } catch (e) {}
+    var base = document.title.replace(/^【[^】]*】/, ''), i = 0; clearInterval(tFlash);
+    tFlash = setInterval(function () { document.title = (i++ % 2 ? '' : '【客服回复】') + base; if (!document.hidden || i > 30) { clearInterval(tFlash); document.title = base; } }, 900);
+  }
   // 实时:SSE 推送;不支持或连接出错时每 3 秒轮询;重连/切回前台时补拉,不丢消息
   if (pg.dataset.login === '1') {
     var es = null, pollT = null;
@@ -49,7 +64,7 @@
       es.addEventListener('open', function () { seen = Date.now(); poll(false); refresh(true); });
       es.addEventListener('ping', function () { seen = Date.now(); poll(false); });
       // 推送到达:立即拉取并渲染,页面可见时随即上报已读
-      es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type !== 'read') refresh(true); });
+      es.addEventListener('chat', function (e) { seen = Date.now(); var d = {}; try { d = JSON.parse(e.data); } catch (x) {} if (d.type === 'msg' && d.sender === 'staff') replyAlert(); if (d.type !== 'read' && d.type !== 'enter') refresh(true); });
       es.addEventListener('error', function () { poll(true); });
       // 看门狗:45 秒无心跳(代理缓冲/静默断开)则改为 3 秒轮询;另每 15 秒兜底刷新一次
       setInterval(function () { if (Date.now() - seen > 45000) poll(true); }, 5000);

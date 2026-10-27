@@ -44,7 +44,7 @@ html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
  .side a{padding:12px 20px;min-height:44px}
  .side.open+.side-mask{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:45}
  .top{padding:0 12px;padding-top:env(safe-area-inset-top);height:calc(56px + env(safe-area-inset-top));gap:8px}.top>b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .top .u{gap:8px;font-size:13px}.top .u a:first-child{display:none}
+ .top .u{gap:8px;font-size:13px}.top .u a:first-of-type{display:none}
  .menu-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:24px}
  .content{padding:12px 12px calc(32px + env(safe-area-inset-bottom))}.card{padding:14px}
  .grid[style*="grid-template-columns"],.g2,.g3,.g4,.g6{grid-template-columns:minmax(0,1fr)!important}.g4,.g6{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -101,3 +101,7 @@ input[type=file]{max-width:100%}
 .arr{transform:none!important}.arr::before{content:"▸"}details[open]>summary .arr::before{content:"▾"}.msg-ops>form{display:inline-flex}
 .un-dot{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:9px;background:#e53935;color:#fff;font-size:12px;text-align:center;vertical-align:middle}
 .tag-src{display:inline-block;font-size:12px;font-weight:400;color:#B23A2E;background:#fff3e6;border:1px solid #f2d79a;border-radius:10px;padding:0 8px;vertical-align:middle}
+.snd-btn{white-space:nowrap}.snd-btn.snd-off{background:#fff7e6;border-color:#f0b35a;color:#8a4b00}.snd-hint{margin:12px 24px 0}
+.adm-toasts{position:fixed;right:16px;top:64px;z-index:100;display:flex;flex-direction:column;gap:8px;max-width:min(320px,calc(100vw - 32px))}
+.adm-toast{display:block;background:#B23A2E;color:#fff!important;padding:10px 14px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:14px;transition:opacity .4s}.adm-toast.out{opacity:0}
+@media(max-width:768px){.snd-hint{margin:8px 12px 0}.adm-toasts{right:8px;left:8px;max-width:none}}
