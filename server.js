@@ -338,7 +338,17 @@ function csrf(req, res, next) {
   res.locals.csrf = req.session.csrf;
   if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
     const tok = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
-    if (!tok || tok !== req.session.csrf) return res.status(403).send('<meta charset="utf-8"><h3>页面已过期或请求非法(CSRF 校验失败),请返回刷新后重试。</h3>');
+    if (!tok || tok !== req.session.csrf) {
+      const wantsJson = req.xhr || /json/.test(req.headers.accept || '') || /json/.test(req.headers['content-type'] || '') || !!req.headers['x-csrf-token'];
+      if (wantsJson) return res.status(403).json({ ok: false, error: '页面已过期，请刷新后重试', csrfExpired: true });
+      const isAdmin = req.originalUrl.startsWith('/admin');
+      const isLogin = /\/login/.test(req.originalUrl);
+      let back = isAdmin ? '/admin/login' : '/login';
+      if (!isLogin) { try { const r = new URL(req.headers.referer || ''); if (r.host === req.headers.host) back = r.pathname + r.search; } catch (e) {} }
+      const msg = isLogin ? '页面已过期，请重新登录' : '页面已过期，请重新提交';
+      const safe = back.replace(/[^\w\/?=&%.\-]/g, '');
+      return res.status(403).send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2;url=' + safe + '"><div style="font-family:sans-serif;text-align:center;padding:80px 20px;color:#333"><div style="font-size:18px;margin-bottom:12px">' + msg + '</div><div style="color:#888;font-size:14px">正在为您返回…</div><a href="' + safe + '" style="display:inline-block;margin-top:20px;padding:10px 28px;background:#d32f2f;color:#fff;border-radius:20px;text-decoration:none">立即返回</a></div>');
+    }
   }
   next();
 }
