@@ -434,3 +434,5 @@ textarea{resize:vertical}
 .sc-card .pic{position:relative}.sc-badge-pic{position:absolute;left:6px;bottom:6px;z-index:2}.sc-card .meta{align-items:center;gap:6px}.sc-price{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:359px){.sc-card .sc-buy{padding:0 7px;min-height:26px}.sc-card .meta{gap:2px}.sc-card .sc-buy{flex:none}}
 .sc-price::before{content:none!important}
+
+.op-line{font-size:12px;line-height:1.5;color:#8A6A5A;text-align:center;padding:2px 8px 6px;word-break:break-all}

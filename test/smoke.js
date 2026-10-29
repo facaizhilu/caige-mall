@@ -48,7 +48,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   for (const u of ['/points-mall', '/points-mall/1', '/products', '/help', '/service', '/login', '/me']) { const x = await shop.get(u); ok(x.text.includes('logo-horizontal-onred.svg') && x.text.includes('class="tab ztab"') && !x.text.includes('<i>韵</i>') && !x.text.includes('class="topbar"') && !/财哥|好货不贵|南山区科技园/.test(x.text), '统一移动端页头/底栏、无旧品牌:' + u); }
   { const lg = new Client(); const c = await lg.get('/cart'); const l = await lg.get(c.loc); const nav = l.text.slice(l.text.indexOf('class="tab ztab"')); ok(c.status === 302 && /^\/login\?next=%2Fcart/.test(c.loc) && /href="\/cart" class="on"/.test(nav) && !/href="\/login" class="on"/.test(nav), '未登录访问购物车跳登录:底栏高亮「购物车」'); }
   { const x = await shop.get('/product/8'); ok(x.text.includes('海口发货') && !x.text.includes('深圳发货') && x.text.includes('class="kv pd-kv"') && x.text.includes('pd-bar') && x.text.includes('class="pg-pd"'), '商品详情:默认「海口发货」、标签固定宽度、底部操作栏固定'); }
-  { const x = await shop.get('/products?q=' + encodeURIComponent('苹果')); const y = await shop.get('/points-mall'); ok(!x.text.includes('南山居') && x.text.includes('>烟台红富士苹果 5斤装<') && y.text.includes('<title>积分专区') && !y.text.includes('积分商城') && /href="\/products" class="on"/.test(x.text) && /class="cp-x"/.test(x.text), '演示品牌「南山居」→韵农甄选;「积分专区」命名;二级页底栏按栏目高亮;页脚移动端仅一行'); }
+  { const x = await shop.get('/products?q=' + encodeURIComponent('苹果')); const y = await shop.get('/points-mall'); ok(!x.text.includes('南山居') && x.text.includes('>烟台红富士苹果 5斤装<') && y.text.includes('<title>积分专区') && !y.text.includes('积分商城') && /href="\/products" class="on"/.test(x.text) && /class="op-line"/.test(x.text), '演示品牌「南山居」→韵农甄选;「积分专区」命名;二级页底栏按栏目高亮;页脚含运营方信息行'); }
   { let hit = ''; for (const u of ['/', '/products', '/products?page=2', '/points-mall', '/product/2', '/product/9', '/activity', '/groupbuy']) { const x = await shop.get(u); const m = x.text.match(/星河|华岳|丝语|田园记|云朵家|疾风|南山居|财哥/); if (m) { hit = u + ':' + m[0]; break; } } ok(!hit, '前台无虚构演示品牌名', hit); }
   { const x = await shop.get('/product/2'); const h1 = (x.text.match(/<h1>([\s\S]*?)<\/h1>/) || [])[1] || ''; const ls = await shop.get('/products'); ok(!/tag gold/.test(h1) && !h1.includes('韵农甄选') && !/<span class="tag gold">韵农甄选<\/span>/.test(ls.text), '商品名前不显示品牌标签(详情/列表)'); }
   { const x = await shop.get('/help'); ok(x.text.includes('地址:待公布') && x.text.includes('韵农甄选 · 新鲜好物') && x.text.includes('客服 待公布') && !x.text.includes('400-888-6666'), '页脚口号保留,占位地址/客服电话显示「待公布」'); }
@@ -263,8 +263,8 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/me/history'); ok(r.text.includes('清空浏览记录') && r.text.includes('/me/history/8/delete'), '浏览记录有清空与单条删除');
   await cg.post('/me/history/8/delete'); r = await cg.get('/me/history'); ok(!r.text.includes('/me/history/8/delete') && r.text.includes('/me/history/9/delete'), '单条删除浏览记录');
   await cg.post('/me/history/clear'); r = await cg.get('/me/history'); ok(r.text.includes('暂无浏览记录'), '清空浏览记录');
-  // 限制性条款(不可购买/转让/提现)只保留在《积分规则》与协议中,普通前台页面不展示
-  { const bad = []; for (const u of ['/me/points', '/me/cloud', '/me/invite', '/points-mall', '/me', '/service']) { const y = await cg.get(u); const m = (y.text.match(/<main[\s\S]*<\/main>/) || [y.text])[0]; if (/不可购买|不可转让|不可提现|转让或提现|兑换现金/.test(m)) bad.push(u); }
+  // 限制性条款(不可购买/转让/提现)只保留在《积分规则》与协议中,普通前台页面不展示(积分专区按 QA 2026-10-29 要求展示「不可提现、不可转让」)
+  { const bad = []; for (const u of ['/me/points', '/me/cloud', '/me/invite', '/me', '/service']) { const y = await cg.get(u); const m = (y.text.match(/<main[\s\S]*<\/main>/) || [y.text])[0]; if (/不可购买|不可转让|不可提现|转让或提现|兑换现金/.test(m)) bad.push(u); }
     ok(!bad.length, '前台页面不展示积分不可购买/转让/提现条款(仅规则/协议页保留)', bad); }
   r = await cg.get('/points-rules'); ok(r.text.includes('不可转让') && r.text.includes('不可提现'), '《积分规则》仍保留不可转让、不可提现');
   // 注销:有未完成订单时被拦截

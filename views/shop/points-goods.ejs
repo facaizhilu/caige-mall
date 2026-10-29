@@ -21,5 +21,5 @@
 <% if (g.soldOut) { %><button class="btn lg block mt" disabled>已兑完</button>
 <% } else if (!user) { %><a class="btn gold lg block mt" href="/login?next=/points-mall/<%= g.id %>">登录后<%= g.pp.mode==='points'?'兑换':'购买' %></a>
 <% } else { %><form method="post" action="/points-mall/<%= g.id %>/exchange" data-confirm="确定以「<%= g.pp.label %>」<%= g.pp.mode==='points'?'兑换':'购买' %>「<%= g.name %>」?<%= g.pp.cash>0?'下一步将进入收银台支付现金。':'' %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn gold lg block mt" <%= g.left===0||short?'disabled':'' %>><%= g.left===0?'已达兑换上限':short?'积分不足':(g.pp.mode==='points'?'积分兑换':'立即购买 ' + g.pp.label) %></button></form><% } %>
-<% if (notice) { %><p class="pg-notice"><%= notice %></p><% } %>
+<% if (notice) { %><p class="pg-notice"><%= notice %></p><% } %><p class="pg-notice pg-rule">积分不可提现、不可转让</p>
 </div></div></div>

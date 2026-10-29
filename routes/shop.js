@@ -696,6 +696,7 @@ module.exports = function (app, { filesOf }) {
     if (!a) return res.status(404).page('shop/error', { title: '文章不存在', code: 404, message: '文章不存在' });
     db.exec1('UPDATE articles SET views=views+1 WHERE id=?', a.id);
     if (a.topic === 'points_rules') a = { ...a, content: require('../lib/policies').fillPointsVars(a.content, svc.S, { deduct: svc.deductEnabled() }) };
+    a = { ...a, content: svc.fillOperator(a.content || '') };
     res.page('shop/article', { title: a.title, a });
   };
   app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));

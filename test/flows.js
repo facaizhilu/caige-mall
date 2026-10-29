@@ -189,6 +189,22 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const t2 = new C(); const lr = await t2.login('13800000002', '123456'); ok(lr.status === 302, '测试账号仍可登录'); }
   ok(db.get('SELECT COUNT(*) n FROM categories WHERE no_7day=1').n === 0 && db.get("SELECT COUNT(*) n FROM products WHERE no_reason_return=0 AND COALESCE(supplier,'')=''").n === 0, '迁移:清除分类/商品「不支持七天无理由」旧标记');
   { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && hp.content.includes('含生鲜') && !hp.content.includes('除鲜活易腐类商品'), '帮助中心退货政策:含生鲜均支持七天无理由'); }
+  console.log('== QA:页脚运营方/积分提示/法律文本占位/省份/应付款/备案号 ==');
+  { const anon = new C(); const strip = t => t.replace(/<script[\s\S]*?<\/script>/g, '');
+    for (const pth of ['/', '/products', '/points-mall']) { const t = (await anon.get(pth)).text; ok(t.includes('运营方:海南韵农科技有限公司') && t.includes('地址:待公布') && t.includes('电话:待公布') && t.includes('邮箱:待公布'), '页脚运营方+地址/电话/邮箱待公布:' + pth); }
+    ok((await anon.get('/points-mall')).text.includes('积分不可提现、不可转让'), '积分专区列表页提示不可提现/转让');
+    const pg1 = db.get('SELECT id FROM points_goods WHERE status=1 LIMIT 1'); if (pg1) ok((await anon.get('/points-mall/' + pg1.id)).text.includes('积分不可提现、不可转让'), '积分商品详情页提示不可提现/转让');
+    const pv = strip((await anon.get('/privacy')).text), tm = strip((await anon.get('/terms')).text), pr = strip((await anon.get('/points-rules')).text);
+    ok(!/【[^】]*】/.test(pv) && pv.includes('更新日期:2026年10月29日') && pv.includes('生效日期:2026年10月29日') && pv.includes('短信服务商(待公布)') && !pv.includes('其他支付服务'), '隐私政策日期/短信服务商已填、其他支付段落已删、无【】');
+    ok(!/【[^】]*】/.test(tm) && tm.includes('积分可在积分专区兑换商品') && !tm.includes('抵扣订单金额'), '用户协议积分表述已改、无【】');
+    ok(!/【[^】]*】/.test(pr) && pr.includes('2026年10月29日'), '积分规则生效日期已填、无【】');
+    const bad = db.all("SELECT title FROM articles WHERE content LIKE '%【其他支付服务%' OR content LIKE '%【服务商名称】%' OR content LIKE '%【更新日期】%' OR content LIKE '%积分可用于抵扣订单金额%' OR content LIKE '%积分可在下单时抵扣部分金额%'"); ok(!bad.length, 'DB 文章无遗留占位/抵扣表述', JSON.stringify(bad));
+    const R = require('../lib/regions'); ok(Object.keys(R).length === 34 && ['海南省', '香港特别行政区', '澳门特别行政区', '台湾省'].every(k => R[k]), '省份 34 个(含海南/港/澳/台)');
+    const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; ok(sv('icp') === '' && sv('service_email') === '', '占位备案号/示例邮箱已清空', sv('icp') + '|' + sv('service_email'));
+    const st = await adm.get('/admin/settings'); ok(!st.text.includes('00000000') && !st.text.includes('caige-mall.example'), '后台设置页备案号/邮箱为空');
+    const co = db.get("SELECT id, pay_amount FROM orders WHERE user_id=1 AND status='unpaid' AND paid_at IS NULL LIMIT 1");
+    if (co) { db.exec1("UPDATE orders SET status='cancelled' WHERE id=?", co.id); const t = (await u.get('/order/' + co.id)).text; ok(!t.includes('<b>实付款</b>') && t.includes('未支付'), '已取消未支付订单不显示实付款'); const lt = (await u.get('/orders')).text; ok(lt.includes('未支付'), '订单列表未支付标注'); const at = (await adm.get('/admin/orders/' + co.id)).text; ok(!at.includes('<b>实付款</b>') && at.includes('未支付'), '后台订单详情未支付标注'); db.exec1("UPDATE orders SET status='unpaid' WHERE id=?", co.id); }
+    else ok(false, '找不到未支付订单用于测试'); }
   console.log('== 前台禁止上传 ==');
   const rc = db.get("SELECT o.id, oi.id iid FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.user_id=1 AND o.status='completed' AND oi.reviewed=0 LIMIT 1");
   if (rc) { const fd = new FormData(); fd.append('rating_' + rc.iid, '4'); fd.append('content_' + rc.iid, '带图评价测试'); fd.append('images_' + rc.iid, new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')], { type: 'image/png' }), 'a.png');

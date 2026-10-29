@@ -20,7 +20,7 @@
     <div><h4>配送与售后</h4><a href="/help">运费规则</a><a href="/aftersales">退款/售后</a><a href="/me/invoices">发票说明</a></div>
     <div><h4>关于我们</h4><a href="/article/<%= aboutId %>">关于<%= shop.shop_name %></a><a href="/notices">商城公告</a><a href="/service">联系客服</a><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a><a href="/admin">商家后台</a></div>
   </div>
-  <div class="cp">© 2026 <%= shop.shop_name %><% if (pub.icp) { %> · <%= pub.icp %><% } %><span class="cp-x"> · 运营方:<%= pub.company %> · 地址:<%= pub.address %></span></div>
+  <div class="cp">© 2026 <%= shop.shop_name %><% if (pub.icp) { %> · <%= pub.icp %><% } %></div><%- include('../partials/operator') %>
 </div></footer>
 <%- include('../partials/tabbar') %>
 <script>window.REGIONS=<%- JSON.stringify(regions) %>;</script>
