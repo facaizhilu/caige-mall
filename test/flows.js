@@ -200,8 +200,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok(!/【[^】]*】/.test(pr) && pr.includes('2026年10月29日'), '积分规则生效日期已填、无【】');
     const bad = db.all("SELECT title FROM articles WHERE content LIKE '%【其他支付服务%' OR content LIKE '%【服务商名称】%' OR content LIKE '%【更新日期】%' OR content LIKE '%积分可用于抵扣订单金额%' OR content LIKE '%积分可在下单时抵扣部分金额%'"); ok(!bad.length, 'DB 文章无遗留占位/抵扣表述', JSON.stringify(bad));
     const R = require('../lib/regions'); ok(Object.keys(R).length === 34 && ['海南省', '香港特别行政区', '澳门特别行政区', '台湾省'].every(k => R[k]), '省份 34 个(含海南/港/澳/台)');
-    const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; ok(sv('icp') === '' && sv('service_email') === '', '占位备案号/示例邮箱已清空', sv('icp') + '|' + sv('service_email'));
-    const st = await adm.get('/admin/settings'); ok(!st.text.includes('00000000') && !st.text.includes('caige-mall.example'), '后台设置页备案号/邮箱为空');
+    const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; ok(['icp', 'service_email', 'service_phone', 'service_wechat', 'address'].every(k => sv(k) === ''), '占位备案号/邮箱/电话/微信/地址已清空', ['icp', 'service_email', 'service_phone', 'service_wechat', 'address'].map(sv).join('|'));
+    const st = await adm.get('/admin/settings'); ok(!st.text.includes('00000000') && !st.text.includes('caige-mall.example') && !st.text.includes('value="400-888-6666"') && !st.text.includes('value="yunnong-kefu"') && !st.text.includes('海口市龙华区"'), '后台设置页备案号/邮箱为空');
     const co = db.get("SELECT id, pay_amount FROM orders WHERE user_id=1 AND status='unpaid' AND paid_at IS NULL LIMIT 1");
     if (co) { db.exec1("UPDATE orders SET status='cancelled' WHERE id=?", co.id); const t = (await u.get('/order/' + co.id)).text; ok(!t.includes('<b>实付款</b>') && t.includes('未支付'), '已取消未支付订单不显示实付款'); const lt = (await u.get('/orders')).text; ok(lt.includes('未支付'), '订单列表未支付标注'); const at = (await adm.get('/admin/orders/' + co.id)).text; ok(!at.includes('<b>实付款</b>') && at.includes('未支付'), '后台订单详情未支付标注'); db.exec1("UPDATE orders SET status='unpaid' WHERE id=?", co.id); }
     else ok(false, '找不到未支付订单用于测试'); }

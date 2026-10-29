@@ -278,7 +278,7 @@ svc.cloud.ensureDefaults();
     db.exec1("UPDATE products SET supplier_brand='韵农甄选' WHERE supplier_brand='演示品牌'");
   })();
   // 占位备案号/示例邮箱清空(精确匹配),后台显示为空、前台显示「待公布」
-  for (const [k, vals] of [['icp', ['粤ICP备00000000号(演示)', '琼ICP备00000000号(演示)']], ['service_email', ['help@caige-mall.example']]]) if (vals.includes(svc.S(k))) svc.setSetting(k, '');
+  for (const [k, vals] of [['icp', ['粤ICP备00000000号(演示)', '琼ICP备00000000号(演示)']], ['service_email', ['help@caige-mall.example']], ['service_phone', ['400-888-6666']], ['service_wechat', ['yunnong-kefu']], ['address', ['海南韵农科技有限公司 · 海南省海口市龙华区', '广东省深圳市南山区科技园', '广东省深圳市南山区科技园财哥大厦 18 层']]]) if (vals.includes(svc.S(k))) svc.setSetting(k, '');
 })();
 
 const app = express();
