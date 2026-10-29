@@ -57,7 +57,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(seededMouse && seededMouse.status === 0 && seededMouse.supplier_state === 'pending_review', '自动导入的违禁词商品为待审核/下架', JSON.stringify(seededMouse));
   ok(seeded.some(p => p.name === '磨砂防摔手机壳') && seeded.some(p => p.name === 'Type-C 快充数据线'), '多规格商品名去掉规格值(颜色/长度)', seeded.map(p => p.name).join('|'));
   ok(new Set(seeded.map(p => p.supplier_spu)).size === seeded.length && db.get("SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier='jdvop'").n === db.get("SELECT COUNT(DISTINCT supplier_sku) n FROM skus WHERE supplier_sku IS NOT NULL").n, '每个商品(SPU)只导入一次,SKU 不重复', seeded.length);
-  let r = await g.get('/products'); ok(r.text.includes('class="tag demo">演示'), '新部署打开「全部商品」即可看到供应商演示商品');
+  let r = await g.get('/products'); ok(!!db.get("SELECT 1 FROM products WHERE supplier IS NOT NULL AND status=1") && !r.text.includes('class="tag demo"'), '新部署打开「全部商品」即可看到供应商商品(前台不显示演示标记)');
   const again = await J.demoSeed(); ok(again && again.skipped, '已有供应商商品时不再自动导入(重启不重复)', JSON.stringify(again));
   const m0 = process.env.JDVOP_MODE; process.env.JDVOP_MODE = 'live'; ok(!J.demoSeedEnabled(), 'live 模式绝不自动导入'); process.env.JDVOP_MODE = m0 === undefined ? '' : m0; if (m0 === undefined) delete process.env.JDVOP_MODE;
   const d0 = process.env.DEMO_MODE; process.env.DEMO_MODE = '0'; ok(!J.demoSeedEnabled(), '非演示环境不自动导入'); process.env.DEMO_MODE = d0;
@@ -127,7 +127,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   const findIn = async (url, needle) => { for (let pgn = 1; pgn <= 30; pgn++) { const x = await g.get(url + (url.includes('?') ? '&' : '?') + 'page=' + pgn); if (x.text.includes(needle)) return x; if (!x.text.includes('class="pcard"')) return null; } return null; };
   r = await findIn('/products', '/product/' + roll.id + '"'); const ownHit = await findIn('/products', 'Type-C 编织快充数据线 2米');
   ok(r && ownHit, '/products 中供应商商品与自营商品混排');
-  ok(r && /class="tag demo">演示<\/span>[^<]*<\/div>/.test(r.text) && r.text.includes(roll.name), 'DEMO 模式商品卡显示「演示」');
+  ok(r && !r.text.includes('class="tag demo"') && r.text.includes(roll.name), '商品卡不显示「演示」标记');
   r = await g.get('/products?cat=' + parentCat); ok(r.text.includes(roll.name), '供应商商品出现在一级分类标签');
   r = await g.get('/products?cat=' + roll.category_id); ok(r.text.includes(roll.name), '出现在映射后的二级分类');
   r = await g.get('/products?q=' + encodeURIComponent('快充数据线')); ok(r.text.includes(roll.name), '搜索可找到供应商商品');
@@ -137,7 +137,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(ix[0] > 0 && ix[1] > 0 && ix[0] < ix[1], '价格升序与自营商品混排(¥25.9 供应商数据线排在 ¥29 起的自营数据线之前)', ix);
   r = await g.get('/products?q=' + encodeURIComponent('感冒')); ok(!r.text.includes('感冒'.repeat(1) + '灵'), '禁售商品前台不可见');
   r = await g.get('/product/' + roll.id); const plain = stripTags(r.text);
-  ok(r.text.includes('由供应商发货') && r.text.includes('class="tag demo"'), '商品页显示「由供应商发货」「演示」');
+  ok(r.text.includes('由供应商发货') && !r.text.includes('class="tag demo"'), '商品页显示「由供应商发货」,无「演示」');
   ok(!plain.includes('京东') && !/JD/.test(plain), '商品页无「京东」字样');
   r = await g.get('/product/' + shirt.id); ok(!r.text.includes('class="mkt"') && !r.text.includes('¥' + Number(skuOf('900017001').supplier_retail).toFixed(2)), '不展示供应商参考价/划线价');
   r = await g.get('/products'); ok(!stripTags(r.text).includes('京东'), '列表页无「京东」字样');

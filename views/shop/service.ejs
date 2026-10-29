@@ -29,7 +29,7 @@
 </div>
 <div class="sheet" id="ctSheet" hidden role="dialog" aria-label="联系方式">
   <div class="sh-h">联系方式</div>
-  <dl class="kv sh-kv"><dt>热线</dt><dd><a href="tel:<%= shop.service_phone.replace(/[^0-9+]/g,'') %>"><%= shop.service_phone %></a><%= shop.service_phone==='400-888-6666'?'(演示)':'' %></dd><% if (shop.service_wechat) { %><dt>微信</dt><dd><%= shop.service_wechat %><%= shop.service_wechat==='yunnong-kefu'?'(演示)':'' %></dd><% } %><dt>时间</dt><dd><%= shop.service_hours %></dd><dt>邮箱</dt><dd><%= shop.service_email %></dd><dt>地址</dt><dd><%= shop.address %></dd></dl>
+  <dl class="kv sh-kv"><dt>热线</dt><dd><% if (pub.phoneReal) { %><a href="tel:<%= pub.phone.replace(/[^0-9+]/g,'') %>"><%= pub.phone %></a><% } else { %><%= pub.phone %><% } %></dd><% if (pub.wechat) { %><dt>微信</dt><dd><%= pub.wechat %></dd><% } %><dt>时间</dt><dd><%= shop.service_hours %></dd><dt>邮箱</dt><dd><%= pub.email %></dd><dt>地址</dt><dd><%= shop.address %></dd></dl>
   <button type="button" class="sh-cancel" data-close>关闭</button>
 </div>
 <div class="sheet" id="noticeSheet" hidden role="dialog" aria-label="图片使用说明">

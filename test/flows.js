@@ -130,6 +130,63 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const po = db.get("SELECT id FROM orders WHERE type='points' AND status IN ('paid','shipped','completed') LIMIT 1");
     if (po) { const k = db.get('SELECT COUNT(*) n FROM aftersales').n; await adm.post('/admin/orders/' + po.id + '/aftersale', { type: 'no_reason', amount: '0', reason: 'x' }); ok(db.get('SELECT COUNT(*) n FROM aftersales').n === k, '积分兑换订单不可创建7天无理由退货(非质量问题不退不换)'); }
     ok(/非质量问题不退不换/.test(require('../lib/svc').S('points_redeem_notice') || ''), '积分兑换须知保留「非质量问题不退不换」'); }
+  console.log('== 积分专区:纯积分 / 纯现金 / 积分+现金 + 全局比例 ==');
+  { const svc = require('../lib/svc'), uid = 2, ptsOrig = db.get('SELECT points FROM users WHERE id=2').points, g0 = db.get('SELECT MAX(id) m FROM points_goods').m, pts = () => db.get('SELECT points FROM users WHERE id=?', uid).points;
+    let x = await adm.get('/admin/settings'); ok(x.text.includes('name="points_zone_ratio"') && x.text.includes('接入真实供应商接口后请复核'), '后台显示积分专区比例及复核提示');
+    ok(svc.zoneRatio() === 2, '默认比例 1元 = 2积分');
+    x = await adm.get('/admin/points-goods'); ok(x.text.includes('1元 = 2 积分') && x.text.includes('/admin/points-goods/import'), '积分专区列表显示比例与导入入口');
+    const save = f => adm.post('/admin/points-goods/save', { type: 'goods', stock: '5', per_user_limit: '0', status: '1', sort: '0', category_id: '0', coupon_id: '0', points: '0', ref_price: '0', cash_price: '0', ...f });
+    const last = () => db.get('SELECT * FROM points_goods ORDER BY id DESC LIMIT 1');
+    await save({ name: 'PZ自动积分', pay_mode: 'points', ref_price: '100' }); const gAuto = last(); ok(gAuto.name === 'PZ自动积分' && svc.pgPrice(gAuto).points === 200 && svc.pgPrice(gAuto).label === '200积分', '¥100 参考价自动计为 200积分');
+    await save({ name: 'PZ覆盖积分', pay_mode: 'points', ref_price: '100', points: '150' }); ok(svc.pgPrice(last()).points === 150, '单品覆盖积分价');
+    await save({ name: 'PZ纯现金', pay_mode: 'cash', cash_price: '20' }); const gCash = last(); ok(svc.pgPrice(gCash).label === '¥20', '纯现金显示 ¥20');
+    await save({ name: 'PZ积分加现金', pay_mode: 'mix', points: '200', cash_price: '20' }); const gMix = last(); ok(svc.pgPrice(gMix).label === '200积分+¥20', '积分+现金显示 200积分+¥20');
+    const n0 = db.get('SELECT COUNT(*) n FROM points_goods').n; await save({ name: 'PZ坏', pay_mode: 'mix', points: '200', cash_price: '0' }); await save({ name: 'PZ坏2', pay_mode: 'points' });
+    ok(db.get('SELECT COUNT(*) n FROM points_goods').n === n0, '缺少现金价/积分价时拒绝保存');
+    x = await a.get('/points-mall'); ok(x.text.includes('200积分+¥20') && x.text.includes('>¥20<') && x.text.includes('>200积分<'), '前台列表清晰显示三种价格');
+    x = await a.get('/points-mall/' + gMix.id); ok(x.text.includes('200积分+¥20') && x.text.includes('需同时使用 200 积分并支付现金 ¥20.00'), '详情页显示积分+现金');
+    // 积分+现金:扣积分、生成待付款单、走收银台
+    db.exec1('UPDATE users SET points=1000 WHERE id=?', uid);
+    let r = await a.post('/points-mall/' + gMix.id + '/exchange'); ok(/\/order\/\d+\/pay$/.test(r.loc || ''), '积分+现金下单后进入收银台', r.loc);
+    let o = db.get('SELECT * FROM orders WHERE user_id=? AND points_goods_id=? ORDER BY id DESC', uid, gMix.id);
+    ok(o && o.type === 'points' && o.status === 'unpaid' && o.pay_amount === 20 && o.points_used === 200 && pts() === 800, '积分已扣 200、待支付现金 ¥20', JSON.stringify(o));
+    x = await a.get('/order/' + o.id + '/pay'); ok(x.text.includes('另已使用 200 积分'), '收银台显示已用积分');
+    await a.post('/order/' + o.id + '/pay', { method: 'wechat' }); o = db.get('SELECT * FROM orders WHERE id=?', o.id); ok(o.status === 'paid' && o.pay_method === 'wechat', '现金部分支付成功(模拟微信支付)');
+    x = await adm.get('/admin/orders/' + o.id); ok(x.text.includes('200积分') && x.text.includes('积分专区·现金'), '后台订单同时显示积分与现金');
+    x = await adm.get('/admin/orders'); ok(x.text.includes('+200积分'), '后台订单列表显示积分');
+    x = await a.get('/order/' + o.id); ok(x.text.includes('pts-used') && x.text.includes('200积分'), '会员订单显示使用积分');
+    { const k = db.get('SELECT COUNT(*) n FROM aftersales').n; await adm.post('/admin/orders/' + o.id + '/aftersale', { type: 'no_reason', amount: '0', reason: 'x' }); ok(db.get('SELECT COUNT(*) n FROM aftersales').n === k, '积分+现金订单同样非质量问题不退不换'); }
+    // 取消待付款:积分与库存退回
+    const st0 = db.get('SELECT stock FROM points_goods WHERE id=?', gMix.id).stock; r = await a.post('/points-mall/' + gMix.id + '/exchange'); const o2 = db.get('SELECT * FROM orders WHERE user_id=? AND points_goods_id=? ORDER BY id DESC', uid, gMix.id);
+    await a.post('/order/' + o2.id + '/cancel'); ok(pts() === 800 && db.get('SELECT stock FROM points_goods WHERE id=?', gMix.id).stock === st0, '取消积分+现金订单:积分与库存退回');
+    // 纯现金:不扣积分
+    r = await a.post('/points-mall/' + gCash.id + '/exchange'); const o3 = db.get('SELECT * FROM orders WHERE user_id=? AND points_goods_id=? ORDER BY id DESC', uid, gCash.id); ok(o3 && o3.status === 'unpaid' && o3.pay_amount === 20 && o3.points_used === 0 && pts() === 800, '纯现金:不扣积分、待支付 ¥20');
+    await a.post('/order/' + o3.id + '/cancel');
+    // 纯积分:直接兑换
+    r = await a.post('/points-mall/' + gAuto.id + '/exchange'); const o4 = db.get('SELECT * FROM orders WHERE user_id=? AND points_goods_id=? ORDER BY id DESC', uid, gAuto.id); ok(o4 && o4.status === 'paid' && o4.pay_amount === 0 && o4.points_used === 200 && pts() === 600, '纯积分:直接兑换扣 200积分');
+    // 积分不足
+    db.exec1('UPDATE users SET points=50 WHERE id=?', uid); const cnt = db.get('SELECT COUNT(*) n FROM orders').n;
+    x = await a.get('/points-mall/' + gMix.id); ok(x.text.includes('积分不足,还差 150 积分'), '详情页提示积分不足');
+    r = await a.post('/points-mall/' + gMix.id + '/exchange', {}, { json: true }); const jr = JSON.parse(r.text); ok(!jr.ok && /积分不足/.test(jr.msg) && /还差 150 积分/.test(jr.msg) && db.get('SELECT COUNT(*) n FROM orders').n === cnt && pts() === 50, '积分不足阻止下单并给出明确提示', r.text);
+    // 修改比例:自动积分跟随,覆盖不变
+    const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; const PS = { points_clear_day: sv('points_clear_day'), points_expiry_remind_days: sv('points_expiry_remind_days'), points_expiry_enable: sv('points_expiry_enable'), points_redeem_notice: sv('points_redeem_notice'), points_rate: sv('points_rate'), points_max_percent: sv('points_max_percent'), points_deduct_enable: sv('points_deduct_enable') };
+    await adm.post('/admin/settings/points', { ...PS, points_zone_ratio: '3' }); x = await a.get('/points-mall'); ok(db.get("SELECT value FROM settings WHERE key='points_zone_ratio'").value === '3' && x.text.includes('>300积分<'), '比例改为 1元=3积分后自动积分随之变化');
+    await adm.post('/admin/settings/points', { ...PS, points_zone_ratio: '-1' }); ok(db.get("SELECT value FROM settings WHERE key='points_zone_ratio'").value === '3', '非法比例被拒绝');
+    await adm.post('/admin/settings/points', { ...PS, points_zone_ratio: '2' });
+    // 供应商/VOP 商品导入积分专区
+    const sp = db.get("SELECT * FROM products WHERE supplier IS NOT NULL AND price>0 LIMIT 1") || db.get('SELECT * FROM products WHERE price>0 LIMIT 1');
+    await adm.post('/admin/points-goods/import', { product_id: String(sp.id) }); const gi = last();
+    ok(gi.source_product_id === sp.id && gi.ref_price === sp.price && gi.status === 0 && gi.points === 0 && Math.round(gi.ref_price * 2) === Math.round(sp.price * 2), '供应商商品导入积分专区:按比例自动计积分(默认下架)', JSON.stringify(gi));
+    db.exec1('UPDATE users SET points=? WHERE id=?', ptsOrig, uid); db.exec1('DELETE FROM points_redemptions WHERE goods_id>?', g0); db.exec1('DELETE FROM points_goods WHERE id>?', g0); }
+  console.log('== 前台无演示/测试字样;运营者信息待公布 ==');
+  { const bad = []; const anon = new C();
+    for (const u of ['/', '/login', '/register', '/products', '/product/1', '/product/' + (db.get("SELECT id FROM products WHERE supplier IS NOT NULL AND status=1 LIMIT 1") || { id: 1 }).id, '/points-mall', '/points-mall/2', '/help', '/service', '/article/' + (db.get("SELECT id FROM articles WHERE category='about'") || { id: 1 }).id, '/privacy', '/terms', '/storecard']) {
+      const x = await anon.get(u); const body = x.text.replace(/<script[\s\S]*?<\/script>/g, ''); const m = body.match(/演示|测试|阿东|技术联系|公司信息一览|为财哥|400-888-6666|example/); if (m) bad.push(u + ':' + body.slice(Math.max(0, m.index - 80), m.index + 20)); }
+    ok(!bad.length, '前台页面无「演示/测试/阿东/公司信息一览」及占位联系方式', bad.join(' | '));
+    const lp = await anon.get('/products'); ok(lp.text.includes('运营方:海南韵农科技有限公司') && lp.text.includes('地址:待公布') && /ICP/.test(lp.text), '页脚保留运营方(海南韵农科技有限公司)、ICP 行,地址待公布');
+    const pv = await anon.get('/privacy'); ok(pv.text.includes('海南韵农科技有限公司') && !pv.text.includes('【公司全称】') && pv.text.includes('待公布'), '隐私政策保留运营者名称,地址/邮箱/电话显示待公布');
+    const tm = await anon.get('/terms'); ok(tm.text.includes('海南韵农科技有限公司') && !/【[^】]*】/.test(tm.text.replace(/<script[\s\S]*?<\/script>/g, '')), '用户协议运营者名称已填充、无占位符');
+    const t2 = new C(); const lr = await t2.login('13800000002', '123456'); ok(lr.status === 302, '测试账号仍可登录'); }
   ok(db.get('SELECT COUNT(*) n FROM categories WHERE no_7day=1').n === 0 && db.get("SELECT COUNT(*) n FROM products WHERE no_reason_return=0 AND COALESCE(supplier,'')=''").n === 0, '迁移:清除分类/商品「不支持七天无理由」旧标记');
   { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && hp.content.includes('含生鲜') && !hp.content.includes('除鲜活易腐类商品'), '帮助中心退货政策:含生鲜均支持七天无理由'); }
   console.log('== 前台禁止上传 ==');
@@ -236,7 +293,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     // 协议
     ok2(svc.S('policy_version') === '1.1', '协议版本 1.1');
     r = await c1.get('/privacy'); ok2(r.text.includes('如后续由供应商直接发货,我们会在订单页标注') && r.text.includes('头像使用默认头像,昵称由您自行填写') && !r.text.includes('头像昵称与手机号') && !r.text.includes('以商品页或订单页标注为准'), '隐私政策:供应商标注与头像昵称说明');
-    ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '【公司全称】', '【联系邮箱】', '【生效日期】', '版本号:1.1'].every(x => r.text.includes(x)), '隐私政策补充 A2/A3/A4/A11,保留占位符');
+    ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '海南韵农科技有限公司', '待公布', '版本号:1.1'].every(x => r.text.includes(x)) && !r.text.includes('【公司全称】'), '隐私政策补充 A2/A3/A4/A11,运营者名称已填充、联系方式待公布');
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
     r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 35 积分') && !r.text.includes('{{'), '积分规则:评价积分与云商卡递增加赠');
@@ -568,7 +625,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     for (const pth of ['/', '/products', '/product/' + sku.product_id, '/me/points', '/points-mall']) { x = await a.get(pth); ok(!/积分可抵|可抵\s*¥|积分\s*=\s*¥|积分抵\s*¥/.test(x.text), '前台无积分折现比例 ' + pth); }
     // 2) 积分专区列表/详情:金色积分标签 + 包邮,按钮「立即兑换」,演示标记,无金额/退换说明
     x = await a.get('/points-mall');
-    ok(x.text.includes('class="pm-ptag">3000 积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && x.text.includes('class="tag demo">演示'), '积分专区卡片:金色「xxx 积分」+「包邮」+「立即兑换」+演示标记');
+    ok(x.text.includes('class="pm-ptag">3000积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && !x.text.includes('class="tag demo"'), '积分专区卡片:金色「xxx积分」+「包邮」+「立即兑换」,前台不显示演示标记');
     const grid = x.text.slice(x.text.indexOf('class="grid"')); ok(!/¥|退换|无理由/.test(grid), '积分商品卡片无金额、无退换说明');
     ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('class="pm-head"') && x.text.includes('#9e1712'), '积分专区:无顶部横幅/占位,顶部一行「我的积分 · 去签到」(朱红金)');
     const demoGoods = db.all('SELECT g.*, c.name cn, pc.name pn FROM points_goods g LEFT JOIN categories c ON c.id=g.category_id LEFT JOIN categories pc ON pc.id=c.parent_id');
@@ -596,7 +653,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     let p0 = db.get('SELECT points FROM users WHERE id=2').points;
     x = await a.post('/points-mall/' + tg.id + '/exchange'); const toid = +(x.loc.match(/order\/(\d+)/) || [])[1];
     const to = db.get('SELECT * FROM orders WHERE id=?', toid);
-    ok(to && to.type === 'points' && to.freight === 0 && to.pay_amount === 0 && to.points_goods_id === tg.id && db.get('SELECT points FROM users WHERE id=2').points === p0 - 10, '兑换成功:包邮(运费 0)、扣 10 积分、生成兑换单');
+    ok(to && to.type === 'points' && to.freight === 0 && to.pay_amount === 0 && to.points_goods_id === tg.id && db.get('SELECT points FROM users WHERE id=2').points === p0 - 10, '兑换成功:包邮(运费 0)、扣 10 积分、生成兑换单', JSON.stringify([x.loc, to, tg, p0, db.get('SELECT points FROM users WHERE id=2')]));
     x = await a.post('/points-mall/' + tg.id + '/exchange', {}); const ff = await a.get(x.loc); ok(ff.text.includes('每人限兑 1 件') && db.get('SELECT stock FROM points_goods WHERE id=?', tg.id).stock === 4, '超过每人限兑被拒(服务端校验)');
     x = await a.get('/points-mall/' + tg.id); ok(x.text.includes('已达兑换上限'), '达上限后按钮显示「已达兑换上限」');
     await adm.post('/admin/orders/' + toid + '/cancel', { reason: '回归测试' });
@@ -644,7 +701,11 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok(/no-store/.test((sraw && sraw.headers.get('cache-control')) || ''), '前台 HTML 不缓存(避免返回缓存显示未登录旧页)');
     ok(x.text.includes('class="me-kf" data-mp-open-type="contact" href="/service"'), '「我的」常用功能含「在线客服」入口');
     x = await b.get('/product/9'); ok(x.text.includes('class="pd-kf"') && x.text.includes('data-mp-open-type="contact"'), '商品详情底栏「客服」入口(含小程序 open-type=contact 预留)');
-    x = await b.get('/service'); ok(x.text.includes('400-888-6666(演示)') && x.text.includes('yunnong-kefu(演示)') && x.text.includes('id="chatList"') && x.text.includes('class="chat-bar"'), '联系客服页:电话/微信号(演示)+在线对话');
+    x = await b.get('/service'); ok(x.text.includes('<dt>热线</dt><dd>待公布</dd>') && !x.text.includes('yunnong-kefu') && !x.text.includes('(演示)') && x.text.includes('id="chatList"') && x.text.includes('class="chat-bar"'), '联系客服页:占位电话显示待公布、占位微信隐藏+在线对话');
+    { const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value, keep = {}; for (const k of ['shop_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days', 'company_name', 'show_sales']) keep[k] = sv(k) == null ? '' : sv(k);
+      await adm.get('/admin/settings'); await adm.post('/admin/settings', { ...keep, service_phone: '0898-12345678', service_wechat: 'yn-real', address: '海口市某路 1 号' });
+      x = await b.get('/service'); const y = await b.get('/products'); ok(x.text.includes('tel:089812345678') && x.text.includes('yn-real') && y.text.includes('地址:海口市某路 1 号'), '后台填写真实电话/微信/地址后前台自动展示', JSON.stringify([db.get("SELECT value FROM settings WHERE key='service_phone'"), (x.text.match(/<dt>热线[\s\S]{0,200}/)||[])[0], (y.text.match(/运营方[^<]*/)||[])[0]]));
+      await adm.post('/admin/settings', keep); }
     // 在线客服:图片上传(有效/超限/错误类型/超过 3 张/未登录)、订单卡片、管理员图片回复、180 天自动删除
     { const chat = require('../lib/chat'), fs = require('fs'), path = require('path');
       const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -789,6 +850,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             x = await b.get('/storecard'); const sct = x.text.replace(/<script[\s\S]*?<\/script>/g, '');
             ok(x.status === 200 && sct.includes('全国韵农甄选线下门店均可使用，到店消费享七五折（不参与折扣的商品除外，门店列表见下方）') && sct.includes('使用须知') && sct.includes('自开卡之日起 1 年') && sct.includes('由海南韵农科技有限公司及合作门店提供') && sct.includes('门店名单整理中，可咨询客服') && sct.includes('到店或联系客服办理'), '详情页:标题文案、使用须知、门店列表占位、到店或联系客服办理');
             ok(/class="sc-bar-btn" href="\/service\?from=storecard">购买</.test(sct) && !/name="sku_id"|\/cart\/add|加入购物车|立即购买|咨询办理|购买咨询|全场|限量|倒计时/.test(sct) && !/¥\s*\d/.test(sct.split('class="sc-page"')[1] || ''), '详情页只有「购买」直达客服,无加购/价格/违规用语');
+            ok(/class="sc-hero-link" href="\/service\?from=storecard"[^>]*><img src="\/static\/img\/storecard\/main\.jpg\?v=3"/.test(sct) && sct.includes('detail.jpg?v=3') && !sct.includes('sc-long-buy'), '详情页主图可点击进入客服、新图版本号 v=3、详情长图无假按钮热区');
+            { const im = await fetch(base + '/static/img/storecard/main.jpg?v=3'); const dm = await fetch(base + '/static/img/storecard/detail.jpg?v=3'); ok(im.status === 200 && dm.status === 200 && /image\/jpeg/.test(im.headers.get('content-type') || ''), '门店优惠卡新主图/详情图可访问'); }
             x = await b.get('/service?from=storecard'); ok(x.text.includes('您正在购买：线下门店优惠卡，客服将为您办理'), '从优惠卡进入客服显示购买提示');
             ok(db.get('SELECT svc_from FROM users WHERE id=?', bid).svc_from === 'storecard', '记录入口来源');
             x = await adm.get('/admin/service?uid=' + bid); ok(x.text.includes('来源:线下门店优惠卡'), '后台客服可见来源「线下门店优惠卡」');

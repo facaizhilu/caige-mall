@@ -3,4 +3,4 @@
 <% const topics=[...new Set(rows.map(r=>r.topic))]; %>
 <div class="grid g3 one" style="grid-template-columns:repeat(3,1fr)"><% topics.forEach(t=>{ %><div class="card"><h3 style="margin-top:0"><%= t %></h3><% rows.filter(r=>r.topic===t).forEach(a=>{ %><a style="display:block;padding:4px 0" href="/article/<%= a.id %>">· <%= a.title %></a><% }) %></div><% }) %></div>
 <% if(!rows.length){ %><div class="empty">没有找到相关文章</div><% } %>
-<div class="card mt flex between"><span>没找到答案?联系在线客服 · 热线 <b><%= shop.service_phone %></b><%= shop.service_phone==='400-888-6666'?'(演示)':'' %>(<%= shop.service_hours %>)</span><a class="btn primary" href="/service">联系客服</a></div>
+<div class="card mt flex between"><span>没找到答案?联系在线客服 · 热线 <b><%= pub.phone %></b>(<%= shop.service_hours %>)</span><a class="btn primary" href="/service">联系客服</a></div>

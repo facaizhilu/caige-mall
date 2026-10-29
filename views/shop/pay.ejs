@@ -1,7 +1,7 @@
 <div class="card auth" style="max-width:640px">
   <h2>收银台</h2>
   <div class="sim mb">⚠️ 这是模拟支付页面,不会产生真实扣款,也未接入任何真实支付渠道。点击「确认支付」即视为支付成功。</div>
-  <div class="flex between mb payhd"><span class="ono">订单号:<%= o.order_no %></span><span>应付金额 <span class="price"><big><%= o.pay_amount.toFixed(2) %></big></span></span></div>
+  <div class="flex between mb payhd"><span class="ono">订单号:<%= o.order_no %></span><span>应付金额 <span class="price"><big><%= o.pay_amount.toFixed(2) %></big></span><% if (o.type==='points' && o.points_used>0) { %> <span class="muted">(另已使用 <%= o.points_used %> 积分)</span><% } %></span></div>
   <p class="muted">请在 <b><%= shop.unpaid_cancel_minutes %></b> 分钟内完成支付(创建于 <%= o.created_at %>)</p>
   <form method="post" action="/order/<%= o.id %>/pay">
     <input type="hidden" name="_csrf" value="<%= csrf %>">

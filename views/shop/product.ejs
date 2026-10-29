@@ -3,7 +3,7 @@
   <div class="gallery"><div class="main"><img id="mainImg" src="<%= images[0] || U.PLACEHOLDER %>" alt="" onerror="<%= U.IMG_FALLBACK %>"></div>
     <div class="thumbs"><% images.forEach((im,i)=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" class="<%= i===0?'on':'' %>" onclick="document.getElementById('mainImg').src=this.src;document.querySelectorAll('.thumbs img').forEach(x=>x.classList.remove('on'));this.classList.add('on')"><% }) %></div></div>
   <div>
-    <h1><% if (p.supplier && demo) { %><span class="tag demo">演示</span><% } %><%= p.name %></h1>
+    <h1><%= p.name %></h1>
     <div class="subt"><%= p.subtitle %></div>
     <div class="pricebox">
       <% if (seckill) { %><div class="flex between" style="margin-bottom:6px"><span class="tag" style="background:var(--red);color:#fff">⚡ 活动专区</span><span class="muted"><%= seckill.live?'活动进行中':'活动即将开始' %></span></div><% } %>

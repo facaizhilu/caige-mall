@@ -11,14 +11,15 @@
 @media(max-width:640px){.pg-wrap{grid-template-columns:1fr;gap:12px}.pm-ptag{font-size:17px}}
 </style>
 <div class="card"><div class="pg-wrap"><div><img src="<%= g.image %>" alt="<%= g.name %>"></div><div>
-<h2 style="margin:0 0 8px;font-size:18px"><% if (g.is_demo && demo) { %><span class="tag demo">演示</span><% } %><%= g.name %></h2>
-<div><span class="pm-ptag"><%= g.points %> 积分</span><% if (g.type==='goods') { %><span class="pm-ship">包邮</span><% } %></div>
+<h2 style="margin:0 0 8px;font-size:18px"><%= g.name %></h2>
+<div><span class="pm-ptag"><%= g.pp.label %></span><% if (g.type==='goods') { %><span class="pm-ship">包邮</span><% } %></div>
 <% if (g.description) { %><div class="pg-row"><%= g.description %></div><% } %>
 <div class="pg-row">配送:<%= g.type==='goods' ? '包邮' : '虚拟券,兑换后即时到账' %></div>
 <div class="pg-row">剩余:<%= g.soldOut ? '已兑完' : g.stock + ' 件' %><% if (g.per_user_limit > 0) { %> · 每人限兑 <%= g.per_user_limit %> 件<% if (user) { %>,您还可兑 <b class="pg-left"><%= g.left %></b> 件<% } %><% } %></div>
-<% if (user) { %><div class="pg-row">我的积分:<b><%= user.points %></b></div><% } %>
+<% if (g.pp.mode!=='points') { %><div class="pg-row">支付方式:<%= g.pp.mode==='mix' ? '需同时使用 ' + g.pp.points + ' 积分并支付现金 ¥' + g.pp.cash.toFixed(2) : '现金支付 ¥' + g.pp.cash.toFixed(2) %>(现金通过微信支付)</div><% } %>
+<% const short = user && g.pp.points > user.points; %><% if (user) { %><div class="pg-row">我的积分:<b><%= user.points %></b><% if (short) { %> <span class="pg-short" style="color:#c0392b">积分不足,还差 <%= g.pp.points - user.points %> 积分</span><% } %></div><% } %>
 <% if (g.soldOut) { %><button class="btn lg block mt" disabled>已兑完</button>
-<% } else if (!user) { %><a class="btn gold lg block mt" href="/login?next=/points-mall/<%= g.id %>">登录后兑换</a>
-<% } else { %><form method="post" action="/points-mall/<%= g.id %>/exchange" data-confirm="确定使用 <%= g.points %> 积分兑换「<%= g.name %>」?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn gold lg block mt" <%= g.left===0?'disabled':'' %>><%= g.left===0?'已达兑换上限':'积分兑换' %></button></form><% } %>
+<% } else if (!user) { %><a class="btn gold lg block mt" href="/login?next=/points-mall/<%= g.id %>">登录后<%= g.pp.mode==='points'?'兑换':'购买' %></a>
+<% } else { %><form method="post" action="/points-mall/<%= g.id %>/exchange" data-confirm="确定以「<%= g.pp.label %>」<%= g.pp.mode==='points'?'兑换':'购买' %>「<%= g.name %>」?<%= g.pp.cash>0?'下一步将进入收银台支付现金。':'' %>"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn gold lg block mt" <%= g.left===0||short?'disabled':'' %>><%= g.left===0?'已达兑换上限':short?'积分不足':(g.pp.mode==='points'?'积分兑换':'立即购买 ' + g.pp.label) %></button></form><% } %>
 <% if (notice) { %><p class="pg-notice"><%= notice %></p><% } %>
 </div></div></div>

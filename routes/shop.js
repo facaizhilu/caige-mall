@@ -516,7 +516,7 @@ module.exports = function (app, { filesOf }) {
   const policyVersion = () => svc.S('policy_version') || '1.1';
   const policy = topic => {
     const a = db.get("SELECT * FROM articles WHERE category='policy' AND topic=? ORDER BY id LIMIT 1", topic);
-    return a ? { ...a, content: String(a.content || '').split('{{version}}').join(policyVersion()) } : null;
+    return a ? { ...a, content: svc.fillOperator(String(a.content || '').split('{{version}}').join(policyVersion())) } : null;
   };
   for (const [path, topic, title] of [['/privacy', 'privacy', '隐私政策'], ['/terms', 'terms', '用户协议']]) {
     app.get(path, (req, res) => {
@@ -649,19 +649,19 @@ module.exports = function (app, { filesOf }) {
   // 积分专区:已兑完(库存 0)的商品排在最后并标「已兑完」;积分商品一律包邮;前台不展示积分折现比例
   app.get('/points-mall', (req, res) => {
     const goods = db.all('SELECT * FROM points_goods WHERE status=1 ORDER BY (stock<=0), sort, id');
-    goods.forEach(g => { g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g); });
+    goods.forEach(g => { g.pp = svc.pgPrice(g); g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g); });
     res.page('shop/points-mall', { title: '积分专区', goods });
   });
   app.get('/points-mall/:id', (req, res, next) => {
     const g = db.get('SELECT * FROM points_goods WHERE id=? AND status=1', int(req.params.id)); if (!g) return next();
-    g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g);
+    g.pp = svc.pgPrice(g); g.soldOut = g.stock <= 0; g.left = svc.redeemLeft(req.user && req.user.id, g);
     res.page('shop/points-goods', { title: g.name, g, notice: String(svc.S('points_redeem_notice') || '').trim() });
   });
   app.post('/points-mall/:id/exchange', needLogin, (req, res) => {
     const id = int(req.params.id), r = svc.redeemPointsGoods(req.user.id, id);
     if (req.get('accept') === 'application/json') return res.json(r);
     flash(req, r.ok ? 'success' : 'error', r.msg);
-    res.redirect(r.ok && r.oid ? '/order/' + r.oid : r.addr ? '/me/addresses' : r.ok ? '/points-mall' : '/points-mall/' + id);
+    res.redirect(r.ok && r.pay ? '/order/' + r.oid + '/pay' : r.ok && r.oid ? '/order/' + r.oid : r.addr ? '/me/addresses' : r.ok ? '/points-mall' : '/points-mall/' + id);
   });
 
   // ---------------- 秒杀 / 拼团 ----------------

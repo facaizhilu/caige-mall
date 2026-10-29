@@ -270,6 +270,13 @@ svc.cloud.ensureDefaults();
       mark('demo_plain_names_20261020');
     })();
   }
+  // 2026-10-29 走向正式环境:前台去掉「演示/测试」字样(仅替换种子默认文案,幂等;测试账号保留)
+  db.transaction(() => {
+    for (const [o, n] of require('./lib/seed-texts').PUBLIC_WORDING) {
+      for (const [t, c] of [['articles', 'content'], ['products', 'description'], ['points_goods', 'description']]) db.exec1(`UPDATE ${t} SET ${c}=REPLACE(${c},?,?) WHERE instr(${c},?)>0`, o, n, o);
+    }
+    db.exec1("UPDATE products SET supplier_brand='韵农甄选' WHERE supplier_brand='演示品牌'");
+  })();
 })();
 
 const app = express();
@@ -408,7 +415,7 @@ app.use((req, res, next) => { if (req.method === 'GET' && !req.path.startsWith('
 app.use(csrf);
 app.use(pageRenderer('shop/layout'));
 app.use((req, res, next) => {
-  res.locals.shop = svc.settings();
+  res.locals.shop = svc.settings(); res.locals.pub = svc.publicInfo();
   res.locals.flash = req.session.flash; delete req.session.flash;
   res.locals.user = null; res.locals.cartCount = 0;
   if (req.session.uid) {
