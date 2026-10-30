@@ -36,7 +36,7 @@
     <dl class="kv" style="grid-template-columns:1fr auto;max-width:420px;margin-left:auto">
       <dt>商品金额</dt><dd class="right" id="rGoods"><%= money(q.goods) %></dd>
       <dt>运费<% if (q.hasSupplier) { %> <span class="muted" style="font-size:12px">(含供应商发货运费)</span><% } %><% if (q.cloudFree) { %> <span class="tag gold">云商卡会员包邮</span><% } %></dt><dd class="right" id="rFreight"><%= money(q.freight) %></dd>
-      <dt><% if (/云商/.test(q.levelName) && q.levelDiscount > 0) { %><%= q.levelName %> <b class="price">¥<span id="rCloudPx"><%= (q.goods - q.levelDiscount).toFixed(2) %></span></b> <span class="muted" style="font-size:12px">(已优惠)</span><% } else { %><%= /云商/.test(q.levelName) ? q.levelName : (/会员$/.test(q.levelName) ? q.levelName + '折扣' : q.levelName + '会员折扣') %><% } %></dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd>
+      <% const cardOn = svcCloudOn(q.user); if (q.levelDiscount <= 0) { %><% if (cardOn) { %><dt class="muted" style="font-size:12px;grid-column:1/-1;text-align:right" id="rNoCloud">本商品不参与云商卡折扣</dt><% } %><dd id="rLevel" hidden></dd><% } else { %><dt><% if (/云商/.test(q.levelName)) { %><%= q.levelName %> <b class="price">¥<span id="rCloudPx"><%= (q.goods - q.levelDiscount).toFixed(2) %></span></b> <span class="muted" style="font-size:12px">(已优惠)</span><% } else { %><%= /云商/.test(q.levelName) ? q.levelName : (/会员$/.test(q.levelName) ? q.levelName + '折扣' : q.levelName + '会员折扣') %><% } %></dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd><% } %>
       <dt>优惠券</dt><dd class="right" id="rCoupon">-<%= money(q.couponDiscount) %></dd>
       <% if (shop.points_deduct_enable==='1') { %><dt>积分抵扣</dt><dd class="right" id="rPts">-<%= money(q.pointsDiscount) %></dd><% } %>
     </dl>

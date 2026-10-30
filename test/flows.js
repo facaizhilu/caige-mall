@@ -49,13 +49,18 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   const gg = db.get('SELECT group_id FROM orders WHERE id=?', goid).group_id; let G = db.get('SELECT * FROM groups WHERE id=?', gg);
   { const dt = (new Date(G.expire_at.replace(' ', 'T')) - new Date(G.created_at.replace(' ', 'T'))) / 60000; ok(G.status === 'open' && dt >= 9.9 && dt <= 180.1, '自动成团时间为开团后随机 10~180 分钟内', dt.toFixed(1)); }
   { const exp = db.all("SELECT expire_at FROM groups").map(x => x.expire_at); ok(exp.length >= 2 && new Set(exp).size === exp.length, '每个团的成团时间各自随机'); }
-  r = await b.get('/group/' + gg); ok(r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && r.text.includes('邀请好友一起拼') && (r.text.match(/class="tag gold"/g) || []).length === 1 && !/有人参团|自动成团|超时|退款/.test(r.text.slice(r.text.indexOf('参与拼团'), r.text.indexOf('gb-rule'))), '团页:低调规则一行,主推邀请好友,仅 1 名真实团员');
+  r = await b.get('/group/' + gg); ok(r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && r.text.includes('邀请好友一起拼') && /<span class="gb-members">[^<、]+\*\*<\/span>/.test(r.text) && !r.text.includes('还差') && !/有人参团|自动成团|超时|退款/.test(r.text.slice(r.text.indexOf('参与拼团'), r.text.indexOf('gb-rule'))), '团页:低调规则一行,主推邀请好友,仅 1 名真实团员');
+  { const lp = await b.get('/group/' + gg), np = await a.get('/group/' + gg); ok(np.text.includes('立即参团') && !np.text.includes('复制拼团链接') && lp.text.includes('邀请好友 · 复制拼团链接') && !lp.text.includes('立即参团') && !lp.text.includes('还差'), '团长打开自己的团:显示「邀请好友」复制链接按钮,无「立即参团」'); }
+  { const od = await b.get('/order/' + goid); ok(od.text.includes('邀请好友一起拼') && !od.text.includes('还差'), '订单详情:邀请好友一起拼,无「还差N人」'); }
+  { const pd = await b.get('/product/' + db.get('SELECT product_id FROM groupbuys WHERE id=(SELECT groupbuy_id FROM groups WHERE id=?)', gg).product_id); ok(!pd.text.includes('还差') && pd.text.includes('邀请好友一起拼'), '商品页正在拼团列表:无「还差N人」'); }
+  { const gp = await b.get('/groupbuy'); ok(!gp.text.includes('还差'), '拼团专区:无「还差N人」'); }
   r = await b.get('/product/' + gb.product_id); ok(r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && !/超时未成团|全额退款/.test(r.text), '商品页:拼团规则一行');
   r = await b.get('/groupbuy'); ok(r.text.includes('邀请好友一起拼') && r.text.includes('最迟3小时内成团') && !r.text.includes('超时未成团'), '拼团专区:新规则文案');
   db.prepare("UPDATE groups SET expire_at=? WHERE id=?").run(U9.offset(-1000), gg);
   ok(svcG.autoSucceedGroups() >= 1, '到点调度执行');
   G = db.get('SELECT * FROM groups WHERE id=?', gg);
   ok(G.status === 'success' && G.auto_success === 1 && G.success_at && G.joined === 1 && db.get('SELECT COUNT(*) n FROM group_members WHERE group_id=?', gg).n === 1 && db.get('SELECT COUNT(*) n FROM users').n === users0, '未满员到点自动成团:标记 auto_success,不加虚拟团员/不改参团人数');
+  { const tr = db.all("SELECT text FROM traces WHERE order_id=? AND text LIKE '%拼团%'", goid).map(x => x.text); ok(tr.join('|') === '拼团成功', '成团后物流记录只显示「拼团成功」', tr.join('|')); }
   ok(db.get('SELECT status FROM orders WHERE id=?', goid).status === 'paid' && db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '拼团成功%'", goid) && !db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '%退款%'", goid), '订单进入待发货,轨迹「拼团成功」,无退款');
   r = await b.get('/group/' + gg); ok(r.text.includes('拼团成功') && !r.text.includes('立即参团') && !/系统自动成团|未满员，系统/.test(r.text), '团页成团后统一显示「拼团成功」');
   r = await b.get('/order/' + goid); ok(r.text.includes('拼团成功') && !r.text.includes('自动成团'), '订单页显示拼团成功');

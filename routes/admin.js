@@ -795,7 +795,7 @@ module.exports = function (r, { filesOf }) {
     const numeric = [...svc.SIGNIN_KEYS, 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     if (!String(req.body.shop_name || '').trim()) { flash(req, 'error', '商城名称不能为空'); return res.redirect('/admin/settings'); }
     for (const k of [...svc.SIGNIN_KEYS, 'group_auto_max_minutes']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
-    { const gm = String(req.body.group_auto_max_minutes).trim(); if (!/^\d{1,4}$/.test(gm) || +gm < 10 || +gm > 1440) { flash(req, 'error', '拼团最迟自动成团时间需为 10~1440 分钟'); return res.redirect('/admin/settings'); } }
+    { const gm = String(req.body.group_auto_max_minutes).trim(); if (!/^\d{1,4}$/.test(gm) || +gm < 10 || +gm > 180) { flash(req, 'error', '拼团最迟自动成团时间需为 10~180 分钟的整数'); return res.redirect('/admin/settings'); } }
     for (const k of numeric) if (!(num(req.body[k], -1) >= 0)) { flash(req, 'error', '数值类设置需为非负数字'); return res.redirect('/admin/settings'); }
     for (const [b0, m0] of [['signin_base', 'signin_max'], ['cloud_signin_base', 'cloud_signin_max']]) if (!(/^\d{1,4}$/.test(String(req.body[b0]).trim()) && /^\d{1,4}$/.test(String(req.body[m0]).trim()) && +req.body[m0] >= +req.body[b0] && +req.body[m0] <= 1000)) { flash(req, 'error', '签到积分需为整数,每天封顶不小于第 1 天积分且不超过 1000'); return res.redirect('/admin/settings'); }
     for (const k of keys) svc.setSetting(k, String(req.body[k] == null ? '' : req.body[k]).trim().slice(0, 300));

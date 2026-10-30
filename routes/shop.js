@@ -678,7 +678,7 @@ module.exports = function (app, { filesOf }) {
     const gb = db.get('SELECT * FROM groupbuys WHERE id=?', g.groupbuy_id);
     const p = db.get('SELECT * FROM products WHERE id=?', gb.product_id);
     const members = db.all('SELECT u.nickname FROM group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=?', g.id);
-    res.page('shop/group', { title: '参与拼团', g, gb, p, img: U.firstImg(p.images), members, expired: g.expire_at < now(), noReason: svc.noReasonOf(p.id) });
+    res.page('shop/group', { title: '参与拼团', g, gb, p, img: U.firstImg(p.images), members, isMember: !!(req.user && db.get('SELECT 1 FROM group_members WHERE group_id=? AND user_id=?', g.id, req.user.id)), expired: g.expire_at < now(), noReason: svc.noReasonOf(p.id) });
   });
 
   // ---------------- 内容 / 客服 ----------------

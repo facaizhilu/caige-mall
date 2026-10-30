@@ -69,7 +69,7 @@ module.exports = function setupFixtures() {
     const goid = ins('orders', { order_no: U.orderNo() + '9', user_id: gu, type: 'group', status: 'paid', goods_amount: 69.9, pay_amount: 69.9, pay_method: 'wechat', paid_at: now(), receiver: ga.name, phone: ga.phone, province: ga.province, city: ga.city, district: ga.district, detail: ga.detail, group_id: gid, promo_id: gb1, created_at: now() });
     ins('order_items', { order_id: goid, product_id: gp.id, sku_id: g1.id, name: gp.name, spec_text: g1.spec_text, image: U.firstImg(gp.images), price: 69.9, qty: 1 });
     ins('group_members', { group_id: gid, user_id: gu, order_id: goid });
-    db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', goid, now(), '拼团中,还差1人成团');
+    db.exec1('INSERT INTO traces(order_id,time,text) VALUES(?,?,?)', goid, now(), '拼团中,邀请好友一起拼');
     // 发票
     const io = db.get("SELECT * FROM orders WHERE status='completed' LIMIT 1 OFFSET 1");
     ins('invoices', { order_id: io.id, user_id: io.user_id, type: 'company', title: '海南韵农科技有限公司', tax_no: '91440300MA5XXXXXXX', email: 'fin@example.com', amount: io.pay_amount, created_at: now() });

@@ -249,6 +249,13 @@ svc.cloud.ensureDefaults();
     }
     mark('admin_remark_20261025');
   }
+  if (!done('group_qa_fix_20261029')) { // 拼团 QA:最迟成团时间上限 180 分钟;物流去掉「还差N人」,成团后只保留「拼团成功」
+    if (+svc.S('group_auto_max_minutes') > 180) svc.setSetting('group_auto_max_minutes', '180');
+    db.exec("UPDATE traces SET text='拼团中,邀请好友一起拼' WHERE text LIKE '拼团中,还差%'");
+    db.exec("DELETE FROM traces WHERE text LIKE '拼团中%' AND order_id IN (SELECT m.order_id FROM group_members m JOIN groups g ON g.id=m.group_id WHERE g.status='success')");
+    db.exec("UPDATE traces SET text='拼团成功' WHERE text='拼团成功,商家将尽快发货'");
+    mark('group_qa_fix_20261029');
+  }
   if (!done('cloud_tier_discount_20261029')) { // 云商卡按档位折扣(白银/黄金/钻石),替换单一 cloud_discount;补钻石卡类型
     db.exec("DELETE FROM settings WHERE key='cloud_discount'");
     svc.cloud.ensureDefaults();
@@ -404,7 +411,7 @@ function pageRenderer(layout) {
     next();
   };
 }
-app.locals.U = U; app.locals.demo = process.env.DEMO_MODE === '1'; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
+app.locals.U = U; app.locals.svcCloudOn = u => svc.cloud.isCardActive(u); app.locals.demo = process.env.DEMO_MODE === '1'; app.locals.money = U.money; app.locals.ORDER_STATUS = U.ORDER_STATUS; app.locals.PAY_METHOD = U.PAY_METHOD;
 // 划线原价:仅在填写且高于售价时展示(《明码标价和禁止价格欺诈规定》)
 // 商品标签自动判定:「新品」按上架时间,「热卖」按真实销量(products.sales 仅由真实订单计算)
 app.locals.prodTag = (p, s) => { const nd = U.int(s.new_days, 30), ht = U.int(s.hot_sales_threshold, 10); if (nd > 0 && p.created_at && p.created_at >= U.offset(-nd * 86400000)) return '新品'; if (ht > 0 && +p.sales >= ht) return '热卖'; return ''; };
