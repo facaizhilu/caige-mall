@@ -32,7 +32,7 @@
       <% if (canGroup) { %><button class="btn lg need-no7"<%- dis %> style="border-color:var(--red);color:var(--red)" onclick="buy('group')">👥 发起拼团 ¥<%= groupbuy.price %>(<%= groupbuy.size %>人团)</button><% } %>
       <button class="btn lg" id="favBtn" onclick="fav()"><%= faved?'★ 已收藏':'☆ 收藏' %></button>
     </div>
-    <% if (openGroups.length) { %><div class="card mt" style="background:#fffaf0;padding:12px 16px"><b>正在拼团,可直接参团:</b><% openGroups.forEach(g=>{ %><div class="flex between" style="margin-top:6px"><span><%= g.nickname.slice(0,1) %>** 发起的团,还差 <b style="color:var(--red)"><%= g.need-g.joined %></b> 人</span><span class="flex"><span class="muted"><%= g.expire_at.slice(5,16) %> 截止</span><a class="btn primary sm" href="/group/<%= g.id %>">去参团</a></span></div><% }) %></div><% } %>
+    <% if (groupbuy) { %><p class="muted gb-rule" style="font-size:12px;margin:8px 0 0">拼团规则:开团后最迟<%= groupHours %>小时内成团，未满员也按拼团价发货</p><% } %><% if (openGroups.length) { %><div class="card mt" style="background:#fffaf0;padding:12px 16px"><b>正在拼团,可直接参团:</b><% openGroups.forEach(g=>{ %><div class="flex between" style="margin-top:6px"><span><%= g.nickname.slice(0,1) %>** 发起的团,还差 <b style="color:var(--red)"><%= g.need-g.joined %></b> 人</span><span class="flex"><a class="btn primary sm" href="/group/<%= g.id %>">去参团</a></span></div><% }) %></div><% } %>
   </div>
 </div>
 <form id="buyForm" method="post" action="/checkout" class="hide"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="sku_id"><input name="qty"><input name="promo_type"><input name="promo_id"><input name="group_id"><input name="no7_ok"></form>

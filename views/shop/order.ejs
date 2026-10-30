@@ -4,7 +4,7 @@
   <% if (['unpaid','paid','shipped','completed'].includes(o.status)) { const idx={unpaid:0,paid:1,shipped:2,completed:3}[o.status]; %>
   <div class="steps mt"><% ['提交订单','支付成功','商家发货','交易完成'].forEach((s,i)=>{ %><div class="<%= i<=idx?'on':'' %>"><%= s %></div><% }) %></div><% } %>
   <% if (o.status==='unpaid') { %><div class="sim mb">请在 <b><%= expireAt %></b> 前完成支付,超时将自动取消。 <a class="btn primary sm" href="/order/<%= o.id %>/pay">去支付(模拟)</a></div><% } %>
-  <% if (group) { %><div class="sim mb">👥 拼团状态:<b><%= {open:'拼团中,还差'+(group.need-group.joined)+'人',success:'拼团成功',failed:'拼团失败(已自动退款)'}[group.status] %></b> <% if (group.status==='open') { %><a href="/group/<%= group.id %>">邀请好友参团 ›</a><% } %></div><% } %>
+  <% if (group) { %><div class="sim mb">👥 拼团状态:<b><%= {open:'拼团中,还差'+(group.need-group.joined)+'人,邀请好友一起拼',success:'拼团成功',failed:'拼团已结束'}[group.status] %></b> <% if (group.status==='open') { %><a href="/group/<%= group.id %>">邀请好友参团 ›</a><% } %></div><% } %>
   <% if (o.status==='cancelled'||o.status==='refunded') { %><p class="muted">原因:<%= o.cancel_reason %> · <%= o.cancelled_at %></p><% } %>
 </div>
 <div class="grid g2" style="grid-template-columns:1fr 1fr">

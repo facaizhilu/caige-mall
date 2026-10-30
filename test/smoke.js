@@ -145,7 +145,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   // 秒杀
   r = await shop.get('/seckill?x=1'); ok(r.status === 301 && r.loc === '/activity?x=1', '旧地址 /seckill 301 跳转 /activity');
   r = await shop.get('/points-rules'); ok(!r.text.includes('= ¥1') && !r.text.includes('下单抵扣') && !r.text.includes('秒杀') && r.text.includes('6 月 1 日'), '积分规则:前台无积分折现比例(抵现默认关闭),含 6/1 周期清零说明');
-  r = await shop.get('/groupbuy'); ok(r.text.includes('发起拼团，成团即发货；超时未成团自动全额退款') && !r.text.includes('邀请好友'), '拼团文案无邀请好友');
+  r = await shop.get('/groupbuy'); ok(r.text.includes('邀请好友一起拼，凑满即刻成团') && r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && !r.text.includes('超时未成团'), '拼团文案:邀请好友一起拼 + 低调规则一行(店主 2026-10-29 新规则)');
   r = await shop.get('/group/1'); ok(!/<span class="tag gold">[^<*]{2,}<\/span>/.test(r.text) && r.text.includes('**</span>'), '团员昵称脱敏');
   r = await shop.get('/products'); ok(!r.text.includes('ribbon">热卖'), '无真实销量≥阈值时不显示「热卖」');
   r = await shop.get('/product/9'); ok(r.text.includes('千兆网口 · 双频并发 · 穿墙覆盖') && !r.text.includes('親'), '商品9(演示:无线路由器,经营范围内)副标题');

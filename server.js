@@ -249,6 +249,15 @@ svc.cloud.ensureDefaults();
     }
     mark('admin_remark_20261025');
   }
+  if (!done('group_auto_success_20261029')) { // 拼团改为「到点自动成团」:进行中的团重新安排在开团后随机 10~N 分钟内成团(已过点的由 sweep 立即成团);不再超时失败退款
+    if (svc.S('group_auto_max_minutes') == null) svc.setSetting('group_auto_max_minutes', '180');
+    const mx = svc.groupAutoMaxMinutes();
+    for (const g of db.all("SELECT id, created_at FROM groups WHERE status='open'")) {
+      const t = new Date(String(g.created_at).replace(' ', 'T')).getTime() + Math.round((Math.min(10, mx) + Math.random() * (mx - Math.min(10, mx))) * 60000);
+      db.exec1('UPDATE groups SET expire_at=? WHERE id=?', U.fmtDate(new Date(t)), g.id);
+    }
+    mark('group_auto_success_20261029');
+  }
   if (!done('signin_v2_20261029')) { // 店主新签到规则:普通 12 起 +1 封顶 18;云商卡 37 起 +2 封顶 55(当日总数,不叠加);旧「云商卡签到加赠」配置下线
     db.transaction(() => {
       for (const [k, v] of Object.entries({ signin_base: '12', signin_step: '1', signin_max: '18', cloud_signin_base: '37', cloud_signin_step: '2', cloud_signin_max: '55' })) svc.setSetting(k, v);
@@ -403,7 +412,7 @@ adminRouter.use(adminSession);
 adminRouter.use(multipart(req => !!req.session.admin));
 adminRouter.use(csrf);
 adminRouter.use(pageRenderer('admin/layout'));
-adminRouter.use((req, res, next) => { res.locals.admin = req.session.admin || null; res.locals.shop = svc.settings(); res.locals.flash = req.session.flash; delete req.session.flash; res.locals.filesOf = filesOf; next(); });
+adminRouter.use((req, res, next) => { res.locals.admin = req.session.admin || null; res.locals.shop = svc.settings(); res.locals.groupHours = svc.groupAutoHours(); res.locals.flash = req.session.flash; delete req.session.flash; res.locals.filesOf = filesOf; next(); });
 require('./routes/admin')(adminRouter, { filesOf });
 app.use('/admin', adminRouter);
 app.use('/admin', (req, res) => res.status(404).send('后台页面不存在'));
@@ -426,7 +435,7 @@ app.use((req, res, next) => { if (req.method === 'GET' && !req.path.startsWith('
 app.use(csrf);
 app.use(pageRenderer('shop/layout'));
 app.use((req, res, next) => {
-  res.locals.shop = svc.settings(); res.locals.pub = svc.publicInfo();
+  res.locals.shop = svc.settings(); res.locals.pub = svc.publicInfo(); res.locals.groupHours = svc.groupAutoHours();
   res.locals.flash = req.session.flash; delete req.session.flash;
   res.locals.user = null; res.locals.cartCount = 0;
   if (req.session.uid) {

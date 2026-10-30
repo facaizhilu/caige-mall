@@ -1,4 +1,4 @@
-// 进阶流程测试:拼团成团/失败、秒杀下单、优惠券+积分抵扣、客服创建售后+积分/现金按比例退款、前台禁止上传
+// 进阶流程测试:拼团成团/到点自动成团、秒杀下单、优惠券+积分抵扣、客服创建售后+积分/现金按比例退款、前台禁止上传
 const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000);
 const db = require('../lib/db');
 let pass = 0, fail = 0;
@@ -40,14 +40,37 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   const ords = db.all("SELECT id,status FROM orders WHERE group_id=?", gid); ok(ords.length === 2, '团内两张订单');
   r = await adm.get('/admin/login'); await adm.post('/admin/login', { username: 'admin', password: 'admin123' }); await adm.get('/admin/password'); await adm.post('/admin/password/skip'); await adm.get('/admin');
   r = await adm.post('/admin/orders/' + oid + '/ship', { company: '中通快递', tracking_no: 'ZT0000000001' }); ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped', '成团后可发货');
-  // 失败团:创建一个新团后强制过期
+  // 未满员团:到点系统自动成团(只显示真实团员,不加虚拟团员,已付款订单不失败)
+  const svcG = require('../lib/svc'), U9 = require('../lib/util');
+  const users0 = db.get('SELECT COUNT(*) n FROM users').n;
   r = await b.post('/checkout', { sku_id: gb.sku_id, qty: 1, promo_type: 'group', promo_id: gb.id }); r = await b.post('/order/create', { items: itemsRaw(r.text), promo_type: 'group', promo_id: gb.id, address_id: (r.text.match(/name="address_id" value="(\d+)"/) || [])[1] || db.get('SELECT id FROM addresses WHERE user_id=3').id });
   const goid = r.loc.match(/order\/(\d+)/)[1]; await b.post('/order/' + goid + '/pay', { method: 'wechat' });
-  const g2 = db.get('SELECT * FROM orders WHERE id=?', goid); ok(g2.status === 'paid' || g2.status === 'unpaid', '开团订单创建并支付');
-  if (g2.status === 'unpaid') { await b.post('/order/' + goid + '/pay', { method: 'wechat' }); }
-  const gg = db.get('SELECT group_id FROM orders WHERE id=?', goid).group_id; db.prepare("UPDATE groups SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(gg);
-  require('../lib/svc').expireGroups();
-  ok(db.get('SELECT status FROM groups WHERE id=?', gg).status === 'failed' && db.get('SELECT status FROM orders WHERE id=?', goid).status === 'refunded', '超时未成团自动失败并退款');
+  ok(db.get('SELECT status FROM orders WHERE id=?', goid).status === 'paid', '开团订单创建并支付');
+  const gg = db.get('SELECT group_id FROM orders WHERE id=?', goid).group_id; let G = db.get('SELECT * FROM groups WHERE id=?', gg);
+  { const dt = (new Date(G.expire_at.replace(' ', 'T')) - new Date(G.created_at.replace(' ', 'T'))) / 60000; ok(G.status === 'open' && dt >= 9.9 && dt <= 180.1, '自动成团时间为开团后随机 10~180 分钟内', dt.toFixed(1)); }
+  { const exp = db.all("SELECT expire_at FROM groups").map(x => x.expire_at); ok(exp.length >= 2 && new Set(exp).size === exp.length, '每个团的成团时间各自随机'); }
+  r = await b.get('/group/' + gg); ok(r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && r.text.includes('邀请好友一起拼') && (r.text.match(/class="tag gold"/g) || []).length === 1 && !/有人参团|自动成团|超时|退款/.test(r.text.slice(r.text.indexOf('参与拼团'), r.text.indexOf('gb-rule'))), '团页:低调规则一行,主推邀请好友,仅 1 名真实团员');
+  r = await b.get('/product/' + gb.product_id); ok(r.text.includes('开团后最迟3小时内成团，未满员也按拼团价发货') && !/超时未成团|全额退款/.test(r.text), '商品页:拼团规则一行');
+  r = await b.get('/groupbuy'); ok(r.text.includes('邀请好友一起拼') && r.text.includes('最迟3小时内成团') && !r.text.includes('超时未成团'), '拼团专区:新规则文案');
+  db.prepare("UPDATE groups SET expire_at=? WHERE id=?").run(U9.offset(-1000), gg);
+  ok(svcG.autoSucceedGroups() >= 1, '到点调度执行');
+  G = db.get('SELECT * FROM groups WHERE id=?', gg);
+  ok(G.status === 'success' && G.auto_success === 1 && G.success_at && G.joined === 1 && db.get('SELECT COUNT(*) n FROM group_members WHERE group_id=?', gg).n === 1 && db.get('SELECT COUNT(*) n FROM users').n === users0, '未满员到点自动成团:标记 auto_success,不加虚拟团员/不改参团人数');
+  ok(db.get('SELECT status FROM orders WHERE id=?', goid).status === 'paid' && db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '拼团成功%'", goid) && !db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '%退款%'", goid), '订单进入待发货,轨迹「拼团成功」,无退款');
+  r = await b.get('/group/' + gg); ok(r.text.includes('拼团成功') && !r.text.includes('立即参团') && !/系统自动成团|未满员，系统/.test(r.text), '团页成团后统一显示「拼团成功」');
+  r = await b.get('/order/' + goid); ok(r.text.includes('拼团成功') && !r.text.includes('自动成团'), '订单页显示拼团成功');
+  r = await a.post('/checkout', { sku_id: gb.sku_id, qty: 1, promo_type: 'group', promo_id: gb.id, group_id: gg }); ok(!r.text.includes('确认订单'), '已成团的团不能再参团');
+  r = await adm.get('/admin/groups'); ok(r.text.includes('自动成团') && r.text.includes('不添加虚拟团员') && !r.text.includes('原路退回'), '后台拼团列表:显示自动成团标记与新规则说明');
+  r = await adm.post('/admin/orders/' + goid + '/ship', { company: '中通快递', tracking_no: 'ZT0000000002' }); ok(db.get('SELECT status FROM orders WHERE id=?', goid).status === 'shipped', '自动成团后可正常发货');
+  // 重启后仍会处理到点的团:另起一个服务进程(同库),启动时即执行调度
+  { r = await b.post('/checkout', { sku_id: gb.sku_id, qty: 1, promo_type: 'group', promo_id: gb.id }); r = await b.post('/order/create', { items: itemsRaw(r.text), promo_type: 'group', promo_id: gb.id, address_id: db.get('SELECT id FROM addresses WHERE user_id=3').id });
+    const o3 = r.loc.match(/order\/(\d+)/)[1]; await b.post('/order/' + o3 + '/pay', { method: 'wechat' }); const g3 = db.get('SELECT group_id FROM orders WHERE id=?', o3).group_id;
+    db.prepare("UPDATE groups SET expire_at=? WHERE id=?").run(U9.offset(-1000), g3);
+    const cp = require('child_process').spawn(process.execPath, ['server.js'], { cwd: require('path').join(__dirname, '..'), env: { ...process.env, PORT: '3977' }, stdio: 'ignore' });
+    let st = ''; for (let t = Date.now(); Date.now() - t < 15000 && st !== 'success'; await new Promise(z => setTimeout(z, 200))) st = db.get('SELECT status FROM groups WHERE id=?', g3).status;
+    cp.kill(); ok(st === 'success' && db.get('SELECT auto_success FROM groups WHERE id=?', g3).auto_success === 1, '服务重启后启动即处理到点未成团的团'); }
+  // 设置:最迟时间可在后台修改
+  ok(svcG.groupAutoMaxMinutes() === 180 && svcG.groupAutoHours() === 3, '默认最迟 180 分钟(3 小时)');
   console.log('== 秒杀 ==');
   const sk = db.get('SELECT * FROM seckills WHERE id=2');
   r = await a.post('/checkout', { sku_id: sk.sku_id, qty: 3, promo_type: 'activity', promo_id: sk.id, no7_ok: '1' }); ok(r.status === 302 && r.loc, '超过限购被拒(限2)');
