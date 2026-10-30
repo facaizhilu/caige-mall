@@ -96,7 +96,10 @@ module.exports = function (app, { filesOf }) {
     // 好评率:无评价显示「暂无评价」;评价少于 RATE_MIN 条时只显示条数,不显示百分比(避免误导)
     const RATE_MIN = 10;
     const rateText = !rs.n ? '暂无评价' : rs.n < RATE_MIN ? `共 ${rs.n} 条评价` : `好评率 ${Math.round((rs.good || 0) / rs.n * 100)}%(共 ${rs.n} 条评价)`;
-    res.page('shop/product', { title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, freight, faved, noReason: svc.noReasonOf(p.id), RATE_MIN, rateText });
+    const cc = svc.cloud.cfg(), cRate = svc.cloud.discountFor(req.user), lvRate = req.user ? (req.user.level_discount ?? 100) : 100;
+    const cloudOffer = req.user && cRate < 100 && cRate < lvRate ? { zhe: svc.cloud.fmtZhe(cRate / 10), rate: cRate } : null; // 云商会员价(与等级折扣取更优)
+    const cloudRange = !cloudOffer && !svc.cloud.isCardActive(req.user) ? svc.cloud.rangeText(cc) : '';
+    res.page('shop/product', { cloudOffer, cloudRange, title: p.name, p, images, skus, specs, seckill, groupbuy, openGroups, reviews, rs, rv, related, brand, category, tpl, freight, faved, noReason: svc.noReasonOf(p.id), RATE_MIN, rateText });
   });
 
   app.post('/favorite/:id', needLogin, (req, res) => {
@@ -635,7 +638,7 @@ module.exports = function (app, { filesOf }) {
     const status = cloud.cardStatus(req.user);
     const types = db.all('SELECT * FROM cloud_card_types WHERE status=1 ORDER BY sort, id')
       .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration }));
-    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), sg: svc.signinCfg(), sgCloudSeries: svc.signinSeries(true), card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
+    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), range: cloud.rangeText(), sg: svc.signinCfg(), sgCloudSeries: svc.signinSeries(true), card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
   });
 
   // ---------------- 积分商城 ----------------

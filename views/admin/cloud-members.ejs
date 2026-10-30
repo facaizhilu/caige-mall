@@ -1,6 +1,6 @@
 <div class="card"><p class="muted" style="margin-top:0">开通 / 续期 / 停用请进入会员详情的「云商卡」卡片操作,并登记线下销售信息(实收金额、日期、卡类型、经办员工、收据/发票备注)。</p><form class="toolbar" method="get">
   <input type="search" name="q" value="<%= q %>" placeholder="手机号/昵称" style="min-width:180px">
-  <select name="tier"><option value="">全部档位</option><option value="silver" <%= tier==='silver'?'selected':'' %>>白银</option><option value="gold" <%= tier==='gold'?'selected':'' %>>黄金</option></select>
+  <select name="tier"><option value="">全部档位</option><option value="silver" <%= tier==='silver'?'selected':'' %>>白银</option><option value="gold" <%= tier==='gold'?'selected':'' %>>黄金</option><option value="diamond" <%= tier==='diamond'?'selected':'' %>>钻石</option></select>
   <select name="active"><option value="">全部状态</option><option value="1" <%= active==='1'?'selected':'' %>>权益生效中</option><option value="0" <%= active==='0'?'selected':'' %>>已到期/停用</option></select>
   <button class="btn">查询</button>
 </form>

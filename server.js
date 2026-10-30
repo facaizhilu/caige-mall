@@ -8,7 +8,7 @@ const ejs = require('ejs');
 const db = require('./lib/db');
 const U = require('./lib/util');
 const svc = require('./lib/svc');
-const { RETURN_HELP, CLOUD_HELP, SEED_DESC_EDITS, CLOUD_HELP_EDIT, CLOUD_HELP_EDIT2 } = require('./lib/seed-texts');
+const { RETURN_HELP, CLOUD_HELP, SEED_DESC_EDITS, CLOUD_HELP_EDIT, CLOUD_HELP_EDIT2, CLOUD_TIER_HELP_EDIT } = require('./lib/seed-texts');
 const banned = require('./lib/banned');
 const SqliteStore = require('./lib/session-store');
 
@@ -248,6 +248,17 @@ svc.cloud.ensureDefaults();
       console.log(`恢复演示会员昵称 #${u.id} ${phone}:「${u.nickname}」→「${nick}」`);
     }
     mark('admin_remark_20261025');
+  }
+  if (!done('cloud_tier_discount_20261029')) { // 云商卡按档位折扣(白银/黄金/钻石),替换单一 cloud_discount;补钻石卡类型
+    db.exec("DELETE FROM settings WHERE key='cloud_discount'");
+    svc.cloud.ensureDefaults();
+    if (!db.get("SELECT 1 FROM cloud_card_types WHERE tier='diamond'")) {
+      const mx = (db.get('SELECT MAX(sort) m FROM cloud_card_types').m || 60);
+      [['钻石月卡', 'month', 699], ['钻石季卡', 'quarter', 1799], ['钻石年卡', 'year', 5999]].forEach((d, i) =>
+        db.exec1("INSERT INTO cloud_card_types(name,tier,duration,activation_fee,status,sort,remark) VALUES(?,?,?,?,1,?,'线下办理')", d[0], 'diamond', d[1], d[2], mx + 10 * (i + 1)));
+    }
+    db.exec1("UPDATE articles SET content=REPLACE(content,?,?) WHERE category='help' AND instr(content,?)>0", CLOUD_TIER_HELP_EDIT[0], CLOUD_TIER_HELP_EDIT[1], CLOUD_TIER_HELP_EDIT[0]);
+    mark('cloud_tier_discount_20261029');
   }
   if (!done('group_auto_success_20261029')) { // 拼团改为「到点自动成团」:进行中的团重新安排在开团后随机 10~N 分钟内成团(已过点的由 sweep 立即成团);不再超时失败退款
     if (svc.S('group_auto_max_minutes') == null) svc.setSetting('group_auto_max_minutes', '180');

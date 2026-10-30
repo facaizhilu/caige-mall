@@ -2,7 +2,7 @@
 <div class="card"><h3 style="margin-top:0">会员权益</h3>
   <p class="muted" style="font-size:13px;margin:-4px 0 8px"><% if (status.active) { %>已开通 <%= card ? card.name : status.tierLabel + '会员' %> · 有效期 <%= status.start ? status.start.slice(0,10) : '-' %> ~ <%= status.end ? status.end.slice(0,10) : '-' %><% } else if (status.tier) { %>会员权益已到期(有效期至 <%= status.end ? status.end.slice(0,10) : '-' %>)<% } else { %>尚未开通云商卡,可在线下门店或联系客服办理<% } %></p>
   <ul class="cloud-ben">
-    <li><b>会员价</b><span>商品按售价 <%= (c.discount/10).toFixed(1).replace(/\.0$/,'') %> 折结算(与会员等级折扣取更优,不叠加;活动价/拼团除外)</span></li>
+    <% if (c.enabled.length) { %><li><b>会员折扣</b><span>云商卡会员购物享 <%= range %> 折：<%= c.enabled.map(t=>t.label+' '+t.zhe+' 折').join('、') %>，结算时自动按所持卡档位折扣，具体以商品页和结算页标示为准（与会员等级折扣取更优,不叠加;活动价/拼团、积分兑换商品及优惠卡除外）</span></li><% } %>
     <% if (c.freeShipping) { %><li><b>包邮</b><span>会员下单免运费</span></li><% } %>
     <li><b>签到积分</b><span>每日<b>主动签到</b>按会员档发放:连续签到第 1 天 <%= sg.cloud.base %> 积分,此后每连续签到 1 天多 <%= sg.cloud.step %> 积分(<%= sgCloudSeries.join('、') %>),最高每天 <%= sg.cloud.max %> 积分;中断签到后从第 1 天重新计算。以上为当日签到所得总积分(不与普通会员签到积分叠加),与其他积分一样按《积分规则》有效期管理。</span></li>
   </ul>

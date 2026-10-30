@@ -533,24 +533,28 @@ module.exports = function (r, { filesOf }) {
     ],
     fields: [
       { name: 'name', label: '展示名称', required: true, help: '如:白银月卡' },
-      { name: 'tier', label: '档位', type: 'select', options: [{ v: 'silver', t: '白银' }, { v: 'gold', t: '黄金' }], required: true },
+      { name: 'tier', label: '档位', type: 'select', options: [{ v: 'silver', t: '白银' }, { v: 'gold', t: '黄金' }, { v: 'diamond', t: '钻石' }], required: true },
       { name: 'duration', label: '时长', type: 'select', options: [{ v: 'month', t: '月卡(30天)' }, { v: 'quarter', t: '季卡(90天)' }, { v: 'year', t: '年卡(365天)' }], required: true },
       { name: 'activation_fee', label: '线下参考售价(元,仅展示)', type: 'number', min: 0, help: '云商卡不在线售卖,实际收款以开通时登记的实收金额为准' },
       { name: 'sort', label: '排序', type: 'number', int: true },
       { name: 'remark', label: '备注' },
       { name: 'status', label: '启用', type: 'checkbox', def: 1 }
     ],
-    validate: row => (!['silver', 'gold'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null),
+    validate: row => (!['silver', 'gold', 'diamond'].includes(row.tier) ? '档位无效' : !['month', 'quarter', 'year'].includes(row.duration) ? '时长无效' : null),
     canDelete: x => db.get('SELECT 1 FROM users WHERE cloud_card_type_id=?', x.id) || db.get('SELECT 1 FROM cloud_card_sales WHERE card_type_id=?', x.id) ? '该卡类型已有会员开通或销售记录,不能删除,请改为停用' : null
   }, ctx);
 
-  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping'];
-  r.get('/cloud-settings', need('member'), (req, res) => { svc.cloud.ensureDefaults(); res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings() }); });
+  const CLOUD_KEYS = [...svc.cloud.TIERS.flatMap(t => ['cloud_on_' + t, 'cloud_discount_' + t]), 'cloud_free_shipping'];
+  r.get('/cloud-settings', need('member'), (req, res) => { svc.cloud.ensureDefaults(); res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings(), C: svc.cloud }); });
   r.post('/cloud-settings', need('member'), (req, res) => {
-    const b = req.body;
-    const d = int(b.cloud_discount, 0);
-    if (d < 50 || d > 100) { flash(req, 'error', '会员价折扣需在 50~100 之间(100=不打折)'); return res.redirect('/admin/cloud-settings'); }
-    svc.setSetting('cloud_discount', d); svc.setSetting('cloud_free_shipping', b.cloud_free_shipping ? '1' : '0');
+    const b = req.body, C = svc.cloud, vals = {};
+    for (const t of C.TIERS) {
+      const raw = String(b['cloud_discount_' + t] ?? '').trim(), d = Number(raw);
+      if (!raw || !isFinite(d) || d < C.DISC_MIN || d > C.DISC_MAX || Math.abs(Math.round(d * 100) - d * 100) > 1e-6) { flash(req, 'error', `${C.TIER_LABEL[t]}卡折扣需在 ${C.DISC_MIN}~${C.DISC_MAX} 折之间(最多两位小数)`); return res.redirect('/admin/cloud-settings'); }
+      vals['cloud_discount_' + t] = String(d); vals['cloud_on_' + t] = b['cloud_on_' + t] ? '1' : '0';
+    }
+    for (const [k, v] of Object.entries(vals)) svc.setSetting(k, v);
+    svc.setSetting('cloud_free_shipping', b.cloud_free_shipping ? '1' : '0');
     log(req, '修改云商卡配置', CLOUD_KEYS.map(k => k + '=' + svc.S(k)).join(' '));
     flash(req, 'success', '云商卡配置已保存'); res.redirect('/admin/cloud-settings');
   });

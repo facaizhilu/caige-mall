@@ -2,7 +2,8 @@
 <div class="card"><h3>云商卡会员权益</h3>
   <p class="muted">云商卡为线下销售的会员权益卡,由管理员在「会员详情」中为会员开通/续期/停用。以下为保守占位值,请按实际经营调整。云商卡不发放每日自动积分,也不与邀请/推荐挂钩。</p>
   <div class="form-grid">
-    <div class="form-row"><label>会员价折扣(%)</label><input type="number" name="cloud_discount" min="50" max="100" value="<%= s.cloud_discount %>" required><div class="help">98 = 售价的 98%;与会员等级折扣取更优,不叠加;秒杀/拼团不参与</div></div>
+    <% C.TIERS.forEach(t=>{ %><div class="form-row"><label><%= C.TIER_LABEL[t] %>卡会员折扣(折)</label><div class="flex"><label class="chk"><input type="checkbox" name="cloud_on_<%= t %>" value="1" <%= String(s['cloud_on_'+t])==='1'?'checked':'' %>> 启用</label><input type="number" name="cloud_discount_<%= t %>" min="7.5" max="9.5" step="0.05" value="<%= s['cloud_discount_'+t] %>" required style="max-width:110px"> 折</div><div class="help">允许 7.5~9.5 折;关闭后该档位不享受卡折扣</div></div><% }) %>
+    <p class="muted" style="font-size:12px">持有生效中云商卡的会员,结算时按所持卡档位自动折扣;与会员等级折扣取更优,不叠加;活动价/秒杀/拼团、积分兑换商品及线下门店优惠卡不参与。</p>
     <div class="form-row"><label>会员包邮</label><label class="chk"><input type="checkbox" name="cloud_free_shipping" value="1" <%= String(s.cloud_free_shipping)==='1'?'checked':'' %>> 会员订单免运费</label></div>
     <p class="muted">云商卡会员签到积分(首日/递增/封顶)在「站点设置 → 每日签到」中配置。</p>
   </div>

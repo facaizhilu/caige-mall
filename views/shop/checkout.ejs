@@ -36,7 +36,7 @@
     <dl class="kv" style="grid-template-columns:1fr auto;max-width:420px;margin-left:auto">
       <dt>商品金额</dt><dd class="right" id="rGoods"><%= money(q.goods) %></dd>
       <dt>运费<% if (q.hasSupplier) { %> <span class="muted" style="font-size:12px">(含供应商发货运费)</span><% } %><% if (q.cloudFree) { %> <span class="tag gold">云商卡会员包邮</span><% } %></dt><dd class="right" id="rFreight"><%= money(q.freight) %></dd>
-      <dt><%= /云商卡/.test(q.levelName) ? q.levelName : (/会员$/.test(q.levelName) ? q.levelName + '折扣' : q.levelName + '会员折扣') %></dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd>
+      <dt><% if (/云商/.test(q.levelName) && q.levelDiscount > 0) { %><%= q.levelName %> <b class="price">¥<span id="rCloudPx"><%= (q.goods - q.levelDiscount).toFixed(2) %></span></b> <span class="muted" style="font-size:12px">(已优惠)</span><% } else { %><%= /云商/.test(q.levelName) ? q.levelName : (/会员$/.test(q.levelName) ? q.levelName + '折扣' : q.levelName + '会员折扣') %><% } %></dt><dd class="right" id="rLevel">-<%= money(q.levelDiscount) %></dd>
       <dt>优惠券</dt><dd class="right" id="rCoupon">-<%= money(q.couponDiscount) %></dd>
       <% if (shop.points_deduct_enable==='1') { %><dt>积分抵扣</dt><dd class="right" id="rPts">-<%= money(q.pointsDiscount) %></dd><% } %>
     </dl>
@@ -53,7 +53,7 @@
   function recalc(){var d={items:f.items.value,address_id:(f.querySelector('[name=address_id]:checked')||{}).value,province:prov(),coupon_id:f.coupon?f.coupon.value:'',use_points:f.use_points?f.use_points.value:0};
     if(d.address_id==='new'){d.city=nv('new_city');d.district=nv('new_district');d.detail=nv('new_detail')}
     var pt=f.querySelector('[name=promo_type]');if(pt){d.promo_type=pt.value;d.promo_id=f.promo_id.value;d.group_id=f.group_id.value}
-    postJSON('/api/quote',d).then(function(r){if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);if(f.use_points&&+f.use_points.value>r.pointsUsed){f.use_points.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
+    postJSON('/api/quote',d).then(function(r){if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);if(f.use_points&&+f.use_points.value>r.pointsUsed){f.use_points.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
   f.querySelectorAll('[name=address_id]').forEach(function(r){r.addEventListener('change',function(){newAddr.classList.toggle('hide',r.value!=='new'||!r.checked);recalc()})});
   newAddr.addEventListener('regionchange',recalc);
   var nd=f.querySelector('[name=new_detail]');if(nd)nd.addEventListener('change',recalc);

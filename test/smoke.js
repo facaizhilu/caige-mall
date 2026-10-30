@@ -224,8 +224,8 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   { const c = (r.text.match(/<main[\s\S]*<\/main>/) || [r.text])[0]; ok(!/¥\s*\d/.test(c) && !c.includes('199') && c.includes('联系客服办理') && c.includes('href="/service') && !c.includes('cloud-hero'), '云商卡页:无顶部横幅、前台不显示卡价格,只留「联系客服办理」入口'); }
   r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
   r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
-  r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮');
-  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1' }); ok(r.status === 302, '保存云商卡配置');
+  r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('钻石卡会员折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮');
+  r = await adm.post('/admin/cloud-settings', { cloud_on_silver: '1', cloud_discount_silver: '9.5', cloud_on_gold: '1', cloud_discount_gold: '8.5', cloud_on_diamond: '1', cloud_discount_diamond: '7.5', cloud_free_shipping: '1' }); ok(r.status === 302, '保存云商卡配置');
   // 积分比例可配置,规则页同步
   r = await adm.post('/admin/settings/points', { points_clear_day: '06-01', points_expiry_remind_days: '30', points_expiry_enable: '1', points_redeem_notice: '积分兑换商品非质量问题不退不换;如有质量问题或发错货,请联系客服换货或退回积分。', points_deduct_enable: '1', points_rate: '200', points_max_percent: '30' });
   r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '(抵现开启时)后台修改积分比例/上限后积分规则页同步');

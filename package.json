@@ -8,7 +8,8 @@
     "seed": "node lib/seed.js --reset",
     "test": "node test/smoke.js",
     "test:flows": "node test/flows.js",
-    "test:jdvop": "node test/jdvop.js"
+    "test:jdvop": "node test/jdvop.js",
+    "test:cloudtier": "node test/cloudtier.js"
   },
   "keywords": [],
   "author": "",

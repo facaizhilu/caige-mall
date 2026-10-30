@@ -11,7 +11,8 @@
       <% if (!p.supplier && showMkt(p.market_price, p.price)) { %><span class="mkt"><%= p.market_price %></span><% } %>
       <% if (seckill && seckill.live) { %><span class="muted"> 活动价,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
       <% if (seckill && !seckill.live) { %><span class="muted sk-pre"> 活动价 <b style="color:var(--red)">¥<%= seckill.price %></b>,<%= seckill.start_at.slice(5,16) %> 开始,每人限购 <%= seckill.limit_per_user %> 件</span><% } %>
-      <% if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
+      <% if (cloudOffer && !seckill) { %><div class="cloud-price" style="font-size:13px;margin-top:4px;color:var(--gold-d)">💎 云商会员价 <%= cloudOffer.zhe %>折 <b>¥<span id="cloudPrice" data-rate="<%= cloudOffer.rate %>"><%= (Math.round(p.price*cloudOffer.rate)/100).toFixed(2) %></span></b><span class="muted" style="font-size:12px">,结算时自动优惠</span></div><% } else if (user && user.level_discount<100 && !seckill) { %><div style="font-size:12px;margin-top:4px;color:var(--gold-d)">💎 <%= user.level_name %>专享 <%= user.level_discount/10 %> 折,结算时自动优惠</div><% } %>
+      <% if (cloudRange && !seckill) { %><div class="muted" style="font-size:12px;margin-top:4px">云商卡会员享<%= cloudRange %>折</div><% } %>
     </div>
     <dl class="kv pd-kv" style="margin:12px 0"><% const supBrand = p.supplier ? (p.supplier_brand || (brand && brand.name) || '') : ''; if (supBrand) { %><dt>品牌</dt><dd class="pd-brand"><%= supBrand %></dd><% } %><dt>配送</dt><dd><% if (p.ship_from) { %><span class="<%= p.supplier ? 'sup-ship' : '' %>"><%= p.ship_from %></span><% } else if (p.supplier) { %><span class="sup-ship">供应商发货</span><% } else { %><%= shop.ship_from || '海口发货' %><% } %></dd>
       <dt>运费</dt><dd class="freight"><% if (freight) { %><b class="<%= freight.free ? 'free' : '' %>"><%= freight.text %></b><% } %> <a class="muted" href="/help">运费规则 ›</a><div class="muted" style="font-size:12px">实际运费在结算页按收货地址计算</div></dd>
@@ -60,7 +61,7 @@
   function cur(){var sel={};document.querySelectorAll('[data-spec]').forEach(function(g){var o=g.querySelector('.chip.on');sel[g.dataset.spec]=o&&o.dataset.v});
     return SKUS.find(function(s){return SPECS.every(function(n){return s.attrs[n]===sel[n]})})||(SPECS.length?null:SKUS[0])}
   function refresh(){var s=cur();document.getElementById('stock').textContent=s?s.stock:0;
-    if(s){var pr=(SK&&SK.sku===s.id)?SK.price:s.price;document.getElementById('price').textContent=pr}
+    if(s){var pr=(SK&&SK.sku===s.id)?SK.price:s.price;document.getElementById('price').textContent=pr;var cp=document.getElementById('cloudPrice');if(cp)cp.textContent=(Math.round(s.price*cp.dataset.rate)/100).toFixed(2)}
     document.querySelectorAll('[data-spec]').forEach(function(g){var sel={};document.querySelectorAll('[data-spec]').forEach(function(x){var o=x.querySelector('.chip.on');sel[x.dataset.spec]=o&&o.dataset.v});
       g.querySelectorAll('.chip').forEach(function(c){var t=Object.assign({},sel);t[g.dataset.spec]=c.dataset.v;var ok=SKUS.some(function(s){return SPECS.every(function(n){return s.attrs[n]===t[n]})&&s.stock>0});c.classList.toggle('dis',!ok)})})}
   document.querySelectorAll('.chip').forEach(function(c){c.onclick=function(){c.parentNode.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on')});c.classList.add('on');refresh()}});
