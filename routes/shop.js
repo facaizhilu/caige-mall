@@ -576,7 +576,7 @@ module.exports = function (app, { filesOf }) {
     const days = []; const signed = new Set(db.all('SELECT day FROM signins WHERE user_id=?', req.user.id).map(r => r.day));
     for (let i = 6; i >= 0; i--) { const d = U.offset(-i * 86400000).slice(0, 10); days.push({ d, signed: signed.has(d), today: i === 0 }); }
     const expiring = svc.expiringPoints(req.user.id), cycle = svc.cyclePointsExpiry(req.user.id);
-    res.page('shop/me-points', { title: '我的积分', pg, days, cycle, signed: req.user.last_signin === U.today(), expiring, cloudCfg: svc.cloud.cfg(), cloudSeries: svc.cloud.extraSeries(), cloudActive: svc.cloud.isCardActive(req.user) });
+    res.page('shop/me-points', { title: '我的积分', pg, days, cycle, signed: req.user.last_signin === U.today(), expiring, sg: svc.signinCfg(), sgSeries: svc.signinSeries(false), sgCloudSeries: svc.signinSeries(true), cloudActive: svc.cloud.isCardActive(req.user) });
   });
   app.post('/me/signin', needLogin, (req, res) => {
     const today = U.today(), yest = U.offset(-86400000).slice(0, 10);
@@ -584,17 +584,12 @@ module.exports = function (app, { filesOf }) {
       const u = db.get('SELECT * FROM users WHERE id=?', req.user.id);
       if (u.last_signin === today) return { ok: false, msg: '今天已经签到过啦' };
       const streak = u.last_signin === yest ? u.signin_streak + 1 : 1;
-      const pts = int(svc.S('signin_base'), 5) + Math.min(streak - 1, 5);
+      const cloudOn = svc.cloud.isCardActive(u), pts = svc.signinPoints(streak, cloudOn); // 当日总积分,云商卡会员按会员档(不叠加)
       db.exec1('INSERT INTO signins(user_id,day,points,streak) VALUES(?,?,?,?)', u.id, today, pts, streak);
       db.exec1('UPDATE users SET signin_streak=?, last_signin=? WHERE id=?', streak, today, u.id);
       svc.addPoints(u.id, pts, `每日签到(连续${streak}天)`); svc.addGrowth(u.id, 2);
-      // 云商卡会员:仅在主动签到时加赠,按连续签到天数递增、每天封顶,限期有效
-      const extra = svc.cloud.signinExtra(u.id, svc.addPoints, streak);
-      if (extra) db.exec1('UPDATE signins SET extra=? WHERE user_id=? AND day=?', extra, u.id, today);
-      const msg = extra
-        ? `签到成功,获得 ${pts} 积分(连续${streak}天),云商卡会员加赠 +${extra}`
-        : `签到成功,获得 ${pts} 积分(连续签到 ${streak} 天)`;
-      return { ok: true, msg, pts: pts + extra };
+      const msg = `签到成功,获得 ${pts} 积分(${cloudOn ? '云商卡会员 · ' : ''}连续签到 ${streak} 天)`;
+      return { ok: true, msg, pts };
     })();
     if (wantsJson(req)) return res.json(r);
     flash(req, r.ok ? 'success' : 'error', r.msg); back(req, res, '/me/points');
@@ -640,9 +635,7 @@ module.exports = function (app, { filesOf }) {
     const status = cloud.cardStatus(req.user);
     const types = db.all('SELECT * FROM cloud_card_types WHERE status=1 ORDER BY sort, id')
       .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration }));
-    const month = U.today().slice(0, 7);
-    const extraUsed = db.get('SELECT COALESCE(SUM(extra),0) n FROM signins WHERE user_id=? AND day LIKE ?', req.user.id, month + '%').n;
-    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), cloudSeries: cloud.extraSeries(), extraUsed, card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
+    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), sg: svc.signinCfg(), sgCloudSeries: svc.signinSeries(true), card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
   });
 
   // ---------------- 积分商城 ----------------

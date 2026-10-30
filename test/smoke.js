@@ -178,7 +178,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/categories/save', { name: '测试分类', parent_id: '0', icon: '🧪', sort: '99', status: '1' }); ok(r.status === 302, '新增分类');
   r = await adm.post('/admin/coupons/save', { name: '测试券', amount: '5', threshold: '50', total: '10', per_limit: '1', valid_days: '7', category_id: '0', status: '1' }); ok(r.status === 302, '新增优惠券');
   r = await adm.post('/admin/seckills/save', { sku_id: '1', price: '1', stock: '5', start_at: '2030-01-01T10:00', end_at: '2030-01-01T12:00', limit_per_user: '1', status: '1' }); ok(r.status === 302, '新增秒杀');
-  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', slogan: '韵农甄选 · 新鲜好物', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '5', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
+  r = await adm.post('/admin/settings', { shop_name: '韵农甄选', slogan: '韵农甄选 · 新鲜好物', points_rate: '100', points_max_percent: '50', commission_rate: '5', signin_base: '12', stock_warn: '10', unpaid_cancel_minutes: '30', auto_confirm_days: '7', aftersale_days: '7', register_points: '100', review_points: '10', referral_points: '50' }); ok(r.status === 302 && r.loc === '/admin/settings', '保存站点设置');
   for (const p of ['/admin/orders/export', '/admin/orders/export?status=completed', '/admin/members/export', '/admin/export/products', '/admin/logs/export', '/admin/points-log/export']) { r = await adm.get(p); ok(r.status === 200 && (r.headers.get('content-type') || '').includes('text/csv'), 'CSV ' + p); }
   // RBAC
   const ops = new Client(); await ops.get('/admin/login'); await ops.post('/admin/login', { username: 'ops', password: 'ops123456' }); await ops.get('/admin/password'); await ops.post('/admin/password/skip'); await ops.get('/admin');
@@ -205,7 +205,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok((await cg.post('/me/cloud/daily')).status === 404 && (await cg.post('/me/referral/settle')).status === 404, '每日返积分/佣金结算接口已移除');
   r = await cg.get('/points-rules'); ok(r.status === 200 && !r.text.includes('积分 = ¥1') && r.text.includes('不可购买') && !r.text.includes('{{'), '积分规则页(获取/使用/有效期,数值来自配置;无折现比例)');
   // 云商卡会员签到加赠(主动签到才有,限期)
-  r = await cg.post('/me/signin'); r = await cg.get('/me/points'); ok(r.text.includes('云商卡会员签到加赠') && r.text.includes('限期积分'), '云商卡会员主动签到加赠限期积分');
+  r = await cg.post('/me/signin'); r = await cg.get('/me/points'); ok(r.text.includes('每日签到(连续') && !r.text.includes('签到加赠'), '云商卡会员签到按会员档整笔发放(无单独加赠)');
   // 会员价/包邮
   r = await cg.post('/checkout', { sku_id: (await cg.get('/product/9')).text.match(/\{"id":(\d+),"attrs"/)[1], qty: 1 }); ok(r.text.includes('云商卡会员包邮'), '云商卡会员结算包邮');
   // 后台:邀请管理 / 云商卡开通(线下销售登记)
@@ -224,8 +224,8 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   { const c = (r.text.match(/<main[\s\S]*<\/main>/) || [r.text])[0]; ok(!/¥\s*\d/.test(c) && !c.includes('199') && c.includes('联系客服办理') && c.includes('href="/service') && c.includes('线下') && !c.includes('cloud-hero'), '云商卡页:无顶部横幅、前台不显示卡价格,每行「联系客服办理」'); }
   r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
   r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
-  r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮/签到加赠');
-  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '25', cloud_signin_extra_step: '2', cloud_extra_expire_days: '90' }); ok(r.status === 302, '保存云商卡配置');
+  r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮');
+  r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1' }); ok(r.status === 302, '保存云商卡配置');
   // 积分比例可配置,规则页同步
   r = await adm.post('/admin/settings/points', { points_clear_day: '06-01', points_expiry_remind_days: '30', points_expiry_enable: '1', points_redeem_notice: '积分兑换商品非质量问题不退不换;如有质量问题或发错货,请联系客服换货或退回积分。', points_deduct_enable: '1', points_rate: '200', points_max_percent: '30' });
   r = await cg.get('/points-rules'); ok(r.text.includes('200 积分 = ¥1') && r.text.includes('30%'), '(抵现开启时)后台修改积分比例/上限后积分规则页同步');

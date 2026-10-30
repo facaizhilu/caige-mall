@@ -257,36 +257,33 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir2.id).status === 'cancelled', '观察期内退款,奖励取消');
   const rp1 = refPts(); db.prepare("UPDATE invite_rewards SET due_at='2000-01-01 00:00:00' WHERE id=?").run(ir2.id); svc.settleInvites(); ok(refPts() === rp1, '已取消的奖励不会发放');
 
-  console.log('== 云商卡加赠积分到期作废 ==');
+  console.log('== 限期积分到期作废(通用机制;签到积分已不再限期) ==');
   const cloud = require('../lib/cloud');
   ok(cloud.isCardActive(db.get('SELECT * FROM users WHERE id=1')), '演示会员云商卡生效中');
   db.prepare("DELETE FROM signins WHERE user_id=1 AND day=?").run(require('../lib/util').today());
   const lotBefore = db.get('SELECT points FROM users WHERE id=1').points;
-  const ex = cloud.signinExtra(1, svc.addPoints); ok(ex > 0, '会员签到加赠 ' + ex);
-  const lot = db.get('SELECT * FROM point_lots WHERE user_id=1 ORDER BY id DESC LIMIT 1'); ok(lot && lot.remaining === ex && lot.expire_at > require('../lib/util').now(), '加赠积分记为限期积分');
+  const ex = 37; svc.addPoints(1, ex, 'test 限期积分', { expireAt: '2099-01-01 00:00:00' });
+  const lot = db.get('SELECT * FROM point_lots WHERE user_id=1 ORDER BY id DESC LIMIT 1'); ok(lot && lot.remaining === ex && lot.expire_at > require('../lib/util').now(), '限期积分记为积分批次');
   db.prepare("UPDATE point_lots SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(lot.id);
   svc.expirePointLots();
-  ok(db.get('SELECT points FROM users WHERE id=1').points === lotBefore && db.get('SELECT remaining FROM point_lots WHERE id=?', lot.id).remaining === 0, '到期未用的加赠积分自动作废');
+  ok(db.get('SELECT points FROM users WHERE id=1').points === lotBefore && db.get('SELECT remaining FROM point_lots WHERE id=?', lot.id).remaining === 0, '到期未用的限期积分自动作废');
   // 先使用后到期:只作废剩余部分
-  const ex2 = cloud.signinExtra(1, svc.addPoints) || (svc.addPoints(1, 5, 'test lot', { expireAt: '2099-01-01 00:00:00' }), 5);
+  svc.addPoints(1, 5, 'test lot', { expireAt: require('../lib/util').offset(5 * 86400000) });
   const lot2 = db.get('SELECT * FROM point_lots WHERE user_id=1 ORDER BY id DESC LIMIT 1');
   svc.addPoints(1, -2, '测试消费'); ok(db.get('SELECT remaining FROM point_lots WHERE id=?', lot2.id).remaining === lot2.points - 2, '消费积分优先扣减限期积分');
   const ptsNow = db.get('SELECT points FROM users WHERE id=1').points;
   db.prepare("UPDATE point_lots SET expire_at='2000-01-01 00:00:00' WHERE id=?").run(lot2.id); svc.expirePointLots();
   ok(db.get('SELECT points FROM users WHERE id=1').points === ptsNow - (lot2.points - 2), '仅作废未使用的部分');
-  // 非会员:签到无加赠
-  ok(cloud.signinExtra(3, svc.addPoints) === 0, '过期/未开通会员无签到加赠');
+  ok(typeof cloud.signinExtra === 'undefined' && !db.get("SELECT 1 FROM settings WHERE key LIKE 'cloud_signin_extra%' OR key='cloud_extra_expire_days'"), '旧「云商卡签到加赠(限期)」配置已下线');
   ok(!db.get("SELECT name FROM sqlite_master WHERE name IN ('commissions','cloud_referral_log','cloud_daily_log','cloud_redeem_requests')"), '分销/推三返一/每日返积分/兑换申请表已归档');
 
   console.log('== v1.1 合规修订 ==');
   {
     const U2 = require('../lib/util');
     const ok2 = ok;
-    ok2(cloud.extraForStreak(1) === 25 && cloud.extraForStreak(2) === 27 && cloud.extraForStreak(5) === 33 && cloud.extraForStreak(6) === 35 && cloud.extraForStreak(40) === 35, '云商卡签到加赠:25、27……封顶 35');
-    ok2(cloud.extraSeries().join(',') === '25,27,29,31,33,35', '加赠序列说明到封顶为止');
-    db.prepare("DELETE FROM signins WHERE user_id=1 AND day=?").run(U2.today());
-    let tot = 0; for (let i = 0; i < 5; i++) tot += cloud.signinExtra(1, svc.addPoints, 30); ok2(tot === 5 * 35, '云商卡签到加赠每天封顶 35,不设每月上限', tot);
-    ok2(cloud.signinExtra(1, svc.addPoints, 1) === 25, '中断后从 25 重新计算');
+    ok2(svc.signinPoints(1, true) === 37 && svc.signinPoints(2, true) === 39 && svc.signinPoints(10, true) === 55 && svc.signinPoints(40, true) === 55, '云商卡签到:37、39……封顶 55');
+    ok2(svc.signinSeries(true).join(',') === '37,39,41,43,45,47,49,51,53,55' && svc.signinSeries(false).join(',') === '12,13,14,15,16,17,18', '签到序列说明到封顶为止');
+    ok2(svc.signinPoints(1, false) === 12 && svc.signinPoints(7, false) === 18 && svc.signinPoints(30, false) === 18, '普通会员签到:12 起封顶 18');
     const c1 = new C(); await c1.login('13800000001', '123456');
     // C2:久远的已完成订单仍有质量问题售后入口
     const o1 = db.get("SELECT id FROM orders WHERE user_id=1 AND status='completed' AND type='normal' AND id NOT IN (SELECT order_id FROM aftersales WHERE status IN ('pending','approved_return','returned')) ORDER BY id LIMIT 1");
@@ -313,9 +310,9 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '海南韵农科技有限公司', '待公布', '版本号:1.1'].every(x => r.text.includes(x)) && !r.text.includes('【公司全称】'), '隐私政策补充 A2/A3/A4/A11,运营者名称已填充、联系方式待公布');
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
-    r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 35 积分') && !r.text.includes('{{'), '积分规则:评价积分与云商卡递增加赠');
-    r = await c1.get('/me/cloud'); ok2(r.text.includes('25、27、29、31、33、35') && r.text.includes('最高每天 35 积分') && !r.text.includes('每月最多'), '云商卡页:递增加赠封顶说明');
-    r = await c1.get('/me/points'); ok2(r.text.includes('最高每天 35 积分'), '签到页:封顶说明');
+    r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && !r.text.includes('加赠') && !r.text.includes('{{'), '积分规则:评价积分与签到新规则');
+    r = await c1.get('/me/cloud'); ok2(r.text.includes('37、39、41') && r.text.includes('最高每天 55 积分') && !r.text.includes('每月最多') && !r.text.includes('加赠'), '云商卡页:签到积分说明');
+    r = await c1.get('/me/points'); ok2(r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && r.text.includes('12、13、14'), '签到页:封顶说明');
     r = await c1.get('/privacy'); ok2(r.text.includes('我的 - 设置 - 账号与安全 - 注销账号'), '隐私政策:注销路径');
     // A1:性别不再保存
     db.prepare("UPDATE users SET gender='保密' WHERE id=1").run();

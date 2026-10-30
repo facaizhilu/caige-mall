@@ -544,18 +544,13 @@ module.exports = function (r, { filesOf }) {
     canDelete: x => db.get('SELECT 1 FROM users WHERE cloud_card_type_id=?', x.id) || db.get('SELECT 1 FROM cloud_card_sales WHERE card_type_id=?', x.id) ? '该卡类型已有会员开通或销售记录,不能删除,请改为停用' : null
   }, ctx);
 
-  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping', 'cloud_signin_extra', 'cloud_signin_extra_step', 'cloud_signin_extra_max', 'cloud_extra_expire_days'];
+  const CLOUD_KEYS = ['cloud_discount', 'cloud_free_shipping'];
   r.get('/cloud-settings', need('member'), (req, res) => { svc.cloud.ensureDefaults(); res.page('admin/cloud-settings', { title: '云商卡配置', s: svc.settings() }); });
   r.post('/cloud-settings', need('member'), (req, res) => {
     const b = req.body;
-    const d = int(b.cloud_discount, 0), ex = int(b.cloud_signin_extra, -1), step = int(b.cloud_signin_extra_step, -1), mx = int(b.cloud_signin_extra_max, -1), exp = int(b.cloud_extra_expire_days, 0);
+    const d = int(b.cloud_discount, 0);
     if (d < 50 || d > 100) { flash(req, 'error', '会员价折扣需在 50~100 之间(100=不打折)'); return res.redirect('/admin/cloud-settings'); }
-    if (ex < 0 || ex > 1000) { flash(req, 'error', '连续签到第 1 天加赠积分需为 0~1000'); return res.redirect('/admin/cloud-settings'); }
-    if (step < 0 || step > 100) { flash(req, 'error', '每连续 1 天递增积分需为 0~100'); return res.redirect('/admin/cloud-settings'); }
-    if (mx < ex || mx > 1000) { flash(req, 'error', '每天加赠封顶需不小于第 1 天加赠积分,且不超过 1000'); return res.redirect('/admin/cloud-settings'); }
-    if (exp < 1 || exp > 365) { flash(req, 'error', '加赠积分有效期需为 1~365 天'); return res.redirect('/admin/cloud-settings'); }
     svc.setSetting('cloud_discount', d); svc.setSetting('cloud_free_shipping', b.cloud_free_shipping ? '1' : '0');
-    svc.setSetting('cloud_signin_extra', ex); svc.setSetting('cloud_signin_extra_step', step); svc.setSetting('cloud_signin_extra_max', mx); svc.setSetting('cloud_extra_expire_days', exp);
     log(req, '修改云商卡配置', CLOUD_KEYS.map(k => k + '=' + svc.S(k)).join(' '));
     flash(req, 'success', '云商卡配置已保存'); res.redirect('/admin/cloud-settings');
   });
@@ -790,12 +785,14 @@ module.exports = function (r, { filesOf }) {
   // ================= 系统 =================
   r.get('/settings', need('system'), (req, res) => res.page('admin/settings', { title: '站点设置', s: svc.settings(), SC: require('../lib/storecard') }));
   r.post('/settings', need('system'), (req, res) => {
-    const keys = ['shop_name', 'company_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', 'signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const keys = ['shop_name', 'company_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', ...svc.SIGNIN_KEYS, 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     req.body.show_sales = req.body.show_sales === '1' ? '1' : '0'; keys.push('show_sales');
     for (const k of ['hot_sales_threshold', 'new_days']) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k) || svc.settings()[k];
-    const numeric = ['signin_base', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
+    const numeric = [...svc.SIGNIN_KEYS, 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days'];
     if (!String(req.body.shop_name || '').trim()) { flash(req, 'error', '商城名称不能为空'); return res.redirect('/admin/settings'); }
+    for (const k of svc.SIGNIN_KEYS) if (req.body[k] == null || req.body[k] === '') req.body[k] = svc.S(k);
     for (const k of numeric) if (!(num(req.body[k], -1) >= 0)) { flash(req, 'error', '数值类设置需为非负数字'); return res.redirect('/admin/settings'); }
+    for (const [b0, m0] of [['signin_base', 'signin_max'], ['cloud_signin_base', 'cloud_signin_max']]) if (!(/^\d{1,4}$/.test(String(req.body[b0]).trim()) && /^\d{1,4}$/.test(String(req.body[m0]).trim()) && +req.body[m0] >= +req.body[b0] && +req.body[m0] <= 1000)) { flash(req, 'error', '签到积分需为整数,每天封顶不小于第 1 天积分且不超过 1000'); return res.redirect('/admin/settings'); }
     for (const k of keys) svc.setSetting(k, String(req.body[k] == null ? '' : req.body[k]).trim().slice(0, 300));
     log(req, '修改站点设置', ''); flash(req, 'success', '设置已保存'); res.redirect('/admin/settings');
   });

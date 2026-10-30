@@ -1,4 +1,4 @@
-// 每日签到测试:积分到账/流水、连续递增、断签重置(改库模拟日期)、同日不可重复、云商卡会员加赠、后台可改数值
+// 每日签到测试:普通 12 起 +1 封顶 18;云商卡 37 起 +2 封顶 55(当日总数不叠加);断签重置(改库模拟日期)、同日不可重复、后台可改六个数值
 const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000);
 const db = require('../lib/db');
 let pass = 0, fail = 0;
@@ -24,10 +24,10 @@ const U = require('../lib/util');
       if (gap) shift(id, gap); streak = gap <= 1 ? streak + 1 : 1;
       const p0 = user(ph).points, l0 = logs(id);
       const r = await cli.post('/me/signin', {}); 
-      const basePts = S('signin_base') + Math.min(streak - 1, 5);
-      const extra = cloud ? Math.min(Math.max(S('cloud_signin_extra_max'), S('cloud_signin_extra')), S('cloud_signin_extra') + S('cloud_signin_extra_step') * (streak - 1)) : 0;
-      const p1 = user(ph).points, l1 = logs(id), want = basePts + extra;
-      ok(r.status === 302 && p1 - p0 === want && l1.s - l0.s === want && l1.n - l0.n === (cloud ? 2 : 1) && user(ph).signin_streak === streak, `${cloud ? '云商卡' : '普通'}会员第${i + 1}次签到(连续${streak}天):+${want}(基础${basePts}${cloud ? '+加赠' + extra : ''}),余额与流水一致`, `实际 +${p1 - p0} 流水+${l1.s - l0.s}/${l1.n - l0.n}条`);
+      const pre = cloud ? 'cloud_signin_' : 'signin_', want = Math.min(S(pre + 'max'), S(pre + 'base') + S(pre + 'step') * (streak - 1));
+      const p1 = user(ph).points, l1 = logs(id), last = db.get('SELECT * FROM points_log WHERE user_id=? ORDER BY id DESC LIMIT 1', id);
+      const lots = db.get("SELECT COUNT(*) n FROM point_lots WHERE user_id=? AND kind<>'cycle' AND created_at>=?", id, U.today()).n;
+      ok(r.status === 302 && p1 - p0 === want && l1.s - l0.s === want && l1.n - l0.n === 1 && last.reason === `每日签到(连续${streak}天)` && user(ph).signin_streak === streak && !lots, `${cloud ? '云商卡' : '普通'}会员第${i + 1}次签到(连续${streak}天):+${want},一条流水、余额一致`, `实际 +${p1 - p0} 流水+${l1.s - l0.s}/${l1.n - l0.n}条 ${last && last.reason}`);
       exp.push(want);
     }
     const p0 = user(ph).points, r = await cli.post('/me/signin', {}), m = await cli.get('/me/points');
@@ -38,21 +38,28 @@ const U = require('../lib/util');
   console.log('== 普通会员 ==');
   const a = new C(); await a.login('13500000007', '123456');
   ok(user('13500000007').points === 0 && logs(user('13500000007').id).n === 0, '新库演示会员积分为 0、无积分流水');
-  await run(a, '13500000007', [0, 1, 1, 1, 1, 1, 1, 2, 1], false);
-  console.log('== 云商卡会员(25 起,每连续一天 +2,封顶可配;断签重置) ==');
+  const sa = await run(a, '13500000007', [0, 1, 1, 1, 1, 1, 1, 1, 2, 1], false);
+  ok(sa.join(',') === '12,13,14,15,16,17,18,18,12,13', '普通序列 12…18 封顶,断签回 12', sa.join(','));
+  console.log('== 云商卡会员(37 起,每连续一天 +2,封顶 55;断签重置) ==');
   const ph = '13600000006', cid = user(ph).id, ct = db.get('SELECT id FROM cloud_card_types ORDER BY id LIMIT 1').id;
   db.exec1("UPDATE users SET cloud_tier='silver', cloud_start=?, cloud_end=?, cloud_card_type_id=? WHERE id=?", U.offset(-86400000 * 30), U.offset(86400000 * 30), ct, cid);
   const b = new C(); await b.login(ph, '123456');
-  ok(S('cloud_signin_extra') === 25 && S('cloud_signin_extra_step') === 2, '默认加赠:首日 25,每天 +2');
-  const seq = await run(b, ph, [0, 1, 1, 1, 1, 1, 1, 3, 1], true);
-  ok(seq[7] === seq[0], '断签后重新从首日计算');
+  ok([12, 1, 18, 37, 2, 55].join() === ['signin_base', 'signin_step', 'signin_max', 'cloud_signin_base', 'cloud_signin_step', 'cloud_signin_max'].map(S).join(), '默认值 12/1/18、37/2/55');
+  const seq = await run(b, ph, [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1], true);
+  ok(seq.join(',') === '37,39,41,43,45,47,49,51,53,55,55,37,39', '云商卡序列 37…55 封顶,断签回 37(总数,不叠加)', seq.join(','));
+  { const m = await b.get('/me/points'); ok(m.text.includes('最高每天 55 积分') && m.text.includes('37、39、41'), '积分页按配置展示规则'); }
   console.log('== 后台修改数值即时生效 ==');
-  await adm.get('/admin/cloud-settings');
-  let r = await adm.post('/admin/cloud-settings', { cloud_discount: '98', cloud_free_shipping: '1', cloud_signin_extra: '30', cloud_signin_extra_step: '3', cloud_signin_extra_max: '60', cloud_extra_expire_days: '90' });
-  ok(S('cloud_signin_extra') === 30 && S('cloud_signin_extra_step') === 3, '后台保存云商卡签到加赠配置');
-  await run(b, ph, [2, 1], true);
+  const keep = {}; for (const r0 of db.all('SELECT key, value FROM settings')) keep[r0.key] = r0.value;
+  const base0 = {}; for (const k of ['shop_name', 'company_name', 'slogan', 'announcement', 'service_phone', 'service_wechat', 'ship_from', 'service_quick_questions', 'service_recall_minutes', 'service_hours', 'service_email', 'address', 'icp', 'stock_warn', 'unpaid_cancel_minutes', 'auto_confirm_days', 'aftersale_days', 'register_points', 'review_points', 'hot_sales_threshold', 'new_days', 'show_sales']) base0[k] = keep[k] == null ? '' : keep[k];
+  let r = await adm.get('/admin/settings'); ok(['signin_step', 'signin_max', 'cloud_signin_base', 'cloud_signin_step', 'cloud_signin_max'].every(k => r.text.includes('name="' + k + '"')), '站点设置页含六项签到配置');
+  r = await adm.post('/admin/settings', { ...base0, signin_base: '20', signin_step: '1', signin_max: '10', cloud_signin_base: '37', cloud_signin_step: '2', cloud_signin_max: '55' });
+  ok(S('signin_base') === 12, '封顶小于首日被拒');
+  r = await adm.post('/admin/settings', { ...base0, signin_base: '10', signin_step: '2', signin_max: '20', cloud_signin_base: '40', cloud_signin_step: '3', cloud_signin_max: '60' });
+  ok(S('signin_base') === 10 && S('cloud_signin_max') === 60, '后台保存签到配置');
+  const s2 = await run(b, ph, [2, 1], true); ok(s2.join(',') === '40,43', '云商卡新配置即时生效', s2.join(','));
+  { const pr = await b.get('/points-rules'); ok(pr.text.includes('第 1 天 10 积分') && pr.text.includes('第 1 天 40 积分') && pr.text.includes('最高每天 60 积分'), '《积分规则》读取当前配置'); }
   console.log('== 云商卡过期后不再加赠 ==');
   db.exec1('UPDATE users SET cloud_end=? WHERE id=?', U.offset(-86400000), cid);
-  await run(b, ph, [1], false);
+  const s3 = await run(b, ph, [1], false); ok(s3[0] === 14, '过期后按普通档(连续第 3 天 10+2×2=14)', s3.join());
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -249,6 +249,15 @@ svc.cloud.ensureDefaults();
     }
     mark('admin_remark_20261025');
   }
+  if (!done('signin_v2_20261029')) { // 店主新签到规则:普通 12 起 +1 封顶 18;云商卡 37 起 +2 封顶 55(当日总数,不叠加);旧「云商卡签到加赠」配置下线
+    db.transaction(() => {
+      for (const [k, v] of Object.entries({ signin_base: '12', signin_step: '1', signin_max: '18', cloud_signin_base: '37', cloud_signin_step: '2', cloud_signin_max: '55' })) svc.setSetting(k, v);
+      db.exec1("DELETE FROM settings WHERE key IN ('cloud_signin_extra','cloud_signin_extra_step','cloud_signin_extra_max','cloud_extra_expire_days','cloud_signin_extra_cap')");
+      require('./lib/policies').applySigninV2(db);
+      db.exec1("UPDATE banners SET subtitle=REPLACE(subtitle,'签到加赠积分','签到积分更多') WHERE instr(subtitle,'签到加赠积分')>0");
+      mark('signin_v2_20261029');
+    })();
+  }
   if (!done('privacy_read_status_20261025')) { // 隐私政策补充「记录客服消息阅读状态」;措辞补充,不提升版本号
     require('./lib/policies').applyV14Edits(db); mark('privacy_read_status_20261025');
   }
