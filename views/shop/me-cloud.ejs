@@ -9,9 +9,5 @@
   <p class="muted" style="font-size:12px;margin-bottom:0">云商卡仅为本商城的消费会员权益,不涉及任何推荐奖励或返现,积分规则详见<a href="/points-rules">《积分规则》</a>。</p>
   <% if (status.active) { %><p class="mt" style="margin-bottom:0"><a class="btn-rg" href="/me/points">去签到</a></p><% } %>
 </div>
-<div class="card"><h3 style="margin-top:0">卡类型与办理</h3>
-  <% if (!types.length) { %><p class="muted">暂无可办理的卡类型</p><% } %>
-  <% types.forEach(t=>{ %><div class="inv-row"><div><b><%= t.name %></b><div class="muted" style="font-size:12px"><%= t.tierLabel %> · <%= t.durationLabel %><%= t.remark ? ' · ' + t.remark : '' %></div></div><a class="cc-kf" href="/service?from=/me/cloud">联系客服办理 ›</a></div><% }) %>
-  <p class="muted" style="font-size:12px">云商卡不支持在线购买。如需办理或续期,请<a href="/service">联系客服</a>或到线下门店办理,工作人员开通后本页即显示有效期。</p>
-</div>
+<div class="card"><div class="inv-row"><div><b>办理或续期云商卡</b><div class="muted" style="font-size:12px">详情请联系客服</div></div><a class="cc-kf" href="/service?from=/me/cloud">联系客服办理 ›</a></div></div>
 </div></div>

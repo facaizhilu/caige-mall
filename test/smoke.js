@@ -198,7 +198,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/consent?next=/me'); r = await cg.post('/consent', { agree: '1', next: '/me' }); ok(r.loc === '/me', '勾选同意后继续');
   r = await cg.get('/me'); ok(r.status === 200, '同意后可正常访问');
   r = await cg.get('/me/cloud'); ok(r.status === 200 && r.text.includes('会员权益') && !/投资|收益|理财/.test(r.text), '会员云商卡页文案合规');
-  ok(r.text.includes('线下') && !r.text.includes('/me/cloud/daily') && !r.text.includes('/me/cloud/redeem') && !/返积分|直推|推三|云粉/.test(r.text), '云商卡页:线下办理、无每日返积分/兑换/推荐奖励');
+  ok(!r.text.includes('/me/cloud/daily') && !r.text.includes('/me/cloud/redeem') && !/返积分|直推|推三|云粉/.test(r.text), '云商卡页:无每日返积分/兑换/推荐奖励');
   ok((await cg.get('/me/cloud-fans')).loc === '/me/invite' && (await cg.get('/me/referral')).loc === '/me/invite', '旧云粉/分销入口跳转到我的邀请');
   r = await cg.get('/me/invite'); ok(r.status === 200 && r.text.includes('我的邀请') && r.text.includes('首个订单确认收货') && r.text.includes('注册本身不产生任何奖励') && !/佣金|分销|云粉|分享后|邀请满/.test(r.text), '我的邀请页:单级、首单后奖励、无分销文案');
   r = await cg.get('/me'); ok(r.text.includes('我的邀请') && !r.text.includes('我的云粉') && !r.text.includes('积分兑换申请'), '会员中心菜单:我的邀请');
@@ -221,7 +221,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('请填写经办员工'), '开通需登记经办员工');
   r = await adm.post('/admin/members/' + auid + '/cloud', { card_type_id: ctid, amount: '199', sale_date: '2026-10-01', staff: '冒烟店员', receipt_note: '收据 NO.SMOKE' }); r = await adm.get('/admin/members/' + auid); ok(r.text.includes('生效中') && r.text.includes('冒烟店员'), '后台开通云商卡并记录线下销售');
   r = await act.get('/me/cloud'); ok(r.text.includes('有效期') && r.text.includes('白银月卡'), '用户端显示云商卡有效期');
-  { const c = (r.text.match(/<main[\s\S]*<\/main>/) || [r.text])[0]; ok(!/¥\s*\d/.test(c) && !c.includes('199') && c.includes('联系客服办理') && c.includes('href="/service') && c.includes('线下') && !c.includes('cloud-hero'), '云商卡页:无顶部横幅、前台不显示卡价格,每行「联系客服办理」'); }
+  { const c = (r.text.match(/<main[\s\S]*<\/main>/) || [r.text])[0]; ok(!/¥\s*\d/.test(c) && !c.includes('199') && c.includes('联系客服办理') && c.includes('href="/service') && !c.includes('cloud-hero'), '云商卡页:无顶部横幅、前台不显示卡价格,只留「联系客服办理」入口'); }
   r = await adm.get('/admin/cloud-members'); ok(r.text.includes('收据 NO.SMOKE') && r.text.includes('¥199.00'), '云商卡销售记录列表');
   r = await adm.post('/admin/members/' + auid + '/cloud', { action: 'stop', note: '冒烟停用' }); r = await act.get('/me/cloud'); ok(r.text.includes('已到期') || r.text.includes('尚未开通'), '后台停用云商卡');
   r = await adm.get('/admin/cloud-settings'); ok(r.text.includes('会员价折扣') && !/推三|直推|每日返/.test(r.text), '云商卡配置:会员价/包邮');
