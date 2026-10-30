@@ -10,6 +10,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   get(p) { return this.req('GET', p); } post(p, b, o) { return this.req('POST', p, b || {}, o); }
   async login(phone, pw) { await this.get('/login'); const r = await this.post('/login', { phone, password: pw }); const c = await this.get('/consent'); if (c.status === 200) await this.post('/consent', { agree: '1', next: '/' }); await this.get('/'); return r; } }
 (async () => {
+  require('./fixtures')(); // 种子不含会员行为数据,测试自建所需数据
   const items = t => JSON.parse(t.match(/name="items" value='([^']+)'/)[1].replace(/&#34;/g, '"'));
   const itemsRaw = t => t.match(/name="items" value='([^']+)'/)[1].replace(/&#34;/g, '"');
   const a = new C(), b = new C(), adm = new C();

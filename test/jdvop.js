@@ -21,6 +21,7 @@ const soOf = oid => db.get('SELECT * FROM supplier_orders WHERE order_id=?', oid
 const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ');
 
 (async () => {
+  require('./fixtures')(); // 种子不含会员行为数据,测试自建所需数据
   console.log('== 签名(已知向量,openssl enc -aes-128-cbc 交叉验证;仅测试值,非真实密钥) ==');
   const S = J.sign;
   const TK = 'VEVTVEtFWTBURVNUS0VZMA', TS = '54455354495630305445535449563030'; // base64("TESTKEY0TESTKEY0") 去掉 ==;hex("TESTIV00TESTIV00")

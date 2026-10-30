@@ -21,6 +21,7 @@ class Client {
 }
 const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } else { fail++; console.log('  ✘', name, extra || ''); } };
 (async () => {
+  require('./fixtures')(); // 种子不含会员行为数据,测试自建所需数据
   const phone = '139' + String(Date.now()).slice(-8);
   const shop = new Client(), adm = new Client();
   console.log('== 前台 ==');
