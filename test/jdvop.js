@@ -431,7 +431,25 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
         const s2 = db.get('SELECT status, error FROM supplier_orders WHERE id=?', so.id);
         ok(s2.status === 'held' && ups.length === n1, '演示站「已支付」订单:供应商单置为 held,未调用任何上游接口', JSON.stringify(s2));
         const rr = await J.retry(so.id); ok(!rr.ok && db.get('SELECT status FROM supplier_orders WHERE id=?', so.id).status === 'held' && ups.length === n1, '后台「重新推送」也不会下单');
-        db.prepare('UPDATE supplier_orders SET status=?, error=?, next_try_at=? WHERE id=?').run(so.status, so.error, so.next_try_at, so.id); db.exec1('UPDATE orders SET status=? WHERE id=?', o0.status, so.order_id);
+        { const pg = await adm.get('/admin/orders/' + so.order_id); ok(pg.status === 200 && pg.text.includes('演示单·未下单') && pg.text.includes('JDVOP_ORDER_ENABLED=1') && !pg.text.includes('/submit"'), '后台订单页:显示「演示单·未下单」与开启说明,未开启时无下单按钮', pg.status); }
+        // 手动真实下单(测试单):默认关闭;需 JDVOP_ORDER_ENABLED=1 + 输入订单号 + 单笔上限;中转需放行下单接口
+        const ono = db.get('SELECT order_no FROM orders WHERE id=?', so.order_id).order_no;
+        let m = await J.manualSubmit(so.id, ono); ok(!m.ok && /JDVOP_ORDER_ENABLED/.test(m.msg) && ups.length === n1, '手动下单默认关闭', m.msg);
+        setEnv({ JDVOP_ORDER_ENABLED: '1', JDVOP_ORDER_MAX_AMOUNT: '0.01' });
+        m = await J.manualSubmit(so.id, ono); ok(!m.ok && /上限/.test(m.msg) && ups.length === n1, '超过单笔金额上限 → 拒绝', m.msg);
+        setEnv({ JDVOP_ORDER_MAX_AMOUNT: '100000' });
+        m = await J.manualSubmit(so.id, 'WRONG'); ok(!m.ok && /订单号/.test(m.msg) && ups.length === n1, '订单号确认不符 → 拒绝', m.msg);
+        const ups2 = [], up2 = async (url, o) => { const b = JSON.parse(o.body), c = b.interfaceCode; ups2.push(c); const d = b.data;
+          const data = c === 'getSellPrice' ? String(d.skuIds).split(',').map(x => ({ skuId: x, sellPrice: 0.01, retail: 1 })) : c === 'submitOrder' ? { orderSn: 'T-SN-1', orderId: 1, deductionPrice: 0.01 } : c === 'changeArea' ? { provinceId: 1, cityId: 2, countyId: 3, townId: 0 } : {};
+          await sleep(c === 'submitOrder' ? 300 : 0); return { text: async () => JSON.stringify({ code: '200', success: true, data }) }; };
+        const r2 = createRelay({ token: TOKEN, fetch: up2, cfg: relayCfg, minIntervalMs: 0, log: () => {}, allowOrders: true, allowIps: [] });
+        await new Promise(r => r2.server.listen(0, '127.0.0.1', r)); setEnv({ JDVOP_RELAY_URL: 'http://127.0.0.1:' + r2.server.address().port });
+        const [m1, m2] = await Promise.all([J.manualSubmit(so.id, ono), J.manualSubmit(so.id, ono)]);
+        const s3 = db.get('SELECT status, order_sn FROM supplier_orders WHERE id=?', so.id);
+        ok((m1.ok || m2.ok) && ['submitted', 'confirmed'].includes(s3.status) && s3.order_sn === 'T-SN-1', '开启后:手动下单 → 供应商接单(预下单+确认)', JSON.stringify([m1, m2, s3]));
+        ok(ups2.filter(c => c === 'submitOrder').length === 1 && ups2.filter(c => c === 'confirmOrder').length === 1, '并发点击也只下单、确认各一次', ups2.join(','));
+        r2.server.close(); setEnv({ JDVOP_RELAY_URL: RURL, JDVOP_ORDER_ENABLED: null, JDVOP_ORDER_MAX_AMOUNT: null });
+        const cols = Object.keys(so).filter(k => k !== 'id'); db.prepare(`UPDATE supplier_orders SET ${cols.map(k => k + '=?').join(',')} WHERE id=?`).run(...cols.map(k => so[k]), so.id); db.exec1('UPDATE orders SET status=? WHERE id=?', o0.status, so.order_id);
       } else ok(false, '找不到供应商订单用于安全闸测试');
     } finally {
       server.close(); for (const k of Object.keys(process.env)) if (!(k in keep)) delete process.env[k]; Object.assign(process.env, keep);

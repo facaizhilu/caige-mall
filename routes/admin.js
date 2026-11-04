@@ -310,7 +310,7 @@ module.exports = function (r, { filesOf }) {
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     res.locals.asInfo = asInfo(o);
     const so = db.get('SELECT * FROM supplier_orders WHERE order_id=?', o.id);
-    res.locals.sup = { so, packages: db.all('SELECT * FROM order_packages WHERE order_id=? ORDER BY id', o.id).map(p => ({ ...p, nos: U.jsonArr(p.tracking_nos), its: U.jsonArr(p.items) })), items: db.all('SELECT * FROM order_items WHERE order_id=? AND supplier IS NOT NULL', o.id), ownCount: db.get('SELECT COUNT(*) n FROM order_items WHERE order_id=? AND supplier IS NULL', o.id).n, mock: J_cfgMode() === 'mock', alerts: db.all('SELECT * FROM supplier_alerts WHERE order_id=? ORDER BY id DESC LIMIT 10', o.id) };
+    res.locals.sup = { manual: require('../lib/suppliers/jdvop').manualInfo(), so, packages: db.all('SELECT * FROM order_packages WHERE order_id=? ORDER BY id', o.id).map(p => ({ ...p, nos: U.jsonArr(p.tracking_nos), its: U.jsonArr(p.items) })), items: db.all('SELECT * FROM order_items WHERE order_id=? AND supplier IS NOT NULL', o.id), ownCount: db.get('SELECT COUNT(*) n FROM order_items WHERE order_id=? AND supplier IS NULL', o.id).n, mock: J_cfgMode() === 'mock', alerts: db.all('SELECT * FROM supplier_alerts WHERE order_id=? ORDER BY id DESC LIMIT 10', o.id) };
     res.page('admin/order', { title: '订单详情', o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id), traces: db.all('SELECT * FROM traces WHERE order_id=? ORDER BY id DESC', o.id), aftersale: db.get('SELECT * FROM aftersales WHERE order_id=? ORDER BY id DESC LIMIT 1', o.id), invoice: db.get('SELECT * FROM invoices WHERE order_id=?', o.id), group });
   });
   r.post('/orders/:id/ship', need('order'), (req, res) => {

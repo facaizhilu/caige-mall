@@ -119,6 +119,7 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   // ---------- 订单:重试 / 取消 / 模拟 ----------
   const soOf = id => db.get('SELECT * FROM supplier_orders WHERE id=?', int(id));
   r.post('/jdvop/orders/:so/retry', need('order'), aw(async (req, res) => { const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders'); const x = await J.retry(so.id); log(req, '重试供应商订单', `#${so.order_id} ${x.msg}`); flash(req, x.ok ? 'success' : 'error', x.msg); res.redirect('/admin/orders/' + so.order_id); }));
+  r.post('/jdvop/orders/:so/submit', need('order'), aw(async (req, res) => { const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders'); const x = await J.manualSubmit(so.id, req.body.confirm_no); log(req, '手动向供应商下单', `#${so.order_id} ${x.msg}`); flash(req, x.ok ? 'success' : 'error', x.msg); res.redirect('/admin/orders/' + so.order_id + '#supplier'); }));
   r.post('/jdvop/orders/:so/cancel', need('order'), aw(async (req, res) => { const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders'); const x = await J.cancelSupplierOrder(so.id, String(req.body.reason || '商家取消')); log(req, '取消供应商订单', `#${so.order_id} ${x.msg}`); flash(req, x.ok ? 'success' : 'error', x.msg); res.redirect('/admin/orders/' + so.order_id); }));
   r.post('/jdvop/orders/:so/simulate', need('order'), aw(async (req, res) => {
     const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders');

@@ -193,7 +193,9 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | `PUBLIC_BASE_URL` | 售后问题图片的公网地址前缀(供应商要求图片 URL) |
 | `JDVOP_TICK_MS` | 定时任务检查间隔,默认 60000 |
 | `JDVOP_RELAY_URL` / `JDVOP_RELAY_TOKEN` | 中转模式:经白名单服务器上的 relay 调用(见 `relay/README.md`),设置后本机不需要 AppKey/AppSecret/租户号 |
-| `JDVOP_SUBMIT_ORDERS` | live 模式向供应商真实下单(扣预存款)的总开关,必须为 `1` 且非 `DEMO_MODE=1` 才会下单;否则支付后的供应商单只记录为 `held`(演示单·未下单) |
+| `JDVOP_SUBMIT_ORDERS` | live 模式**支付后自动**向供应商真实下单(扣预存款)的开关,必须为 `1` 且非 `DEMO_MODE=1` 才会自动下单;否则支付后的供应商单记录为 `held`(演示单·未下单) |
+| `JDVOP_ORDER_ENABLED` | `1` = 后台订单页出现「向京东下单(扣预存款)」按钮,管理员输入订单号确认后对**这一笔**已支付订单真实下单(演示站也可用,用于自己下测试单);默认关闭 |
+| `JDVOP_ORDER_MAX_AMOUNT` | 手动下单单笔上限(元,供应商部分),默认 300;`0` = 不限 |
 | `JDVOP_STARTER_SKUS` | live + `DEMO_MODE=1` 时启动自动导入的商品 ID(逗号分隔),默认见 `lib/suppliers/jdvop/starter-skus.js` |
 
 **演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。
