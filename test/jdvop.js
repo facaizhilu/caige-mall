@@ -33,6 +33,31 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   let threw = false; try { S.encrypt('x', 'abc', TS); } catch (e) { threw = true; } ok(threw, 'AppKey 解码长度不对时报错');
   const br = J.client.buildRequest('searchGoodsList', { page: 1 }, { baseUrl: 'https://api.example.test', tenant: 'T1', appKey: TK, appSecret: TS, apiType: 'V2' }, 1700000000000, 'testnonce0001');
   ok(br.url === `https://api.example.test/api/v1/T1/${TK}/jd_mall_interface` && br.body.timestamp === '1700000000000' && br.body.timestamp.length === 13 && br.body.data.type === 'V2' && br.body.interfaceCode === 'searchGoodsList' && br.body.signature.length > 20, '请求地址/公共参数/13 位时间戳/data.type', JSON.stringify(br));
+  {
+    const CF = J.config, keep = { ...process.env };
+    const setEnv = o => { for (const [k, v] of Object.entries(o)) v == null ? delete process.env[k] : process.env[k] = v; };
+    setEnv({ JDVOP_BASE_URL: null, JDVOP_ENV: null, JDVOP_INTERFACE_TYPE: null });
+    ok(CF.cfg().baseUrl === 'https://apiprd.laiyipiao.com.cn/cgi-bin' && CF.cfg().interfaceType === 'jd_mall_interface', '默认正式地址 apiprd…/cgi-bin + 接口类型 jd_mall_interface', CF.cfg().baseUrl);
+    setEnv({ JDVOP_ENV: 'test' }); ok(CF.cfg().baseUrl === 'https://apitest.laiyipiao.com.cn/cgi-bin', 'JDVOP_ENV=test → apitest 地址');
+    setEnv({ JDVOP_BASE_URL: 'https://new.example.test/cgi-bin/', JDVOP_INTERFACE_TYPE: 'tm_mall_interface' });
+    ok(CF.cfg().baseUrl === 'https://new.example.test/cgi-bin' && CF.cfg().interfaceType === 'tm_mall_interface', 'JDVOP_BASE_URL / JDVOP_INTERFACE_TYPE 可配置(域名更换时只改环境变量)');
+    const br2 = J.client.buildRequest('searchGoodsList', {}, { baseUrl: 'https://x.test', tenant: 'T1', appKey: TK, appSecret: TS, apiType: 'V2', interfaceType: 'tm_mall_interface' }, 1700000000000, 'testnonce0001');
+    ok(br2.url.endsWith('/tm_mall_interface') && br2.body.signature === S.sign({ timestamp: 1700000000000, nonceStr: 'testnonce0001', interfaceType: 'tm_mall_interface', appKey: TK, appSecret: TS }).signature, '自定义接口类型:URL 末段与签名同步');
+    ok(J.client.isQpsLimited({ code: 500, msg: 'QPS超限', success: false }) && !J.client.isQpsLimited({ code: 200, msg: 'ok' }) && !J.client.isQpsLimited({ code: 500, msg: '余额不足' }), '识别「QPS超限」');
+    // live 模式 + 模拟 fetch(不联网):QPS超限自动重试、余额空字符串按 0
+    const realFetch = global.fetch, seen = [];
+    setEnv({ JDVOP_MODE: 'live', JDVOP_BASE_URL: 'https://lyp.example.test/cgi-bin', JDVOP_TENANT: 'T1', JDVOP_APPKEY: TK, JDVOP_APPSECRET: TS, JDVOP_MIN_INTERVAL_MS: '0', JDVOP_INTERFACE_TYPE: null });
+    let n = 0;
+    global.fetch = async (url, o) => { seen.push({ url: String(url), body: o && o.body }); const body = String(url).includes('customerBalance') ? { data: '', code: 200, msg: '查询成功', success: true, error: false } : (++n === 1 ? { data: null, code: 500, msg: 'QPS超限', success: false, error: true } : { data: [{ id: '652', parentId: '0', groupName: '数码', groupLevel: '1' }], code: 200, msg: '操作成功', success: true, error: false }); return { status: 200, text: async () => JSON.stringify(body) }; };
+    try {
+      const cats = await J.client.call('searchAllCategory', {});
+      ok(Array.isArray(cats) && cats[0].groupName === '数码' && n === 2 && seen[0].url === `https://lyp.example.test/cgi-bin/api/v1/T1/${TK}/jd_mall_interface`, 'QPS超限 → 自动等待重试成功', JSON.stringify(seen.map(x => x.url)));
+      ok(JSON.parse(seen[0].body).nonceStr !== JSON.parse(seen[1].body).nonceStr, '重试时重新生成随机串/签名');
+      const bal = await J.client.balance();
+      ok(bal === 0 && seen[2].url.includes('/api/v1/customerBalance/T1?tenantCode=T1'), '余额接口:未充值返回空字符串 → 0', bal);
+    } finally { global.fetch = realFetch; for (const k of Object.keys(process.env)) if (!(k in keep)) delete process.env[k]; Object.assign(process.env, keep); }
+    ok(J.config.cfg().mode === 'mock', '环境变量已恢复为 mock');
+  }
   const red = JSON.stringify(J.client.redact({ appKey: TK, appSecret: TS, signature: 'abc', data: { consigneeMobile: '13800001001', consigneeName: '李美' } }));
   ok(!red.includes(TK) && !red.includes(TS) && !red.includes('13800001001') && !red.includes('abc"'), '日志脱敏:密钥/签名/手机号', red);
   ok(J.config.cfg().mode === 'mock', '默认 mock 模式(无需密钥)');
@@ -199,6 +224,9 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   bad = await g.req('POST', '/api/suppliers/jdvop/callback', null, { raw: '{}' }); ok(bad.status === 403, '空报文被拒绝');
   await adm.post('/admin/jdvop/orders/' + so.id + '/simulate', { action: 'deliver' });
   ok(db.get("SELECT delivered FROM order_packages WHERE order_id=? AND source='jdvop'", oid).delivered === 1, '签收回调(以查询结果为准)');
+  await adm.post('/admin/jdvop/orders/' + so.id + '/simulate', { action: 'await_confirm' });
+  ok(db.get("SELECT 1 FROM supplier_callbacks WHERE type='18'") && db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '%等待确认收货%'", oid), '回调 type=18 订单等待确认收货 → 记录轨迹');
+  ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped', 'type=18 不自动确认收货');
 
   console.log('== 售后:先查可售后再创建,供应商退款后才退顾客 ==');
   const pkg = db.get("SELECT * FROM order_packages WHERE order_id=? AND source='jdvop'", oid);
@@ -211,6 +239,10 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(as && as.supplier === 'jdvop' && as.supplier_afs_sn && as.supplier_afs_sn.length <= 20 && as.status === 'pending' && as.amount === 25.9, '创建供应商售后单(afsSn ≤20 位)', JSON.stringify(as));
   r = await adm.post('/admin/aftersales/' + as.id + '/handle', { action: 'approve' }); ok(db.get('SELECT status FROM aftersales WHERE id=?', as.id).status === 'pending', '供应商售后不能走手动审核/退款');
   await adm.post('/admin/jdvop/aftersales/' + as.id + '/sim-afs_approve'); ok(db.get('SELECT status FROM aftersales WHERE id=?', as.id).status === 'approved_return', '供应商审核通过 → 同步状态');
+  r = await adm.post('/admin/jdvop/aftersales/' + as.id + '/logistics');
+  { const lg = JSON.parse(db.get('SELECT supplier_logistics FROM aftersales WHERE id=?', as.id).supplier_logistics || 'null'); ok(lg && lg.waybills.length === 1 && /^JDVA/.test(lg.waybills[0].no) && lg.tracks.length >= 2, '查询售后物流(queryAfsLogisticsInfo)→ 运单与轨迹', JSON.stringify(lg)); }
+  r = await adm.get('/admin/aftersales/' + as.id); ok(r.text.includes('售后运单') && r.text.includes('售后物流'), '售后详情页显示售后物流');
+  ok(db.get("SELECT request FROM supplier_call_logs WHERE interface_code='queryAfsLogisticsInfo' ORDER BY id DESC").request.includes('originalOrderId'), '售后物流入参 originalOrderId(京东子单号)');
   ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped' && !db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '%部分退款%'", oid), '供应商退款前不给顾客退款');
   await adm.post('/admin/jdvop/aftersales/' + as.id + '/sim-afs_refund');
   const as2 = db.get('SELECT * FROM aftersales WHERE id=?', as.id);
@@ -257,6 +289,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   await adm.post('/admin/jdvop/orders/' + cso.id + '/cancel', { reason: '缺货' });
   const cso2 = await waitFor(() => { const x = soOf(coid); return x && x.status === 'cancelled' ? x : null; });
   ok(cso2 && db.get('SELECT status FROM orders WHERE id=?', coid).status === 'refunded', '取消 → 取消回调 → 自动退款', JSON.stringify(soOf(coid)));
+  ok(soOf(coid).refund_freight === 1 && /供应商退运费/.test(db.get("SELECT result FROM supplier_callbacks WHERE type='16' ORDER BY id DESC").result || ''), '确认后取消回调 type=16 记录 refundFreight(退运费)', JSON.stringify(soOf(coid)));
 
   console.log('== 价格/可售刷新:自动下架与恢复;禁售清单可编辑 ==');
   const tissue = prodOf('900017005');

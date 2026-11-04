@@ -180,17 +180,22 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | 变量 | 说明 |
 |---|---|
 | `JDVOP_MODE` | `mock`(默认)或 `live` |
-| `JDVOP_BASE_URL` | 接口域名(live 模式要求 https,除非 `JDVOP_ALLOW_HTTP=1`) |
+| `JDVOP_BASE_URL` | 接口根地址(含 `/cgi-bin`)。留空时按 `JDVOP_ENV` 取默认:`prod`(默认)=`https://apiprd.laiyipiao.com.cn/cgi-bin`,`test`=`https://apitest.laiyipiao.com.cn/cgi-bin`。live 模式要求 https,除非 `JDVOP_ALLOW_HTTP=1` |
+| `JDVOP_ENV` | `prod`(默认)或 `test`,仅在未设置 `JDVOP_BASE_URL` 时生效 |
+| `JDVOP_INTERFACE_TYPE` | 接口类型标识(URL 末段 + 签名 + 回调 interfaceTypeCode 校验),默认 `jd_mall_interface` |
+| `JDVOP_QPS_RETRIES` | 返回「QPS超限」时自动重试次数,默认 2 |
 | `JDVOP_TENANT` / `JDVOP_APPKEY` / `JDVOP_APPSECRET` | 来一票分配的租户号 / AppKey / AppSecret |
 | `JDVOP_API_TYPE` | data.type,默认 `V2` |
 | `JDVOP_CALLBACK_TOKEN` | 回调地址带 `?token=` 校验(live 模式必须配置它或下一项) |
 | `JDVOP_CALLBACK_TENANT_APP_ID` | 校验回调报文中的 tenantAppId |
-| `JDVOP_SIGN_CODE_FIELD` | 签名歧义开关:留空=签名用接口类型 `jd_mall_interface`;`code`=用接口编码 |
-| `JDVOP_MIN_INTERVAL_MS` | 全局限流间隔,live 默认 1000(1 次/秒),mock 默认 50 |
+| `JDVOP_SIGN_CODE_FIELD` | 签名开关:留空=签名用接口类型(已在正式环境验证通过);`code`=用接口编码(仅应急) |
+| `JDVOP_MIN_INTERVAL_MS` | 全局限流间隔,live 默认 1100(来一票默认 QPS=1/QPM=100,1000ms 实测偶发「QPS超限」),mock 默认 50 |
 | `PUBLIC_BASE_URL` | 售后问题图片的公网地址前缀(供应商要求图片 URL) |
 | `JDVOP_TICK_MS` | 定时任务检查间隔,默认 60000 |
 
 **演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。
+
+**真实接口只读自检**(只调余额/分类/商品列表/详情/价格/可售/地址/运费等免费查询,不下单):在已加入来一票 IP 白名单的服务器上运行 `node scripts/jdvop-probe.js /etc/yunnong/jdvop.env`(env 文件含 `JDVOP_TENANT`/`JDVOP_APPKEY`/`JDVOP_APPSECRET`,可选 `JDVOP_BASE_URL`),输出只含摘要,不打印密钥。
 
 回调地址:`POST https://你的域名/api/suppliers/jdvop/callback?token=<JDVOP_CALLBACK_TOKEN>`(需在来一票后台配置)。
 回调只推一次、不重试,系统另有轮询兜底(间隔在后台「供应商设置」);所有状态变化都会回查查询接口确认后才改账,顾客退款只在供应商退款确认后发生。

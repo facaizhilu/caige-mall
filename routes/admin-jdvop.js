@@ -122,8 +122,8 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   r.post('/jdvop/orders/:so/cancel', need('order'), aw(async (req, res) => { const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders'); const x = await J.cancelSupplierOrder(so.id, String(req.body.reason || '商家取消')); log(req, '取消供应商订单', `#${so.order_id} ${x.msg}`); flash(req, x.ok ? 'success' : 'error', x.msg); res.redirect('/admin/orders/' + so.order_id); }));
   r.post('/jdvop/orders/:so/simulate', need('order'), aw(async (req, res) => {
     const so = soOf(req.params.so); if (!so) return res.redirect('/admin/orders');
-    const act = String(req.body.action || ''); if (!['split', 'ship', 'deliver', 'complete'].includes(act)) { flash(req, 'error', '未知模拟动作'); return res.redirect('/admin/orders/' + so.order_id); }
-    try { const n = await J.simulate(so.id, act); flash(req, 'success', `已模拟供应商${{ split: '拆单', ship: '发货', deliver: '签收', complete: '完成' }[act]},处理回调 ${n} 条`); } catch (e) { flash(req, 'error', e.message); }
+    const act = String(req.body.action || ''); if (!['split', 'ship', 'deliver', 'await_confirm', 'complete'].includes(act)) { flash(req, 'error', '未知模拟动作'); return res.redirect('/admin/orders/' + so.order_id); }
+    try { const n = await J.simulate(so.id, act); flash(req, 'success', `已模拟供应商${{ split: '拆单', ship: '发货', deliver: '签收', await_confirm: '等待确认收货', complete: '完成' }[act]},处理回调 ${n} 条`); } catch (e) { flash(req, 'error', e.message); }
     log(req, '模拟供应商订单', `#${so.order_id} ${act}`); res.redirect('/admin/orders/' + so.order_id);
   }));
 
