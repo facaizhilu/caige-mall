@@ -63,8 +63,8 @@ async function step(name, fn) {
     for (const id of cands) {
       const r = await step('service.importSku 导入 ' + id, async () => J.importSku(id));
       if (r && r.productId) {
-        const p = db.get('SELECT id,name,price,status,supplier_cat,images FROM products WHERE id=?', r.productId), sk = db.all('SELECT supplier_sku,price,cost_price,stock,spec_text FROM skus WHERE product_id=?', r.productId);
-        out('  导入结果:', { name: p.name, price: p.price, status: p.status, cat: p.supplier_cat, imgs: JSON.parse(p.images || '[]').length, skus: sk.slice(0, 4) });
+        const p = db.get('SELECT id,name,price,status,supplier_cat,images,supports_7day_return,return_rule_text FROM products WHERE id=?', r.productId), sk = db.all('SELECT supplier_sku,price,cost_price,stock,spec_text FROM skus WHERE product_id=?', r.productId);
+        out('  导入结果:', { name: p.name, price: p.price, status: p.status, cat: p.supplier_cat, supports7: p.supports_7day_return, returnRule: p.return_rule_text, imgs: JSON.parse(p.images || '[]').length, skus: sk.slice(0, 4) });
         await step('service.refreshProducts 刷新价格/可售', async () => J.refreshProducts({ productIds: [r.productId] }));
         done = true; break;
       }
