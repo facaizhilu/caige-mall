@@ -325,7 +325,7 @@ module.exports = function (r, { filesOf }) {
     const reason = String(req.body.reason || '商家取消').slice(0, 100);
     const so = db.get('SELECT * FROM supplier_orders WHERE order_id=?', o.id);
     if (so && ['submitted', 'confirmed', 'cancelling'].includes(so.status)) { flash(req, 'error', '该订单含已推送供应商的商品,请先在「供应商发货」面板取消供应商订单(取消成功后自动退款)'); return res.redirect('/admin/orders/' + o.id); }
-    if (so && so.status === 'pending') db.exec1("UPDATE supplier_orders SET status='cancelled', error='商家取消订单(未推送)', refunded_customer=sale_amount, updated_at=? WHERE id=?", now(), so.id);
+    if (so && (so.status === 'pending' || so.status === 'held')) db.exec1("UPDATE supplier_orders SET status='cancelled', error='商家取消订单(未推送)', refunded_customer=sale_amount, updated_at=? WHERE id=?", now(), so.id);
     if (so && ['failed', 'cancelled'].includes(so.status) && so.refunded_customer > 0 && o.status !== 'unpaid') {
       const left = round2(o.pay_amount - so.refunded_customer);
       const x = left > 0 ? svc.refundOrder(o.id, '商家取消:' + reason, false, { amount: left }) : { ok: true, cash: 0 };

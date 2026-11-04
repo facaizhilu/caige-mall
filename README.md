@@ -192,8 +192,14 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | `JDVOP_MIN_INTERVAL_MS` | 全局限流间隔,live 默认 1100(来一票默认 QPS=1/QPM=100,1000ms 实测偶发「QPS超限」),mock 默认 50 |
 | `PUBLIC_BASE_URL` | 售后问题图片的公网地址前缀(供应商要求图片 URL) |
 | `JDVOP_TICK_MS` | 定时任务检查间隔,默认 60000 |
+| `JDVOP_RELAY_URL` / `JDVOP_RELAY_TOKEN` | 中转模式:经白名单服务器上的 relay 调用(见 `relay/README.md`),设置后本机不需要 AppKey/AppSecret/租户号 |
+| `JDVOP_SUBMIT_ORDERS` | live 模式向供应商真实下单(扣预存款)的总开关,必须为 `1` 且非 `DEMO_MODE=1` 才会下单;否则支付后的供应商单只记录为 `held`(演示单·未下单) |
+| `JDVOP_STARTER_SKUS` | live + `DEMO_MODE=1` 时启动自动导入的商品 ID(逗号分隔),默认见 `lib/suppliers/jdvop/starter-skus.js` |
 
 **演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。
+
+**演示站 live 模式(经中转)**:`JDVOP_MODE=live` + `DEMO_MODE=1` + 中转已配置时,启动后若库里没有供应商商品,会自动导入 `starter-skus.js` 中的真实商品(新鲜水果/蔬菜、数据线/鼠标/键盘/U盘/充电器/交换机/网线等,约 25 款,走正常合规校验)。Render 免费库每次重新部署会清空,启动时会自动补回。演示站永远不会向供应商真实下单(支付后的供应商单记为 `held`)。
+
 
 **真实接口只读自检**(只调余额/分类/商品列表/详情/价格/可售/地址/运费等免费查询,不下单):在已加入来一票 IP 白名单的服务器上运行 `node scripts/jdvop-probe.js /etc/yunnong/jdvop.env`(env 文件含 `JDVOP_TENANT`/`JDVOP_APPKEY`/`JDVOP_APPSECRET`,可选 `JDVOP_BASE_URL`),输出只含摘要,不打印密钥。
 

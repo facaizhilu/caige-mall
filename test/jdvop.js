@@ -382,6 +382,62 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
     setV('jdvop_blocklist', keep.b); setV('jdvop_allowlist', keep.a);
   }
 
+  console.log('== 中转(relay)模式:凭证只在白名单服务器;HMAC 防重放;下单类接口默认禁止 ==');
+  {
+    const { createRelay } = require('../relay/jdvop-relay');
+    const RA = require('../lib/suppliers/jdvop/relay-auth'), CF = J.config, keep = { ...process.env };
+    const setEnv = o => { for (const [k, v] of Object.entries(o)) v == null ? delete process.env[k] : process.env[k] = v; };
+    const TOKEN = 'relay-test-token-0123456789abcdef0123456789'; // 仅测试值
+    const ups = []; // 上游(假)收到的请求
+    const fakeUp = async (url, o) => { ups.push({ url, body: o && o.body ? JSON.parse(o.body) : null }); const code = ups[ups.length - 1].body && ups[ups.length - 1].body.interfaceCode;
+      return { text: async () => JSON.stringify(url.includes('customerBalance') ? { code: '200', success: true, data: '12.5' } : { code: '200', success: true, data: { echo: code } }) }; };
+    const relayCfg = () => ({ ...CF.cfg(), baseUrl: 'https://up.example.test/cgi-bin', tenant: 'T1', appKey: TK, appSecret: TS, apiType: 'V2', timeoutMs: 5000 });
+    const { server } = createRelay({ token: TOKEN, fetch: fakeUp, cfg: relayCfg, minIntervalMs: 0, log: () => {}, allowOrders: false, allowIps: [] });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const RURL = 'http://127.0.0.1:' + server.address().port;
+    try {
+      setEnv({ JDVOP_MODE: 'live', JDVOP_RELAY_URL: RURL, JDVOP_RELAY_TOKEN: TOKEN, JDVOP_TENANT: null, JDVOP_APPKEY: null, JDVOP_APPSECRET: null, JDVOP_MIN_INTERVAL_MS: '0', JDVOP_QPS_RETRIES: '0' });
+      ok(CF.missing().length === 0, '中转模式:本机无需 AppKey/AppSecret/租户号', CF.missing());
+      ok(!JSON.stringify(CF.status()).includes(TOKEN) && /令牌已设置/.test(CF.status().relay), '后台状态只显示「令牌已设置」,不含令牌', CF.status().relay);
+      setEnv({ JDVOP_RELAY_TOKEN: 'short' }); ok(CF.missing().includes('JDVOP_RELAY_TOKEN'), '令牌缺失/过短 → 提示未配置'); setEnv({ JDVOP_RELAY_TOKEN: TOKEN });
+      const d = await J.client.call('searchGoodsList', { pageIndex: 1 });
+      const u = ups[ups.length - 1];
+      ok(d && d.echo === 'searchGoodsList', '经中转调用成功,返回上游 data', JSON.stringify(d));
+      ok(u.url === `https://up.example.test/cgi-bin/api/v1/T1/${TK}/jd_mall_interface` && u.body.data.type === 'V2' && u.body.data.pageIndex === 1, '中转在服务器端拼接租户/AppKey 地址', u.url);
+      ok(u.body.signature === S.sign({ timestamp: u.body.timestamp, nonceStr: u.body.nonceStr, interfaceType: 'jd_mall_interface', interfaceCode: 'searchGoodsList', appKey: TK, appSecret: TS }).signature, '中转在服务器端签名(与签名算法一致)');
+      ok(await J.client.balance() === 12.5, '余额经中转查询');
+      const n0 = ups.length; let e1 = null; try { await J.client.call('submitOrder', { outOrderSn: 'X' }); } catch (e) { e1 = e; }
+      ok(e1 && /未开放/.test(e1.message) && ups.length === n0, '下单类接口(submitOrder)被中转拒绝,未到达上游', e1 && e1.message);
+      let e2 = null; try { await J.client.call('someUnknownApi', {}); } catch (e) { e2 = e; } ok(e2 && /白名单/.test(e2.message) && ups.length === n0, '白名单外接口被拒绝');
+      setEnv({ JDVOP_RELAY_TOKEN: 'wrong-token-0123456789abcdef0123456789xx' }); let e3 = null; try { await J.client.call('searchGoodsList', {}); } catch (e) { e3 = e; }
+      ok(e3 && /unauthorized/.test(e3.message) && ups.length === n0, '令牌错误 → 401,未到达上游', e3 && e3.message); setEnv({ JDVOP_RELAY_TOKEN: TOKEN });
+      const body = JSON.stringify({ interfaceCode: 'searchAllCategory', data: {} }), h = RA.signHeaders(TOKEN, 'POST', '/v1/call', body);
+      const send = hh => fetch(RURL + '/v1/call', { method: 'POST', headers: { ...hh, 'Content-Type': 'application/json' }, body }).then(r => r.status);
+      ok(await send(h) === 200 && await send(h) === 401, '同一签名重放 → 第二次被拒(防重放)');
+      ok(await send(RA.signHeaders(TOKEN, 'POST', '/v1/call', body, Date.now() - 5 * 60000)) === 401, '时间戳超出窗口 → 拒绝');
+      ok(await send({}) === 401, '无签名头 → 拒绝');
+      ok((await fetch(RURL + '/v1/call', { method: 'POST', headers: RA.signHeaders(TOKEN, 'POST', '/v1/call', 'x'.repeat(70000)), body: 'x'.repeat(70000) }).then(r => r.status).catch(() => 413)) === 413, '超大请求体 → 413');
+      ok((await fetch(RURL + '/admin').then(r => r.status)) === 404 && (await fetch(RURL + '/health').then(r => r.text())) === '{"ok":true}', '只开放 /v1/call、/v1/balance、/health');
+      // 安全闸:演示站/未显式开启时,live 模式绝不向供应商真实下单
+      setEnv({ DEMO_MODE: '1', JDVOP_SUBMIT_ORDERS: '1' }); ok(!J.ordersAllowed(), 'live + DEMO_MODE=1 → 禁止真实下单(即使 JDVOP_SUBMIT_ORDERS=1)');
+      setEnv({ DEMO_MODE: '0', JDVOP_SUBMIT_ORDERS: null }); ok(!J.ordersAllowed(), 'live + 未设置 JDVOP_SUBMIT_ORDERS → 禁止真实下单');
+      setEnv({ JDVOP_SUBMIT_ORDERS: '1' }); ok(J.ordersAllowed(), 'live + 非演示 + JDVOP_SUBMIT_ORDERS=1 → 才允许');
+      setEnv({ DEMO_MODE: '1', JDVOP_SUBMIT_ORDERS: null });
+      const so = db.get("SELECT * FROM supplier_orders LIMIT 1");
+      if (so) {
+        const o0 = db.get('SELECT status FROM orders WHERE id=?', so.order_id), n1 = ups.length;
+        db.exec1("UPDATE supplier_orders SET status='pending', next_try_at=NULL WHERE id=?", so.id); db.exec1("UPDATE orders SET status='paid' WHERE id=?", so.order_id);
+        await J.processOrder(so.id);
+        const s2 = db.get('SELECT status, error FROM supplier_orders WHERE id=?', so.id);
+        ok(s2.status === 'held' && ups.length === n1, '演示站「已支付」订单:供应商单置为 held,未调用任何上游接口', JSON.stringify(s2));
+        const rr = await J.retry(so.id); ok(!rr.ok && db.get('SELECT status FROM supplier_orders WHERE id=?', so.id).status === 'held' && ups.length === n1, '后台「重新推送」也不会下单');
+        db.prepare('UPDATE supplier_orders SET status=?, error=?, next_try_at=? WHERE id=?').run(so.status, so.error, so.next_try_at, so.id); db.exec1('UPDATE orders SET status=? WHERE id=?', o0.status, so.order_id);
+      } else ok(false, '找不到供应商订单用于安全闸测试');
+    } finally {
+      server.close(); for (const k of Object.keys(process.env)) if (!(k in keep)) delete process.env[k]; Object.assign(process.env, keep);
+    }
+  }
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); console.log(`\n结果: ${pass} 通过, ${fail + 1} 失败`); process.exit(1); });

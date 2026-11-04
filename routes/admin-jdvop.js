@@ -9,7 +9,7 @@ module.exports = function (r, { need, flash, log, filesOf }) {
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').includes('/admin') ? req.get('referer') : fb);
   const aw = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(e => { if (e instanceof J.client.SupplierError) { flash(req, 'error', '供应商接口返回:' + e.message); return back(req, res, '/admin/jdvop'); } next(e); });
   const catOptions = () => db.all('SELECT c.id, c.name, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.parent_id>0 ORDER BY c.parent_id, c.sort, c.id');
-  const modeInfo = () => ({ cfg: J.config.status(), missing: J.config.missing(), demo: process.env.DEMO_MODE === '1' });
+  const modeInfo = () => ({ cfg: J.config.status(), missing: J.config.missing(), demo: process.env.DEMO_MODE === '1', orders: J.ordersAllowed() });
 
   // 类目审核筛选:可上架 / 预包装食品(待经营范围变更+食品备案,下一批优先开放)/ 其他不可上架
   const REVIEW_FILTERS = { ok: b => !b, food: b => !!(b && b.food), other: b => !!(b && !b.food) };
