@@ -1,56 +1,76 @@
 #!/usr/bin/env node
-// 生成演示站启动自动导入清单 lib/suppliers/jdvop/starter-skus.js(只调用只读查询接口:searchAllCategory / searchGoodsList)。
-// 按「当前允许上架」的三级类目逐个浏览,每类挑若干款(跳过禁售/加工蛋制品/无价格/同款重复),各类目轮流排序(先保证每个类目都有货)。
-// 用法(经中转,本机无需密钥): JDVOP_MODE=live JDVOP_RELAY_URL=… JDVOP_RELAY_TOKEN=… node scripts/jdvop-build-starter.js [总数上限=190]
+// 生成演示站启动导入快照 lib/suppliers/jdvop/starter-catalog.json(只调用只读查询接口:searchAllCategory / searchGoodsList / searchGoodsDetail / getSimilarSkuInfoList)。
+// 快照含商品名、图片、图文详情图片、规格、类目(不含价格:启动导入时批量查实时价格与可售),演示站启动导入不再逐个调详情接口。
+// 选品:按「当前允许上架」的三级类目逐类分页浏览,按本站分类设目标数,各三级类目轮流取;跳过禁售/不在允许范围/加工蛋品与加工农产品/数码非自营/无价/同款其他规格。
+// 用法(经中转,本机无需密钥): JDVOP_MODE=live JDVOP_RELAY_URL=… JDVOP_RELAY_TOKEN=… [JDVOP_STARTER_CACHE=进度文件] node scripts/jdvop-build-starter.js
 const fs = require('fs'), path = require('path'), os = require('os');
 process.env.DATA_DIR = process.env.DATA_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'jdvop-starter-'));
-const MAX = parseInt(process.argv[2] || '190', 10);
 require('../lib/seed')(false);
-const client = require('../lib/suppliers/jdvop/client'), C = require('../lib/suppliers/jdvop/compliance');
-// 各大类每个三级类目取几款;不在这里的允许类目(软件/工业品/服务等)不进演示清单
-const QUOTA = [[/^生鲜 > 水果 > /, 3], [/^生鲜 > 蔬菜 > /, 12], [/^生鲜 > .* > (蛋类|蛋品|禽蛋|鲜蛋)$/, 8],
-  [/^手机通讯 > 手机配件 > /, 2], [/^数码 > (数码配件|影音娱乐) > /, 2], [/^电脑、办公 > (外设产品|电脑组件|网络产品) > /, 2], [/^电脑、办公 > 游戏设备 > 游戏耳机$/, 2]];
-const GROUP = p => /^生鲜 > 水果/.test(p) ? '水果' : /^生鲜 > 蔬菜/.test(p) ? '蔬菜' : /蛋/.test(p) ? '蛋类' : /网络产品/.test(p) ? '网络设备' : /^电脑/.test(p) ? '电脑配件' : '数码配件';
+const db = require('../lib/db'), client = require('../lib/suppliers/jdvop/client'), C = require('../lib/suppliers/jdvop/compliance'), J = require('../lib/suppliers/jdvop/service');
+// 本站分类 → 目标商品数(京东商品池里在售合规的不足时取到多少算多少);未列出的本站分类取 DEFAULT
+const TARGET = { 新鲜水果: 80, 新鲜蔬菜: 40, 鲜蛋: 25, 手机配件: 70, 影音耳机: 60, 电脑配件: 70, 电脑组件: 40, 网络设备: 50 }, DEFAULT = 25;
+// 不进演示清单的允许类目(软件/虚拟商品、工业品、服务等)
+const EXCLUDE = /软件|工业品|服务|游戏软件|充值|会员/;
+const cacheFile = process.env.JDVOP_STARTER_CACHE, cache = cacheFile && fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, 'utf8')) : { pages: {}, details: {} };
+let dirty = 0; const save = (force) => { if (cacheFile && (force || ++dirty % 10 === 0)) fs.writeFileSync(cacheFile, JSON.stringify(cache)); };
+const call = async (code, data, key) => { if (key && key in cache.details) return cache.details[key]; for (let a = 0; ; a++) { try { const r = await client.call(code, data); if (key) { cache.details[key] = r; save(); } return r; } catch (e) { if (a >= 2 || !e.network) throw e; await new Promise(r => setTimeout(r, 3000)); } } };
+const pick = (o, ks) => { const r = {}; for (const k of ks) if (o[k] !== undefined && o[k] !== null && o[k] !== '') r[k] = o[k]; return r; };
 (async () => {
-  const all = await client.call('searchAllCategory', {}) || [], by = {}; all.forEach(c => by[c.id] = c);
-  const cats = [];
-  for (const c of all.filter(c => String(c.groupLevel) === '3')) {
-    const p = by[c.parentId] || {}, pp = by[p.parentId] || {}, names = [pp.groupName, p.groupName, c.groupName], ps = names.join(' > ');
-    if (C.review(names)) continue; const q = QUOTA.find(([re]) => re.test(ps)); if (!q) continue;
-    cats.push({ id: c.id, path: ps, names, quota: q[1] });
+  const t0 = Date.now(), idx = await J.categoryIndex(), sites = {};
+  for (const c of Object.values(idx).filter(c => c.level === 3)) {
+    const p = idx[c.parentId] || {}, pp = idx[p.parentId] || {}, names = [pp.name, p.name, c.name], ps = names.join(' > ');
+    if (C.review(names) || EXCLUDE.test(ps)) continue;
+    const m = J.mapCategory([pp, p, c].map(x => ({ id: String(x.id), name: x.name }))), site = m && m.category_id ? (db.get('SELECT name FROM categories WHERE id=?', m.category_id) || {}).name : null;
+    if (!site) continue;
+    (sites[site] = sites[site] || { site, target: TARGET[site] || DEFAULT, cats: [], items: [], rr: 0 }).cats.push({ id: c.id, path: ps, names, page: 0, buf: [], done: false, digital: !/^生鲜/.test(ps) });
   }
-  const cache = process.env.JDVOP_STARTER_CACHE, cached = cache && fs.existsSync(cache) ? JSON.parse(fs.readFileSync(cache, 'utf8')) : null;
-  console.error(`允许且纳入演示的三级类目 ${cats.length} 个,开始浏览…`);
-  for (const c of cats) {
-    if (cached && cached[c.id]) { c.picks = cached[c.id].slice(0, c.quota); continue; }
-    let data; try { data = await client.call('searchGoodsList', { page: 1, limit: 30, categoryThree: +c.id }); } catch (e) { console.error('  ✘', c.path, e.message); c.picks = []; continue; }
-    const seen = new Set(); c.picks = [];
-    for (const g of (data && data.list) || []) {
-      if (c.picks.length >= c.quota) break;
-      if (!(+g.sellPrice > 0) || String(g.yn) === '0') continue;
-      if (C.review([g.categoryOneName, g.categoryTwoName, g.categoryThreeName], g.skuName)) continue;
-      const key = (g.brandName || '') + '|' + C.stripJd(g.skuName || '').replace(/\s+/g, '').slice(0, 10); if (seen.has(key)) continue; seen.add(key); // 同款不同规格只取一个(导入时会带上其他规格)
-      c.picks.push({ skuId: String(g.skuId), name: C.stripJd(g.skuName || '').slice(0, 30) });
+  const taken = new Set(), spus = new Set();
+  console.error('本站分类 → 允许三级类目数:', Object.values(sites).map(s => `${s.site}:${s.cats.length}`).join(' '));
+  async function next(c) { // 取该三级类目下一个候选(必要时翻页)
+    while (!c.buf.length && !c.done) {
+      c.page++; const key = c.id + ':' + c.page;
+      let data = cache.pages[key]; if (!data) { try { data = await client.call('searchGoodsList', { page: c.page, limit: 20, categoryThree: +c.id }); } catch (e) { console.error('  ✘ 浏览', c.path, e.message); c.done = true; break; } cache.pages[key] = { count: data && data.count, list: ((data && data.list) || []).map(g => pick(g, ['skuId', 'skuName', 'sellPrice', 'selfSellType', 'yn', 'categoryOneName', 'categoryTwoName', 'categoryThreeName'])) }; data = cache.pages[key]; save(); }
+      const list = data.list || []; if (!list.length || c.page * 20 >= (data.count || 0) || c.page >= 8) c.done = true;
+      for (const g of list) {
+        if (!(+g.sellPrice > 0) || String(g.yn) === '0' || taken.has(String(g.skuId))) continue;
+        if (c.digital && +g.selfSellType !== 1) continue; // 数码类首批只开放京东自营
+        if (C.review([g.categoryOneName, g.categoryTwoName, g.categoryThreeName], g.skuName)) continue;
+        c.buf.push(g);
+      }
     }
-    console.error(`  ${c.path}: 共 ${data ? data.count : 0},选 ${c.picks.length}`);
+    return c.buf.shift() || null;
   }
-  if (cache && !cached) fs.writeFileSync(cache, JSON.stringify(Object.fromEntries(cats.map(c => [c.id, c.picks]))));
-  // 超出总数上限:先删数码类目里的第 2 款起(从后往前),农产品类目尽量保留
-  for (let total = cats.reduce((n, c) => n + c.picks.length, 0); total > MAX; total--) {
-    const dig = cats.filter(c => !/^生鲜/.test(c.path) && c.picks.length > 1), pool = dig.length ? dig : cats, top = Math.max(...pool.map(c => c.picks.length));
-    pool.filter(c => c.picks.length === top).pop().picks.pop();
+  // 轮流:每轮每个本站分类各取 1 款,分类内各三级类目轮流
+  for (let round = 0, active = true; active; round++) {
+    active = false;
+    for (const s of Object.values(sites)) {
+      if (s.items.length >= s.target) continue;
+      for (let tries = 0; tries < s.cats.length; tries++) {
+        const c = s.cats[s.rr++ % s.cats.length]; if (c.done && !c.buf.length) continue;
+        const g = await next(c); if (!g) continue;
+        const id = String(g.skuId); if (taken.has(id)) continue;
+        let raw; try { raw = await call('searchGoodsDetail', { skuId: id }, 'd' + id); } catch (e) { console.error('  ✘ 详情', id, e.message); continue; }
+        const d = raw && raw.detail ? raw.detail : raw; if (!d) continue;
+        const pth = [d.category_one, d.category_two, d.category_three].map(x => idx[String(x)] || { name: '' }), names = pth.map(x => x.name);
+        if (C.review(names, d.skuName || d.spuName) || (c.digital && +d.selfSellType !== 1) || +d.skuState === 0) { taken.add(id); continue; }
+        if (d.spuId && spus.has(String(d.spuId))) { taken.add(id); continue; }
+        let sims = []; try { sims = await call('getSimilarSkuInfoList', { skuId: id }, 's' + id) || []; } catch (e) { sims = []; }
+        sims = sims.filter(x => !taken.has(String(x.sku_id)) && !C.review(names, x.skuName));
+        [id, ...sims.map(x => String(x.sku_id))].forEach(x => taken.add(x)); if (d.spuId) spus.add(String(d.spuId));
+        const introImgs = J.introImages(d), dd = pick(d, ['skuName', 'spuName', 'spuId', 'category_one', 'category_two', 'category_three', 'imagePath', 'defaultImagePath', 'productArea', 'weight', 'saleUnit', 'warrantDesc', 'wareInfo', 'brand_name', 'selfSellType', 'color', 'size', 'skuState']);
+        dd.imageList = (d.imageList || []).slice(0, 8).map(i => pick(i, ['shortPath', 'isPrimary', 'orderSort']));
+        dd.categoryAttrList = (d.categoryAttrList || []).slice(0, 12).map(a => ({ cateAttrName: a.cateAttrName, cateAttrValList: (a.cateAttrValList || []).slice(0, 6) }));
+        dd.introImgs = introImgs; if (!introImgs.length) dd.introText = C.stripJd(String(d.introduce || '').replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 1500);
+        s.items.push({ skuId: id, site: s.site, path: c.path, d: dd, sims: sims.slice(0, 12).map(x => pick(x, ['sku_id', 'label', 'imgUrl', 'imgPath', 'returnRuleType', 'skuName'])) });
+        active = true; break;
+      }
+      if (s.items.length < s.target && s.cats.some(c => !c.done || c.buf.length)) active = true;
+    }
+    if (round % 10 === 0) { save(true); console.error(`  第 ${round} 轮:`, Object.values(sites).map(s => `${s.site} ${s.items.length}/${s.target}`).join(' '), `${Math.round((Date.now() - t0) / 1000)}s`); }
   }
-  // 轮流排序:第 1 轮每类取 1 个,第 2 轮…(先保证每个类目都有货;农产品类目排在前面)
-  const order = [...cats.filter(c => /^生鲜/.test(c.path)), ...cats.filter(c => !/^生鲜/.test(c.path))], out = [];
-  for (let r = 0; out.length < MAX && order.some(c => c.picks.length > r); r++) for (const c of order) if (c.picks[r] && out.length < MAX) out.push({ ...c.picks[r], path: c.path, group: GROUP(c.path) });
-  const cnt = {}; out.forEach(x => cnt[x.group] = (cnt[x.group] || 0) + 1);
-  const file = path.join(__dirname, '../lib/suppliers/jdvop/starter-skus.js');
-  fs.writeFileSync(file, `// 演示站(live + DEMO_MODE=1)启动时后台自动导入的真实商品 SKU(走正常导入与合规校验;缺货/下架/不合规的自动跳过)。
-// 由 scripts/jdvop-build-starter.js 生成(${new Date().toISOString().slice(0, 10)}):覆盖全部允许类目的三级类目,轮流排序。可用环境变量 JDVOP_STARTER_SKUS=逗号分隔 覆盖。
-// 分组数量:${JSON.stringify(cnt)};原粮(米/杂粮)在供应商侧均属「粮油调味」预包装食品,按当前经营范围禁售,未列入。
-module.exports = { SKUS: [
-${out.map(x => `  '${x.skuId}', // [${x.group}] ${x.path.split(' > ').pop()} · ${x.name.replace(/[\\r\\n'*/]/g, ' ')}`).join('\n')}
-] };
-`);
-  console.log(`写入 ${out.length} 个 SKU:`, JSON.stringify(cnt), '三级类目有货', cats.filter(c => c.picks.length).length, '/', cats.length);
-})().catch(e => { console.error('ERR', e.message); process.exit(1); });
+  save(true);
+  const order = [], S = Object.values(sites); for (let r = 0; S.some(s => s.items[r]); r++) for (const s of S) if (s.items[r]) order.push(s.items[r]);
+  const counts = Object.fromEntries(S.map(s => [s.site, s.items.length]));
+  fs.writeFileSync(path.join(__dirname, '../lib/suppliers/jdvop/starter-catalog.json'), JSON.stringify({ generated: new Date().toISOString().slice(0, 10), counts, items: order }));
+  console.log(`写入 ${order.length} 款商品(含同款规格 SKU ${order.reduce((n, x) => n + 1 + x.sims.filter(y => String(y.sku_id) !== x.skuId).length, 0)} 个):`, JSON.stringify(counts), `用时 ${Math.round((Date.now() - t0) / 1000)}s`);
+})().catch(e => { console.error('ERR', e.stack || e.message); process.exit(1); });

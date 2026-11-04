@@ -40,7 +40,7 @@
 <form id="buyForm" method="post" action="/checkout" class="hide"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="sku_id"><input name="qty"><input name="promo_type"><input name="promo_id"><input name="group_id"><input name="no7_ok"></form>
 <div class="card sec">
   <div class="tabs"><a href="#detail" class="on">商品详情</a><a href="#reviews">用户评价(<%= rs.n %>)</a><a href="#after">售后保障</a></div>
-  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% images.slice(1).forEach(im=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" style="border-radius:10px;width:100%;object-fit:cover"><% }) %></div></div>
+  <div id="detail" class="desc"><%- p.description %><div class="grid g2 mt" style="grid-template-columns:repeat(2,1fr)"><% (/class="jd-intro"/.test(p.description || '') ? [] : images.slice(1)).forEach(im=>{ %><img loading="lazy" decoding="async" src="<%= im %>" onerror="<%= U.IMG_FALLBACK %>" style="border-radius:10px;width:100%;object-fit:cover"><% }) %></div></div>
 </div>
 <div class="card sec" id="reviews">
   <div class="sec-h"><h2>用户评价</h2><span class="muted"><% if (!rs.n) { %>暂无评价<% } else if (rs.n < RATE_MIN) { %>共 <%= rs.n %> 条评价 · 综合 <%= (+rs.avg).toFixed(1) %> 分<% } else { %>好评率 <b class="price" style="color:var(--red)"><%= Math.round((rs.good||0)/rs.n*100) %>%</b>(共 <%= rs.n %> 条评价)· 综合 <%= (+rs.avg).toFixed(1) %> 分<% } %></span></div>

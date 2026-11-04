@@ -196,11 +196,13 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | `JDVOP_SUBMIT_ORDERS` | live 模式**支付后自动**向供应商真实下单(扣预存款)的开关,必须为 `1` 且非 `DEMO_MODE=1` 才会自动下单;否则支付后的供应商单记录为 `held`(演示单·未下单) |
 | `JDVOP_ORDER_ENABLED` | `1` = 后台订单页出现「向京东下单(扣预存款)」按钮,管理员输入订单号确认后对**这一笔**已支付订单真实下单(演示站也可用,用于自己下测试单);默认关闭 |
 | `JDVOP_ORDER_MAX_AMOUNT` | 手动下单单笔上限(元,供应商部分),默认 300;`0` = 不限 |
+| `JDVOP_IMAGE_STORE` | live 模式默认直链京东图床图片;设为 `1` 时导入时下载转存到本站 `/uploads/supplier` |
+| `JDVOP_HIDE_DEMO` | live 模式默认下架自营演示占位商品;设为 `0` 保留 |
 | `JDVOP_STARTER_SKUS` | live + `DEMO_MODE=1` 时启动自动导入的商品 ID(逗号分隔),默认见 `lib/suppliers/jdvop/starter-skus.js` |
 
 **演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。
 
-**演示站 live 模式(经中转)**:`JDVOP_MODE=live` + `DEMO_MODE=1` + 中转已配置时,启动后在后台(不阻塞启动)自动导入 `starter-skus.js` 中约 190 款真实商品,覆盖全部允许类目的三级类目(新鲜水果、新鲜蔬菜、鲜蛋、手机/数码配件、电脑配件与外设、网络设备;原粮在供应商侧均属预包装食品,未列入),各类目轮流排序,导入过程中前台逐步可见。走正常合规校验:禁售/不在允许范围/加工蛋品与加工农产品(皮蛋、咸蛋、真空熟玉米、果干等按标题拦截)自动跳过,无货的导入后保持下架;经中转串行调用(≥1.1 秒/次),每款约 3 次调用,全部导入约 20–30 分钟。中途重启会从未导入的 SKU 继续,同一清单完整导入一次后不再重复;清单可用 `node scripts/jdvop-build-starter.js`(经中转,只读接口)重新生成。Render 免费库每次重新部署会清空,启动时会自动补回。演示站永远不会向供应商真实下单(支付后的供应商单记为 `held`)。
+**演示站 live 模式(经中转)**:`JDVOP_MODE=live` + `DEMO_MODE=1` + 中转已配置时:① 自营演示占位商品(生成的 emoji 渐变图)自动下架,前台只显示供应商真实商品(切回 mock 自动恢复;`JDVOP_HIDE_DEMO=0` 可关闭);② 启动后在后台(不阻塞启动)按快照 `lib/suppliers/jdvop/starter-catalog.json` 导入约 400+ 款真实商品,覆盖全部允许类目(新鲜水果、新鲜蔬菜、鲜蛋、手机配件、影音耳机、电脑配件、电脑组件、网络设备、游戏设备;原粮在供应商侧均属预包装食品,未列入),各分类轮流排序。快照含商品名/图片/图文详情/规格(只读接口生成:`node scripts/jdvop-build-starter.js`),启动时只批量查实时价格与可售(每 100 个 SKU 2 次调用),几分钟内导入完成;无货/不可售的保持下架,违禁词商品待审核。中途重启从未导入的继续,同一清单完整导入一次后不再重复。商品图默认直链京东图床 https(列表 400px / 详情 800px webp;`JDVOP_IMAGE_STORE=1` 改为转存本站),图文详情取接口 `introduceImgList`/`introduce` 中的京东图床图片(不输出供应商原始 HTML)。Render 免费库每次重新部署会清空,启动时会自动补回。演示站永远不会向供应商真实下单(支付后的供应商单记为 `held`)。
 
 
 **真实接口只读自检**(只调余额/分类/商品列表/详情/价格/可售/地址/运费等免费查询,不下单):在已加入来一票 IP 白名单的服务器上运行 `node scripts/jdvop-probe.js /etc/yunnong/jdvop.env`(env 文件含 `JDVOP_TENANT`/`JDVOP_APPKEY`/`JDVOP_APPSECRET`,可选 `JDVOP_BASE_URL`),输出只含摘要,不打印密钥。

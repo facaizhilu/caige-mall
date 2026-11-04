@@ -89,6 +89,32 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   const m0 = process.env.JDVOP_MODE; process.env.JDVOP_MODE = 'live'; ok(!J.demoSeedEnabled(), 'live 模式绝不自动导入'); process.env.JDVOP_MODE = m0 === undefined ? '' : m0; if (m0 === undefined) delete process.env.JDVOP_MODE;
   const d0 = process.env.DEMO_MODE; process.env.DEMO_MODE = '0'; ok(!J.demoSeedEnabled(), '非演示环境不自动导入'); process.env.DEMO_MODE = d0;
 
+  console.log('== 图文详情 / 快照导入 / live 隐藏演示占位商品 ==');
+  { const SV = require('../lib/suppliers/jdvop/service'), U2 = require('../lib/util');
+    const ims = SV.introImages({ introduceImgList: JSON.stringify(['//img30.360buyimg.com/sku/jfs/t1/1/a.jpg', 'https://evil.example.com/b.jpg', 'javascript:alert(1)', 'http://img10.360buyimg.com/sku/jfs/t1/2/c.png']) });
+    ok(ims.length === 2 && ims.every(u => /^https:\/\/img\d+\.360buyimg\.com\//.test(u)), '图文详情图片:// 与 http 统一为 https,只保留京东图床', JSON.stringify(ims));
+    const ims2 = SV.introImages({ introduce: '<style>.x{background:url(//img20.360buyimg.com/a/jfs/t1/bg.jpg)}</style><div><img data-lazyload="//img30.360buyimg.com/sku/jfs/t1/3/d.jpg"><img src="x" onerror="alert(1)"></div>' });
+    ok(ims2.length === 2, '无图片列表时从 introduce HTML 中提取图片(含懒加载/背景图)', JSON.stringify(ims2));
+    const html = SV.buildDescription({ introduceImgList: ['//img30.360buyimg.com/sku/jfs/t1/1/a.jpg"><script>x</script>'], introduce: '<script>alert(1)</script>' });
+    ok(!/<script/i.test(html) && !html.includes('onerror'), '图文详情不输出供应商原始 HTML / 脚本');
+    ok(SV.buildDescription({ introduceImgList: ['//img30.360buyimg.com/sku/jfs/t1/1/a.jpg'] }).includes('class="jd-intro"'), '图文详情图片拼入商品详情');
+    ok(U2.thumbImg('https://img13.360buyimg.com/n12/s800x800_jfs/t1/1/a.png.webp') === 'https://img13.360buyimg.com/n12/s400x400_jfs/t1/1/a.png.webp' && U2.thumbImg('/uploads/x.png') === '/uploads/x.png', '列表缩略图:京东直链取 400px webp,本站图片不变');
+    // 快照导入:详情/规格/价格由调用方提供 → 不再调用接口
+    const C2 = require('../lib/suppliers/jdvop/client'), base = await C2.call('searchGoodsDetail', { skuId: '900003001' }), d = { ...(base.detail || base) };
+    Object.assign(d, { skuName: '快照导入测试 鲜苹果', spuName: '快照导入测试 鲜苹果', spuId: '990000001', sku_id: '990000001', introduceImgList: ['//img30.360buyimg.com/sku/jfs/t1/9/z.jpg'] });
+    await SV.categoryIndex(); const n0 = db.get('SELECT COUNT(*) n FROM supplier_call_logs').n;
+    const x = await SV.importSku('990000001', { pre: { d, sims: [{ sku_id: '990000001', label: { 规格: '5斤' }, saleState: 1 }], prices: { 990000001: { skuId: '990000001', sellPrice: 20, retail: 30 } }, sale: { 990000001: 1 } } });
+    const n1 = db.get('SELECT COUNT(*) n FROM supplier_call_logs').n, pp = x.productId && db.get('SELECT * FROM products WHERE id=?', x.productId);
+    ok(x.ok && n1 === n0 && pp && pp.description.includes('img30.360buyimg.com/sku/jfs/t1/9/z.jpg'), '快照导入:0 次接口调用,图文详情写入', JSON.stringify({ x, calls: n1 - n0 }));
+    if (pp) { db.exec1('DELETE FROM skus WHERE product_id=?', pp.id); db.exec1('DELETE FROM products WHERE id=?', pp.id); }
+    // live:自营演示占位商品下架,切回 mock 恢复;供应商商品不受影响
+    const before = db.get("SELECT COUNT(*) n FROM products WHERE supplier IS NULL AND status=1 AND images LIKE '%/img/gen.svg%'").n, sup0 = db.get("SELECT COUNT(*) n FROM products WHERE supplier='jdvop' AND status=1").n;
+    const m1 = process.env.JDVOP_MODE; process.env.JDVOP_MODE = 'live';
+    let h; try { h = SV.liveHideDemo(); } finally { if (m1 === undefined) delete process.env.JDVOP_MODE; else process.env.JDVOP_MODE = m1; }
+    const mid = db.get("SELECT COUNT(*) n FROM products WHERE supplier IS NULL AND status=1 AND images LIKE '%/img/gen.svg%'").n, sup1 = db.get("SELECT COUNT(*) n FROM products WHERE supplier='jdvop' AND status=1").n;
+    const back = SV.liveHideDemo(), after = db.get("SELECT COUNT(*) n FROM products WHERE supplier IS NULL AND status=1 AND images LIKE '%/img/gen.svg%'").n;
+    ok(before > 0 && h.hidden === before && mid === 0 && sup1 === sup0 && back.restored === before && after === before, 'live 模式下架自营演示占位商品(供应商商品不变),切回 mock 恢复', JSON.stringify({ before, h, mid, back, after })); }
+
   console.log('== 选品浏览 / 导入 ==');
   r = await adm.get('/admin/jdvop');
   ok(r.status === 200 && r.text.includes('导入所选') && r.text.includes('卷纸'), '「供应商商品」页可浏览商品(商品池同步照常,含范围外商品)', r.status);

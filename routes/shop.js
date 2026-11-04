@@ -52,7 +52,9 @@ module.exports = function (app, { filesOf }) {
     const pg = U.paginate(`${prodCard} WHERE ${where.join(' AND ')} ORDER BY ${order}`, params, req.query.page, 12);
     if (req.query.partial === '1') { pg.rows = withImg(pg.rows); return require('ejs').renderFile(require('path').join(__dirname, '..', 'views', 'partials', 'cards.ejs'), { ...app.locals, ...res.locals, rows: pg.rows, req }, (e, html) => e ? res.status(500).end() : res.json({ html, page: pg.page, pages: pg.pages })); }
     pg.rows = withImg(pg.rows);
-    const subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
+    let subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
+    // 供应商 live 演示:不显示没有在售商品的子分类(如下架演示占位商品后为空的分类)
+    if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM products WHERE category_id=? AND status=1 LIMIT 1', c.id));
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');
     res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
   });
