@@ -4,7 +4,7 @@
  <form method="post" action="/admin/jdvop/refresh" class="mb"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn primary">🔄 立即刷新全部价格/可售</button> <span class="help">定时刷新间隔在「供应商设置」中配置;不可售自动下架,恢复后自动上架</span></form>
  <div class="tbl-wrap"><table class="t"><tr><th>商品</th><th>分类</th><th>规格 / 成本 / 售价 / 库存</th><th>状态</th><th>操作</th></tr>
  <% pg.rows.forEach(p=>{ const s=ST[p.supplier_state]||[p.supplier_state||'-','gray']; %><tr>
-  <td><div class="flex"><img class="thumb" src="<%= p.img %>" onerror="<%= U.IMG_FALLBACK %>"><div style="min-width:0">#<%= p.id %> <%= p.name %><br><span class="muted" style="font-size:12px">SPU <%= p.supplier_spu %> · <%= p.no_reason_return===0?'不支持7天无理由':p.no_reason_return===1?'支持7天无理由':'7天无理由跟随分类' %><%= p.is_perishable?' · 生鲜':'' %></span></div></div></td>
+  <td><div class="flex"><img class="thumb" src="<%= p.img %>" onerror="<%= U.IMG_FALLBACK %>"><div style="min-width:0">#<%= p.id %> <%= p.name %><br><span class="muted" style="font-size:12px">SPU <%= p.supplier_spu %> · <%= p.no_reason_return===1?(p.return_rule_text||'支持7天无理由'):'不支持7天无理由退货' %><%= p.is_perishable?' · 生鲜':'' %></span></div></div></td>
   <td><%= p.cname %></td>
   <td style="font-size:12px"><% p.skus.forEach(k=>{ %><div><%= k.spec_text %>:成本 <%= k.cost_price!=null?'¥'+k.cost_price:'-' %> / 售价 ¥<%= k.price %> / 库存 <%= k.stock %></div><% }) %></td>
   <td><span class="tag <%= s[1] %>"><%= s[0] %></span><br><span class="muted" style="font-size:12px"><%= p.status?'已上架':'已下架' %></span><% if(p.supplier_review_note){ %><div style="font-size:12px;color:#9a3412;overflow-wrap:anywhere"><%= p.supplier_review_note %></div><% } %></td>

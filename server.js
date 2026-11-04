@@ -239,6 +239,18 @@ svc.cloud.ensureDefaults();
     if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由),版本号提升为 v' + svc.S('policy_version')); }
     mark('all_7day_20261020');
   }
+  if (!done('per_product_7day_20261104')) { // 七天无理由改为按商品(供应商商品按接口):帮助文/协议去掉「常规商品均支持」;已导入供应商商品按 SKU 的 returnRuleType 回填
+    const [o, nw] = require('./lib/seed-texts').RETURN_HELP_PER_PRODUCT_EDIT;
+    for (const a of db.all("SELECT id, content FROM articles WHERE category='help' AND title='退款退货政策'")) if (String(a.content).includes(o)) db.exec1('UPDATE articles SET content=? WHERE id=?', a.content.split(o).join(nw), a.id);
+    const { productReturnRule } = require('./lib/suppliers/jdvop/service');
+    for (const p of db.all("SELECT id FROM products WHERE supplier IS NOT NULL AND supplier<>'' AND return_rule_text IS NULL")) {
+      const r = productReturnRule(db.all('SELECT return_rule_type rr FROM skus WHERE product_id=?', p.id).map(x => x.rr));
+      db.exec1('UPDATE products SET no_reason_return=?, supports_7day_return=?, return_rule_type=?, return_rule_text=? WHERE id=?', r.supports, r.supports, r.type, r.text, p.id);
+    }
+    const n = require('./lib/policies').applyV15Edits(db), m = String(svc.S('policy_version') || '1.1').match(/^(\d+)\.(\d+)$/);
+    if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由按商品),版本号提升为 v' + svc.S('policy_version')); }
+    mark('per_product_7day_20261104');
+  }
   if (!done('admin_remark_20261025')) { // 会员备注独立字段 admin_remark;旧 remark 迁入。演示环境:被后台覆盖的演示会员昵称恢复为种子昵称,被覆盖的内容转为备注
     db.exec1("UPDATE users SET admin_remark=remark WHERE (admin_remark IS NULL OR admin_remark='') AND remark IS NOT NULL AND remark<>''");
     if (process.env.DEMO_MODE === '1') for (const [phone, nick] of require('./lib/seed').SEED_MEMBERS) {

@@ -696,7 +696,7 @@ module.exports = function (r, { filesOf }) {
     const items = db.all('SELECT product_id FROM order_items WHERE order_id=?', o.id);
     if (type === 'no_reason') {
       const daysSince = o.completed_at ? (Date.now() - U.parseDate(o.completed_at)) / 86400000 : null;
-      if (!items.every(i => !i.product_id || svc.noReasonOf(i.product_id))) return { msg: '该订单含不支持7天无理由退货的商品(如鲜活易腐类),请选择「质量问题退换货」或其他类型' };
+      if (!items.every(i => !i.product_id || svc.noReasonOf(i.product_id))) return { msg: '该订单含不支持7天无理由退货的商品(以商品退货规则为准),请选择「质量问题退换货」或其他类型' };
       if (o.status !== 'completed' || daysSince === null || daysSince > 7) return { msg: '7天无理由退货仅限签收后 7 天内' };
     }
     if (type !== 'refund' && o.status === 'paid') return { msg: '订单尚未发货,请选择「仅退款」' };

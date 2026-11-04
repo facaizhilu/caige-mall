@@ -217,7 +217,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const tm = await anon.get('/terms'); ok(tm.text.includes('海南韵农科技有限公司') && !/【[^】]*】/.test(tm.text.replace(/<script[\s\S]*?<\/script>/g, '')), '用户协议运营者名称已填充、无占位符');
     const t2 = new C(); const lr = await t2.login('13800000002', '123456'); ok(lr.status === 302, '测试账号仍可登录'); }
   ok(db.get('SELECT COUNT(*) n FROM categories WHERE no_7day=1').n === 0 && db.get("SELECT COUNT(*) n FROM products WHERE no_reason_return=0 AND COALESCE(supplier,'')=''").n === 0, '迁移:清除分类/商品「不支持七天无理由」旧标记');
-  { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && hp.content.includes('含生鲜') && !hp.content.includes('除鲜活易腐类商品'), '帮助中心退货政策:含生鲜均支持七天无理由'); }
+  { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && !hp.content.includes('均支持') && hp.content.includes('以商品页「服务」栏标示为准') && hp.content.includes('积分兑换商品非质量问题不退不换'), '帮助中心退货政策:按商品页标示,不再声明全部支持'); }
   console.log('== QA:页脚运营方/积分提示/法律文本占位/省份/应付款/备案号 ==');
   { const anon = new C(); const strip = t => t.replace(/<script[\s\S]*?<\/script>/g, '');
     for (const pth of ['/', '/products', '/points-mall']) { const t = (await anon.get(pth)).text; ok(t.includes('运营方:海南韵农科技有限公司') && t.includes('地址:待公布') && t.includes('电话:待公布') && t.includes('邮箱:待公布'), '页脚运营方+地址/电话/邮箱待公布:' + pth); }

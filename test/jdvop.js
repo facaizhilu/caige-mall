@@ -78,7 +78,8 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(!db.get("SELECT 1 FROM skus WHERE supplier_sku IN ('900019001','900019002','900019003','900019004')"), '整机(=手机)/打印机(办公设备仅租赁)/大米(预包装食品)/对讲机不导入');
   ok(['900016001', '900017001', '900017004', '900017005', '900017006', '900017007', '900017008', '900009002', '900003001', '900018001', '900018002', '900018003'].every(k => { const p = prodOf(k); return p && p.status === 1 && p.supplier_state === 'ok'; }), '允许清单内演示商品(数码配件/电脑外设/网络设备/新鲜水果蔬菜鲜蛋)已导入上架');
   ok(['900003001', '900018001', '900018002', '900018003'].every(k => { const p = prodOf(k); return p.is_perishable === 1 && p.no_reason_return === 0; }), '食用农产品标记鲜活易腐、不支持7天无理由');
-  ok(!db.get("SELECT 1 FROM skus WHERE supplier_sku IN ('900016003','900016004')") && db.get("SELECT 1 FROM skus WHERE supplier_sku='900016001'"), '数码类只导入自营且支持7天无理由的商品(配件可导入,非自营/不支持7天无理由不导入)');
+  ok(!db.get("SELECT 1 FROM skus WHERE supplier_sku='900016003'") && db.get("SELECT 1 FROM skus WHERE supplier_sku='900016001'") && db.get("SELECT 1 FROM skus WHERE supplier_sku='900016004'"), '数码类只要求自营(非自营不导入);不支持7天无理由的也可导入');
+  { const e = prodOf('900016004'), c = prodOf('900016001'); ok(e && e.no_reason_return === 0 && e.supports_7day_return === 0 && e.return_rule_text === '不支持7天无理由退货' && c.no_reason_return === 1 && c.supports_7day_return === 1 && c.return_rule_text === '支持7天无理由退货', '退货规则按接口记录(returnRuleType 0 → 不支持,1 → 支持)', JSON.stringify([e && e.return_rule_text, c && c.return_rule_text])); }
   const seededMouse = seeded.find(p => p.name.includes('鼠标'));
   ok(seededMouse && seededMouse.status === 0 && seededMouse.supplier_state === 'pending_review', '自动导入的违禁词商品为待审核/下架', JSON.stringify(seededMouse));
   ok(seeded.some(p => p.name === '磨砂防摔手机壳') && seeded.some(p => p.name === 'Type-C 快充数据线'), '多规格商品名去掉规格值(颜色/长度)', seeded.map(p => p.name).join('|'));
@@ -132,7 +133,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(!prodOf('900010001') && !prodOf('900011001') && !prodOf('900004001') && !prodOf('900007002'), '禁售类目(药品/酒类/家电/零食)不能导入');
   ok(!prodOf('900001001') && !prodOf('900014001') && !prodOf('900019002') && !prodOf('900019001') && !prodOf('900006001'), '日用百货/文具/打印机/整机/个护 手动导入同样被拦截');
   ok(impMsg.includes('办公设备(仅租赁') && impMsg.includes('文具/办公用品'), '导入结果提示打印机/文具的拦截原因');
-  ok(!prodOf('900016004') && impMsg.includes('不支持7天无理由'), '数码类不支持7天无理由 → 不能导入并提示原因');
+  ok(prodOf('900016004') && !impMsg.includes('不支持7天无理由'), '数码类不支持7天无理由 → 仍可导入(不再拦截)');
   ok(impMsg.includes('禁售类目'), '导入结果提示禁售原因');
   ok(mouse && mouse.status === 0 && mouse.supplier_state === 'pending_review' && /第一/.test(mouse.supplier_review_note), '违禁词命中 → 导入为待审核/下架,并记录原因', JSON.stringify(mouse));
   r = await adm.get('/admin/jdvop/products'); ok(r.text.includes('待审核') && r.text.includes('第一'), '后台已导入列表显示审核原因');
@@ -327,6 +328,22 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(prodOf('900016001').status === 1 && prodOf('900003001').status === 1, '同组数据线也已恢复,食用农产品全程不受影响');
   r = await adm.get('/admin/jdvop/settings'); ok(r.text.includes('name="jdvop_allowlist"') && r.text.includes('2026-10-19') && r.text.includes('只允许数码') && r.text.includes('办公设备经营范围仅为租赁'), '设置页显示允许清单/禁售清单编辑器与说明');
   r = await adm.get('/admin/jdvop/mapping?rv=ok'); ok(r.status === 200 && r.text.includes('预包装食品·待经营范围变更+食品备案'), '分类映射页可按审核结果筛选(含预包装食品组)');
+  console.log('== 退货规则按接口(2026-11-04):不作为导入门槛,商品页/后台按商品展示 ==');
+  { const ear = prodOf('900016004'), cab = prodOf('900016001'), g = new C();
+    let t = stripTags((await g.get('/product/' + ear.id)).text);
+    ok(t.includes('该商品不支持7天无理由退货') && t.includes('按供应商退货规则不支持七天无理由退货') && !t.includes('本商品支持七天无理由退货'), '接口不支持 → 商品页显示「不支持7天无理由退货」');
+    ok((await g.get('/product/' + ear.id)).text.includes('id="no7ok"'), '不支持的商品购买前须勾选「我已知晓」');
+    t = stripTags((await g.get('/product/' + cab.id)).text);
+    ok(t.includes('支持7天无理由退货') && !t.includes('该商品不支持7天无理由退货'), '接口支持 → 商品页显示接口文案「支持7天无理由退货」');
+    const u = new C(); await u.login('13800000003', '123456');
+    const esku = db.get('SELECT id FROM skus WHERE product_id=? AND stock>0 LIMIT 1', ear.id).id;
+    const ar = await u.post('/cart/add', { sku_id: String(esku), qty: '1' }, { json: true }); ok(/不支持7天无理由/.test(ar.text) && !db.get('SELECT 1 FROM cart WHERE user_id=3 AND sku_id=?', esku), '未确认知晓不能加购不支持7天无理由的商品', ar.text.slice(0, 200));
+    const al = (await adm.get('/admin/products?q=' + encodeURIComponent('蓝牙耳机'))).text; ok(stripTags(al).includes('不支持7天无理由退货'), '后台商品列表显示接口退货规则');
+    const jl = stripTags((await adm.get('/admin/jdvop/products')).text); ok(jl.includes('不支持7天无理由退货') && jl.includes('支持7天无理由退货'), '已导入供应商商品列表显示接口退货规则');
+    const home = stripTags((await g.get('/')).text); ok(!home.includes('七天无理由') && !home.includes('7天无理由') && home.includes('正品保障'), '首页不再出现「七天无理由退货」');
+    const help = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"), terms = db.get("SELECT content FROM articles WHERE topic='terms'");
+    ok(help && !help.content.includes('均支持') && help.content.includes('以商品页') && help.content.includes('非质量问题不退不换'), '帮助文:不再声明全部商品支持,按商品页标示;积分兑换非质量问题不退不换保留');
+    ok(terms && !terms.content.includes('均支持签收后 7 天内无理由退货') && terms.content.includes('以商品页面「服务」栏标示为准'), '用户协议:按商品页标示'); }
   console.log('== 自营商品:类目超范围仅提示不拦截 ==');
   const tp0 = db.get('SELECT id FROM categories WHERE parent_id=0 ORDER BY id LIMIT 1').id;
   const outCat = db.exec1("INSERT INTO categories(name,parent_id,sort,status) VALUES('日用百货(测试)',?,99,1)", tp0).lastInsertRowid;
