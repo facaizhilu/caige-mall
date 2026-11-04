@@ -106,6 +106,12 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
     ok(snack && snack.food && snack.group.startsWith('预包装食品'), '零食 → 拒绝(预包装食品组,下一批优先开放)', JSON.stringify(snack));
     ok(['大米', '食用油', '茶叶', '坚果炒货', '蜂蜜', '地方特产'].every(n => { const x = CC.review(['食品饮料', '粮油调味', n]); return x && x.food; }) && CC.review(['生鲜', '水果', '果干']).food && CC.review(['生鲜', '水果', '冷冻水果']).food, '大米面粉/食用油/茶叶/坚果炒货/蜂蜜/特产/果干/冷冻 → 预包装食品组');
     ok(CC.review(['电脑、办公', '文具', '笔类']) && CC.review(['电脑、办公', '文具', '笔类']).group.startsWith('文具'), '文具 → 拒绝');
+    { const EG = ['生鲜', '禽肉蛋品', '蛋类'], VG = ['生鲜', '蔬菜', '根茎类'];
+      ok(!CC.review(EG) && CC.isFarmProduce(EG) && !CC.review(EG, '德青源 谷饲鲜鸡蛋30枚') && !CC.review(EG, '神丹 新鲜生鹌鹑蛋 50枚'), '生鲜 > 禽肉蛋品 > 蛋类:鲜鸡蛋/鲜鹌鹑蛋 → 通过(食用农产品)');
+      ok(['神丹 松花皮蛋 20枚', '油黄咸鸭蛋 熟咸蛋', '五香酱卤鸡蛋干'].every(t => { const x = CC.review(EG, t); return x && x.food; }), '蛋类里的皮蛋/咸蛋/卤蛋干 → 拒绝(预包装食品)');
+      ok(CC.review(['生鲜', '禽肉蛋品', '鸡肉']) && CC.review(['食品饮料', '休闲食品', '蛋类制品']), '鸡肉、休闲食品 > 蛋类制品 仍拒绝');
+      ok(!CC.review(VG, '京鲜生山东烟薯25号蜜薯 4.5斤') && CC.review(VG, '东北黄玉米 10棒 真空包装黏玉米').food && CC.review(['生鲜', '水果', '苹果'], '冻干苹果脆片 果干').food, '蔬菜/水果:鲜品通过,真空熟玉米/果干 → 拒绝');
+      ok(!CC.review(['数码', '数码配件', '存储卡'], '真空 熟 卤'), '加工品标题规则只作用于生鲜类目'); }
     const prn = CC.review(['电脑、办公', '办公设备', '打印机']); ok(prn && prn.group.startsWith('办公设备(仅租赁'), '打印机 → 拒绝(办公设备仅租赁,待变更)', JSON.stringify(prn));
     ok(CC.review(['电脑、办公', '办公设备', '投影机']) && CC.review(['电脑、办公', '办公设备', '碎纸机']), '投影/碎纸机 → 拒绝');
     ok(!CC.review(['电脑、办公', '外设产品', '鼠标']) && !CC.review(['电脑、办公', '网络产品', '路由器']) && !CC.review(['数码', '数码配件', '存储卡']) && !CC.review(['数码', '影音娱乐', '蓝牙耳机']), '键鼠/路由器/存储卡/耳机 → 通过');
