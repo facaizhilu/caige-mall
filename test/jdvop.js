@@ -109,6 +109,12 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
     ok(CC.excludedSku('100322062494') && CC.excludedSku(100017719149) && CC.maxPrice() === 20000, '点名剔除 SKU + 单价上限默认 ¥20000');
     const cat = J.starterCatalog(); ok(cat && cat.items.every(it => !CC.excludedSku(it.skuId) && !CC.review(String(it.path).split(' > '), it.d.skuName || it.d.spuName)), '启动清单已剔除范围外/点名商品');
   }
+  {
+    const CC = require('../lib/suppliers/jdvop/compliance'), cs = [['京东京造5S系列 SSD固态硬盘', '京东京造5S系列 SSD固态硬盘'], ['京东京品 鲜鸡蛋', '京东京品 鲜鸡蛋'], ['京鲜生 烟台苹果', '京鲜生 烟台苹果'], ['京东JOY联名 鼠标', '京东JOY联名 鼠标'],
+      ['京东自营官方 数据线', '数据线'], ['京东超市 京东京造鼠标', '京东京造鼠标'], ['京东物流 次日达', '次日达'], ['京东配送 苹果', '苹果'], ['京东限定版 耳机', '限定版 耳机']];
+    const bad = cs.filter(([i, o]) => CC.stripJd(i) !== o).map(([i, o]) => i + ' → ' + CC.stripJd(i));
+    ok(!bad.length, '京东渠道字样去掉,品牌名(京东京造/京东京品/京东JOY/京鲜生)保持原文', bad.join(' ; '));
+  }
   console.log('== 图文详情 / 快照导入 / live 隐藏演示占位商品 ==');
   { const SV = require('../lib/suppliers/jdvop/service'), U2 = require('../lib/util');
     const ims = SV.introImages({ introduceImgList: JSON.stringify(['//img30.360buyimg.com/sku/jfs/t1/1/a.jpg', 'https://evil.example.com/b.jpg', 'javascript:alert(1)', 'http://img10.360buyimg.com/sku/jfs/t1/2/c.png']) });
