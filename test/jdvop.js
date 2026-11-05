@@ -89,6 +89,26 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   const m0 = process.env.JDVOP_MODE; process.env.JDVOP_MODE = 'live'; ok(!J.demoSeedEnabled(), 'live 模式绝不自动导入'); process.env.JDVOP_MODE = m0 === undefined ? '' : m0; if (m0 === undefined) delete process.env.JDVOP_MODE;
   const d0 = process.env.DEMO_MODE; process.env.DEMO_MODE = '0'; ok(!J.demoSeedEnabled(), '非演示环境不自动导入'); process.env.DEMO_MODE = d0;
 
+  console.log('== 合规审查:标题清理 / 范围外剔除 / 单价上限 ==');
+  {
+    const B = require('../lib/banned'), CC = require('../lib/suppliers/jdvop/compliance');
+    const cases = [['智国者【TOP榜第1名】手机散热器吃鸡神器', '智国者手机散热器吃鸡'], ['西伯利亚【全网热销】 V13耳机', '西伯利亚 V13耳机'], ['山泽【热销200万+】尼龙扎带', '山泽尼龙扎带'],
+      ['纽曼【金榜】NM-LK06 耳机', '纽曼NM-LK06 耳机'], ['华为FreeBuds 6i 旗舰级降噪', '华为FreeBuds 6i 降噪'], ['新疆香梨 特级 10斤', '新疆香梨 10斤'], ['秋月梨 果王6粒', '秋月梨 6粒'],
+      ['万能手机壳 挂链王菲同款', '手机壳 挂链'], ['【新机S12 | 翘边包赔】手表膜', '【新机S12 | 翘边】手表膜'], ['鲜鸡蛋 无抗生素无激素无沙门氏菌优质蛋白', '鲜鸡蛋 优质蛋白'],
+      ['可生食 不含沙门氏菌 无菌蛋 20枚', '可生食 20枚'], ['红心芭乐 低糖孕妇水果 3斤', '红心芭乐 3斤'], ['恩施小土豆 国家地理标志产品', '恩施小土豆'], ['耳机2026最新款', '耳机2026新款'], ['黄天鹅 鸡蛋30枚#', '黄天鹅 鸡蛋30枚']];
+    const bad = cases.filter(([i, o]) => B.sanitize(i) !== o).map(([i, o]) => i + ' → ' + B.sanitize(i) + ' (期望 ' + o + ')');
+    ok(!bad.length, '标题清理:排名/背书/极限词/功效宣称去掉,商品保留', bad.join(' ; '));
+    ok(B.sanitize('LAPTOP DESKTOP 支架') === 'LAPTOP DESKTOP 支架' && B.sanitize('第一代 鼠标') === '第一代 鼠标', '清理不误伤英文单词与「第一代」');
+    ok(B.sanitizeHtml('<td>最大 65W</td><img src="https://img30.360buyimg.com/a最.jpg">') === '<td>大 65W</td><img src="https://img30.360buyimg.com/a最.jpg">', '详情只清理文字、不改图片地址');
+    const fruit = ['生鲜', '水果', '苹果'], digi = ['手机通讯', '手机配件', '手机支架'];
+    const blocked = [[fruit, '土耳其杏干250g'], [fruit, '桂圆干 (龙眼干) 500g'], [fruit, '去皮鲜核桃仁独立小包装'], [['生鲜', '蔬菜', '其他'], '大花生米 净重2斤'], [['生鲜', '蔬菜', '其他'], '同款蔬菜包 4.5斤'],
+      [digi, '吃鸡神器 自动压枪连点器'], [digi, '南孚5号电池40粒'], [digi, '品胜 苹果12电池【3C认证】'], [digi, '公牛 插座/插线板'], [digi, '蔡司擦镜纸 清洁湿巾'], [digi, '米家液晶小黑板'],
+      [digi, '山克 SK650 ups不间断电源'], [digi, '铅酸免维护蓄电池'], [digi, '25G多模光模块'], [digi, '5G随身WiFi 无限流量']].filter(([n, t]) => !CC.review(n, t)).map(x => x[1]);
+    ok(!blocked.length, '范围外商品按标题拦截(果干/坚果/花生/蔬菜包/外挂/电池/插线板/湿巾/小黑板/UPS/蓄电池/光模块/随身WiFi)', blocked.join(','));
+    ok(!CC.review(fruit, '京鲜生 烟台红富士苹果 净重10斤') && !CC.review(['生鲜', '蔬菜', '其他'], '干净无泥 铁棍山药') && !CC.review(digi, '绿联USB3.0读卡器'), '正常商品不误拦');
+    ok(CC.excludedSku('100322062494') && CC.excludedSku(100017719149) && CC.maxPrice() === 20000, '点名剔除 SKU + 单价上限默认 ¥20000');
+    const cat = J.starterCatalog(); ok(cat && cat.items.every(it => !CC.excludedSku(it.skuId) && !CC.review(String(it.path).split(' > '), it.d.skuName || it.d.spuName)), '启动清单已剔除范围外/点名商品');
+  }
   console.log('== 图文详情 / 快照导入 / live 隐藏演示占位商品 ==');
   { const SV = require('../lib/suppliers/jdvop/service'), U2 = require('../lib/util');
     const ims = SV.introImages({ introduceImgList: JSON.stringify(['//img30.360buyimg.com/sku/jfs/t1/1/a.jpg', 'https://evil.example.com/b.jpg', 'javascript:alert(1)', 'http://img10.360buyimg.com/sku/jfs/t1/2/c.png']) });
@@ -167,13 +187,13 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(impMsg.includes('办公设备(仅租赁') && impMsg.includes('文具/办公用品'), '导入结果提示打印机/文具的拦截原因');
   ok(prodOf('900016004') && !impMsg.includes('不支持7天无理由'), '数码类不支持7天无理由 → 仍可导入(不再拦截)');
   ok(impMsg.includes('禁售类目'), '导入结果提示禁售原因');
-  ok(mouse && mouse.status === 0 && mouse.supplier_state === 'pending_review' && /第一/.test(mouse.supplier_review_note), '违禁词命中 → 导入为待审核/下架,并记录原因', JSON.stringify(mouse));
-  r = await adm.get('/admin/jdvop/products'); ok(r.text.includes('待审核') && r.text.includes('第一'), '后台已导入列表显示审核原因');
+  ok(mouse && mouse.status === 0 && mouse.supplier_state === 'pending_review' && /全国联保/.test(mouse.supplier_review_note), '违禁词命中 → 导入为待审核/下架,并记录原因', JSON.stringify(mouse));
+  r = await adm.get('/admin/jdvop/products'); ok(r.text.includes('待审核') && r.text.includes('全国联保'), '后台已导入列表显示审核原因');
   await adm.post('/admin/products/' + mouse.id + '/toggle'); ok(db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '待审核商品不能直接上架');
   await adm.post('/admin/products/batch', { ids: [String(mouse.id)], action: 'on' }); ok(db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '批量上架也被拦截');
   const msku = db.all('SELECT * FROM skus WHERE product_id=?', mouse.id);
   const save = name => adm.post('/admin/products/save', { id: String(mouse.id), name, subtitle: '供应商直发', category_id: String(mouse.category_id), brand_id: '0', template_id: '1', weight: '0.5', spec_names: mouse.spec_names, sort: '0', status: '1', description: mouse.description, images_keep: JSON.parse(mouse.images), sku_id: msku.map(s => String(s.id)), sku_spec: msku.map(s => s.spec_text), sku_price: msku.map(() => '1'), sku_stock: msku.map(() => '5'), sku_code: msku.map(() => '') });
-  await save('办公无线静音鼠标 销量第一 款');
+  await save('办公无线静音鼠标 全国联保 款');
   ok(db.get('SELECT status, supplier_state FROM products WHERE id=?', mouse.id).supplier_state === 'pending_review' && db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '仍含违禁词时保存后不能上架');
   await save('办公无线静音鼠标');
   const m2 = db.get('SELECT * FROM products WHERE id=?', mouse.id), m2s = db.get('SELECT * FROM skus WHERE product_id=?', mouse.id);

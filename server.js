@@ -494,5 +494,6 @@ app.use((err, req, res, next) => { console.error(err); if (res.headersSent) retu
 setInterval(svc.sweep, 60000).unref(); svc.sweep();
 // 供应商定时任务:待推送订单、状态轮询兜底(回调只推一次不重试)、价格/可售定时刷新
 setInterval(() => jdvop.tick(), Math.max(5000, U.int(process.env.JDVOP_TICK_MS, 60000))).unref();
-if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 韵农甄选(caige-mall)已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => { try { const rc = jdvop.recheckCategories(); if (rc.delisted) console.log(`[jdvop] 类目复检:自动下架 ${rc.delisted} 个不在允许范围的供应商商品`); } catch (e) { console.error('[jdvop] recheck', e); } try { jdvop.liveHideDemo(); } catch (e) { console.error('[jdvop] liveHideDemo', e); } jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e)); }); });
+if (require.main === module) app.listen(PORT, () => { console.log(`\n🛒 韵农甄选(caige-mall)已启动:  前台 http://localhost:${PORT}/   后台 http://localhost:${PORT}/admin  (admin / admin123)\n`); setImmediate(() => { try { const rc = jdvop.recheckCategories(); if (rc.delisted) console.log(`[jdvop] 类目复检:自动下架 ${rc.delisted} 个不在允许范围的供应商商品`); } catch (e) { console.error('[jdvop] recheck', e); } try { jdvop.liveCompliance(); } catch (e) { console.error('[jdvop] 合规复查失败', e.message); }
+  try { jdvop.liveHideDemo(); } catch (e) { console.error('[jdvop] liveHideDemo', e); } jdvop.demoSeed().catch(e => console.error('[jdvop] demoSeed', e)); }); });
 module.exports = app;

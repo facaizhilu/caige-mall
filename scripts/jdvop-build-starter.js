@@ -52,10 +52,11 @@ const pick = (o, ks) => { const r = {}; for (const k of ks) if (o[k] !== undefin
         let raw; try { raw = await call('searchGoodsDetail', { skuId: id }, 'd' + id); } catch (e) { console.error('  ✘ 详情', id, e.message); continue; }
         const d = raw && raw.detail ? raw.detail : raw; if (!d) continue;
         const pth = [d.category_one, d.category_two, d.category_three].map(x => idx[String(x)] || { name: '' }), names = pth.map(x => x.name);
-        if (C.review(names, d.skuName || d.spuName) || (c.digital && +d.selfSellType !== 1) || +d.skuState === 0) { taken.add(id); continue; }
+        if (C.excludedSku(id) || C.review(names, d.skuName || d.spuName) || (c.digital && +d.selfSellType !== 1) || +d.skuState === 0) { taken.add(id); continue; }
         if (d.spuId && spus.has(String(d.spuId))) { taken.add(id); continue; }
         let sims = []; try { sims = await call('getSimilarSkuInfoList', { skuId: id }, 's' + id) || []; } catch (e) { sims = []; }
-        sims = sims.filter(x => !taken.has(String(x.sku_id)) && !C.review(names, x.skuName));
+        sims = sims.filter(x => !taken.has(String(x.sku_id)) && !C.excludedSku(x.sku_id) && !C.review(names, x.skuName) && !(+x.sellPrice > C.maxPrice())); // 合规审查剔除 + 单价上限
+        if (!sims.length && +d.sellPrice > C.maxPrice()) { taken.add(id); continue; }
         [id, ...sims.map(x => String(x.sku_id))].forEach(x => taken.add(x)); if (d.spuId) spus.add(String(d.spuId));
         const introImgs = J.introImages(d), dd = pick(d, ['skuName', 'spuName', 'spuId', 'category_one', 'category_two', 'category_three', 'imagePath', 'defaultImagePath', 'productArea', 'weight', 'saleUnit', 'warrantDesc', 'wareInfo', 'brand_name', 'selfSellType', 'color', 'size', 'skuState']);
         dd.imageList = (d.imageList || []).slice(0, 8).map(i => pick(i, ['shortPath', 'isPrimary', 'orderSort']));
