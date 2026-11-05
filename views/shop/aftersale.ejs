@@ -2,7 +2,7 @@
 <div class="card"><div class="flex between"><h3 style="margin:0">售后单 #<%= a.id %>(订单 <a href="/order/<%= a.order_id %>"><%= a.order_no %></a>)</h3><span class="os <%= a.status %>"><%= AFTERSALE_STATUS[a.status] %></span></div>
 <% const estPts = a.pay_amount > 0 ? Math.round((a.points_used||0) * Math.min(1, a.amount / a.pay_amount)) : (a.points_used||0); %>
 <dl class="kv mt"><dt>类型</dt><dd><%= AFTERSALE_TYPE[a.type] || a.type %></dd>
-<% if (a.status==='refunded') { %><dt>退款明细</dt><dd><b>退积分 <%= a.refund_points||0 %></b> / <b style="color:var(--red,#d4202a)">退现金 ¥<%= (a.refund_cash||0).toFixed(2) %></b><div class="muted" style="font-size:12px">现金<%= a.refund_channel||'原路退回' %><% if (demo) { %>(模拟退款)<% } %>· <%= a.refunded_at||'' %></div></dd>
+<% if (a.status==='refunded') { %><dt>退款明细</dt><dd><b>退积分 <%= a.refund_points||0 %></b> / <b style="color:var(--red,#2E9E5B)">退现金 ¥<%= (a.refund_cash||0).toFixed(2) %></b><div class="muted" style="font-size:12px">现金<%= a.refund_channel||'原路退回' %><% if (demo) { %>(模拟退款)<% } %>· <%= a.refunded_at||'' %></div></dd>
 <% } else if (!['exchanged','rejected','cancelled'].includes(a.status)) { %><dt>退款金额</dt><dd>退积分 <%= estPts %> / 退现金 ¥<%= a.amount.toFixed(2) %><div class="muted" style="font-size:12px">退款完成后现金原路退回,订单使用的积分按比例退回</div></dd><% } %>
 <dt>原因</dt><dd><%= a.reason %></dd><dt>说明</dt><dd><%= a.description||'-' %></dd><dt>商家说明</dt><dd><%= a.admin_note||'-' %></dd><dt>创建时间</dt><dd><%= a.created_at %></dd><dt>最近更新</dt><dd><%= a.updated_at||'-' %></dd>
 <% if(a.return_tracking){ %><dt>退货物流</dt><dd><%= a.return_express %> <%= a.return_tracking %></dd><% } %></dl>

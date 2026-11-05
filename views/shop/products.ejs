@@ -14,6 +14,7 @@
       <input type="number" name="min" value="<%= min %>" placeholder="最低" style="padding:6px"><span>-</span><input type="number" name="max" value="<%= max %>" placeholder="最高" style="padding:6px"></form>
     <button class="btn sm block mt" onclick="this.previousElementSibling.submit()">确定</button>
   </aside>
+  <%# 移动端左侧分类栏(与上方分类筛选同一组链接,仅换排版) %><nav class="crail" aria-label="商品分类"><a href="<%= qs(req,{cat:'',page:''}) %>" class="<%= !cat?'on':'' %>">全部</a><% navCats.forEach(c=>{ const con = String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id); %><a class="<%= con?'on':'' %>" href="<%= qs(req,{cat:c.id,page:''}) %>"><%= c.name %></a><% }) %></nav>
   <section>
     <div class="mfilter">
       <div class="chiprow">

@@ -1,53 +1,44 @@
-<% const pic=(n,alt)=>'<picture><source type="image/webp" srcset="/static/img/home/'+n+'@2x.webp 2x,/static/img/home/'+n+'@3x.webp 3x"><img src="/static/img/home/'+n+'@2x.png" alt="'+(alt||'')+'" decoding="async"></picture>'; %>
+<%# 首页「方案A·清新绿」:弧形渐变头(标志 + 购物车 + 搜索)→ 公告卡 → 精选好物|签到 → 积分专区|云商卡 → 线性图标入口 → 推荐商品(两列)。无轮播、无倒计时、无销量;所有文案取自真实数据 %>
+<% const ic = (n, z) => include('../partials/ic', { icn: n, isz: z || 22 }); const go = (c) => '<i class="hc-go' + (c ? ' ' + c : '') + '">' + ic('chev', 10) + '</i>';
+   const T0 = U.today(), Y0 = U.offset(-86400000).slice(0, 10);
+   const streak = user ? ((user.last_signin === T0 || user.last_signin === Y0) ? (+user.signin_streak || 0) : 0) : 0;
+   const ents = [];
+   if (!user && (regPts || newbieCoupon)) ents.push(['/register', 'gift', '新人有礼', ' hero']); // 仅后台存在真实新人权益(注册积分/新人券)时显示
+   ents.push(['/groupbuy', 'share', '拼团', ''], ['/activity', 'flag', '活动专区', ''], ['/me/invite', 'userplus', '邀请好友', '']);
+   if (user) ents.push(['/coupons', 'ticket', '领券中心', '']);
+   ents.push(['/service?from=coop', 'store', '合作专区', ''], ['/service', 'headset', '客服售后', '']);
+   const cols = ents.length <= 5 ? ents.length : Math.ceil(ents.length / 2); %>
 <div class="top">
-  <% if (shop.announcement) { %><a class="ann" href="/notices" title="<%= shop.announcement %>"><span><%= shop.announcement %></span></a><% } %>
   <%- include('../partials/header') %>
-  <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
-  <% if (banners.length) { %>
-  <div class="hero bnr" role="region" aria-roledescription="carousel" aria-label="活动横幅"<%- banners.length > 1 ? ' data-n="' + banners.length + '"' : '' %>>
-    <div class="bnr-t" aria-live="off">
-    <% banners.forEach(function (b, i) { const tag = b.link ? 'a' : 'div'; %>
-      <<%= tag %> class="bnr-s<%= i ? ' off' : '' %>"<% if (b.link) { %> href="<%= b.link %>"<% } %> style="background:linear-gradient(120deg,<%= b.bg1 %>,<%= b.bg2 %>)" role="group" aria-roledescription="slide" aria-label="<%= i + 1 %> / <%= banners.length %>"<%- i ? ' aria-hidden="true" tabindex="-1"' : '' %>>
-        <% if (b.image) { %><img class="bnr-i" src="<%= b.image %>" alt="" width="750" height="280" decoding="async"<%- i ? ' loading="lazy"' : ' fetchpriority="high"' %>><% } %>
-        <h2><%= b.title %></h2><% if (b.subtitle) { %><p><%= b.subtitle %></p><% } %><% if (b.link) { %><span class="btn">去看看 ›</span><% } %>
-      </<%= tag %>>
-    <% }) %>
-    </div>
-    <% if (banners.length > 1) { %><div class="bnr-d"><% banners.forEach(function (b, i) { %><button type="button"<%- i ? '' : ' class="on" aria-current="true"' %> aria-label="第 <%= i + 1 %> 张"></button><% }) %></div><% } %>
-  </div>
-  <% } else { %>
-  <% if (user) { %>
-  <a class="hero" href="/coupons"><small>欢迎回来</small><h2><%= user.nickname %></h2><p>领取可用优惠券,下单更划算</p><span class="btn">去领券 ›</span></a>
-  <% } else { %>
-  <a class="hero" href="/register"><small>新人专享</small><h2>新人注册有礼</h2><p>注册即送<% if (regPts) { %> <%= regPts %> 积分<% } %><% if (regPts && newbieCoupon) { %>及<% } %><% if (newbieCoupon) { %>新人优惠券<% } %><% if (!regPts && !newbieCoupon) { %>会员积分与权益<% } %></p><span class="btn">立即注册 ›</span></a>
-  <% } %>
-  <% } %>
-  <nav class="ents" aria-label="快捷入口">
-    <a class="ent" href="/me/points"><b><%- pic('icon-signin') %></b>每日签到</a>
-    <a class="ent" href="/points-mall"><b><%- pic('icon-points') %></b>积分专区</a>
-    <a class="ent" href="/orders"><b><%- pic('icon-orders') %></b>我的订单</a>
-    <a class="ent" href="/me/invite"><b><%- pic('icon-invite') %></b>邀请好友</a>
-    <a class="ent" href="/me/cloud"><b><%- pic('icon-vip') %></b>云商会员</a>
-    <a class="ent" href="/service?from=coop"><b><%- pic('icon-coop') %></b>合作专区</a>
-  </nav>
 </div>
-<nav class="zones" aria-label="精选专区">
-  <a class="bc b0" href="/products"><h3>全部商品</h3><p>数码鲜果</p><%- pic('card-goods') %></a>
-  <a class="bc b1" href="/activity"><h3>活动专区</h3><p>持续上新</p><%- pic('card-event') %></a>
-  <a class="bc b2" href="/points-mall"><h3>积分专区</h3><p>好礼兑换</p><%- pic('card-points') %></a>
-  <a class="bc b3" href="/me/cloud"><h3>云商卡</h3><p>会员权益</p><%- pic('card-yunshang') %></a>
-</nav>
-<div class="svc" aria-label="服务保障"><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
-<section class="picks" aria-labelledby="picks-t">
-  <div class="pk-h"><h3 id="picks-t">好物精选</h3><a href="/products">更多 ›</a></div>
-  <div class="pk-g">
-  <% if (storecard && storecard.on) { %><div class="pk sc-pk"><a class="pk-i" href="/storecard"><img src="<%= storecard.image %>" alt="<%= storecard.name %>" width="200" height="200" decoding="async"><span class="sc-badge">7.5折</span></a><a class="sc-buy" href="/service?from=storecard">购买</a><span class="pk-n"><a href="/storecard"><%= storecard.name %></a></span><% if (storecard.cardPrice) { %><span class="pk-p sc-row"><%= storecard.cardPrice %></span><% } %></div><% } %>
-  <% if (picks.length) { picks.forEach(function (g, i) { %>
-    <a class="pk" href="/product/<%= g.id %>"><span class="pk-i"><img src="<%= g.img %>" alt="" width="200" height="200"<%- i < 3 ? '' : ' loading="lazy"' %> decoding="async" onerror="<%= IMG_FALLBACK %>"></span><span class="pk-n"><%= g.name %></span><span class="pk-p">¥<%= Number(g.price).toFixed(2) %></span></a>
-  <% }) } else { for (let i = 0; i < 6; i++) { %>
-    <div class="pk ph" aria-hidden="true"><span class="pk-i"><img src="<%= PH %>" alt="" width="200" height="200" decoding="async"></span><span class="pk-n">示例商品</span></div>
-  <% } } %>
-  </div>
-</section>
-<footer class="zq-foot"><div class="icp">© 2026 <%= shop.shop_name %><% if (pub.icp) { %> · <%= pub.icp %><% } %></div><%- include('../partials/operator') %></footer>
+<div class="hm">
+  <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
+  <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag">公告</b><i class="hm-nsep"></i><span><%= shop.announcement || '暂无公告' %></span><%- ic('chev', 14) %></a>
+  <nav class="hm-duo hm-card" aria-label="精选入口">
+    <a class="hc" href="/products"><span class="hc-t"><b>精选好物</b><%- go('acc') %></span><span class="hc-s">平台优选好物</span><img class="hc-img" src="/static/img/home/ill-basket.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
+    <a class="hc" href="/me/points"><span class="hc-t"><b>签到</b><%- go() %></span><span class="hc-s"><% if (!user) { %>登录后签到领积分<% } else if (user.last_signin === T0) { %>今日已签 · 连续 <em><%= streak %></em> 天<% } else { %>已连续签到 <em><%= streak %></em> 天<% } %></span><img class="hc-img" src="/static/img/home/ill-calendar.jpg" alt="" width="46" height="46" decoding="async"></a>
+  </nav>
+  <nav class="hm-duo hm-card" aria-label="会员权益">
+    <a class="hc" href="/points-mall"><span class="hc-t"><b>积分专区</b><%- go('acc') %></span><span class="hc-s">好礼兑换</span><img class="hc-img" src="/static/img/home/ill-gift.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
+    <a class="hc" href="/me/cloud"><span class="hc-t"><b>云商会员</b><%- go() %></span><span class="hc-s">联系客服办理</span><img class="hc-img" src="/static/img/home/ill-card.jpg" alt="" width="46" height="46" decoding="async"></a>
+  </nav>
+  <nav class="ents hm-card" aria-label="快捷入口" style="grid-template-columns:repeat(<%= cols %>,minmax(0,1fr))">
+    <% ents.forEach(function (e) { %><a class="ent<%= e[3] %>" href="<%= e[0] %>"><b><%- ic(e[1], 24) %></b><%= e[2] %></a><% }) %>
+  </nav>
+  <div class="svc" aria-label="服务保障"><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
+  <section class="picks" aria-labelledby="picks-t">
+    <h2 class="rt" id="picks-t"><span class="sl"><b></b><b></b></span>推荐商品<span class="sl"><b></b><b></b></span></h2>
+    <div class="pk-h"><span class="pk-tab on">好物精选</span><% navCats.forEach(function (c) { %><a class="pk-tab" href="/products?cat=<%= c.id %>"><%= c.name %></a><% }) %><a class="pk-more" href="/products">更多 ›</a></div>
+    <div class="pk-g">
+    <% if (storecard && storecard.on) { %><div class="pk sc-pk"><a class="pk-i" href="/storecard"><img src="<%= storecard.image %>" alt="<%= storecard.name %>" width="200" height="200" decoding="async"><span class="sc-badge">7.5折</span></a><span class="pk-n"><a href="/storecard"><%= storecard.name %></a></span><span class="pk-b"><% if (storecard.cardPrice) { %><span class="pk-p sc-row"><%= storecard.cardPrice %></span><% } else { %><span></span><% } %><a class="sc-buy" href="/service?from=storecard">购买</a></span></div><% } %>
+    <% if (picks.length) { picks.forEach(function (g, i) { const pr = Number(g.price).toFixed(2).split('.'); %>
+      <a class="pk" href="/product/<%= g.id %>"><span class="pk-i"><img src="<%= g.img %>" alt="" width="200" height="200"<%- i < 4 ? '' : ' loading="lazy"' %> decoding="async" onerror="<%= IMG_FALLBACK %>"></span><span class="pk-n"><%= g.name %></span><span class="pk-b"><span class="pk-p">¥<%= pr[0] %><small>.<%= pr[1] %></small></span><i class="pk-add" aria-hidden="true"><%- ic('plus', 14) %></i></span></a>
+    <% }) } else { for (let i = 0; i < 6; i++) { %>
+      <div class="pk ph" aria-hidden="true"><span class="pk-i"><img src="<%= PH %>" alt="" width="200" height="200" decoding="async"></span><span class="pk-n">示例商品</span></div>
+    <% } } %>
+    </div>
+  </section>
+  <div class="hm-end"><i></i>没有更多了<i></i></div>
+</div>
+<footer class="zq-foot"><%- include('../partials/operator') %><div class="icp">© 2026 <%= shop.shop_name %><% if (pub.icp) { %> · <%= pub.icp %><% } %></div></footer>
 <%- include('../partials/tabbar') %>

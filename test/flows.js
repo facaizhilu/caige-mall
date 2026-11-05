@@ -212,7 +212,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     for (const u of ['/', '/login', '/register', '/products', '/product/1', '/product/' + (db.get("SELECT id FROM products WHERE supplier IS NOT NULL AND status=1 LIMIT 1") || { id: 1 }).id, '/points-mall', '/points-mall/2', '/help', '/service', '/article/' + (db.get("SELECT id FROM articles WHERE category='about'") || { id: 1 }).id, '/privacy', '/terms', '/storecard']) {
       const x = await anon.get(u); const body = x.text.replace(/<script[\s\S]*?<\/script>/g, ''); const m = body.match(/演示|测试|阿东|技术联系|公司信息一览|为财哥|400-888-6666|example/); if (m) bad.push(u + ':' + body.slice(Math.max(0, m.index - 80), m.index + 20)); }
     ok(!bad.length, '前台页面无「演示/测试/阿东/公司信息一览」及占位联系方式', bad.join(' | '));
-    const lp = await anon.get('/products'); ok(lp.text.includes('运营方:海南韵农科技有限公司') && lp.text.includes('地址:待公布') && /ICP/.test(lp.text), '页脚保留运营方(海南韵农科技有限公司)、ICP 行,地址待公布');
+    const lp = await anon.get('/products'); ok(lp.text.includes('运营方：海南韵农科技有限公司') && lp.text.includes('地址:待公布') && /ICP/.test(lp.text), '页脚保留运营方(海南韵农科技有限公司)、ICP 行,地址待公布');
     const pv = await anon.get('/privacy'); ok(pv.text.includes('海南韵农科技有限公司') && !pv.text.includes('【公司全称】') && pv.text.includes('待公布'), '隐私政策保留运营者名称,地址/邮箱/电话显示待公布');
     const tm = await anon.get('/terms'); ok(tm.text.includes('海南韵农科技有限公司') && !/【[^】]*】/.test(tm.text.replace(/<script[\s\S]*?<\/script>/g, '')), '用户协议运营者名称已填充、无占位符');
     const t2 = new C(); const lr = await t2.login('13800000002', '123456'); ok(lr.status === 302, '测试账号仍可登录'); }
@@ -220,7 +220,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   { const hp = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"); ok(hp && !hp.content.includes('均支持') && hp.content.includes('以商品页「服务」栏标示为准') && hp.content.includes('积分兑换商品非质量问题不退不换'), '帮助中心退货政策:按商品页标示,不再声明全部支持'); }
   console.log('== QA:页脚运营方/积分提示/法律文本占位/省份/应付款/备案号 ==');
   { const anon = new C(); const strip = t => t.replace(/<script[\s\S]*?<\/script>/g, '');
-    for (const pth of ['/', '/products', '/points-mall']) { const t = (await anon.get(pth)).text; ok(t.includes('运营方:海南韵农科技有限公司') && t.includes('地址:待公布') && t.includes('电话:待公布') && t.includes('邮箱:待公布'), '页脚运营方+地址/电话/邮箱待公布:' + pth); }
+    for (const pth of ['/', '/products', '/points-mall']) { const t = (await anon.get(pth)).text; ok(t.includes('运营方：海南韵农科技有限公司') && t.includes('地址:待公布') && t.includes('电话:待公布') && t.includes('邮箱:待公布'), '页脚运营方+地址/电话/邮箱待公布:' + pth); }
     ok((await anon.get('/points-mall')).text.includes('积分不可提现、不可转让'), '积分专区列表页提示不可提现/转让');
     const pg1 = db.get('SELECT id FROM points_goods WHERE status=1 LIMIT 1'); if (pg1) ok((await anon.get('/points-mall/' + pg1.id)).text.includes('积分不可提现、不可转让'), '积分商品详情页提示不可提现/转让');
     const pv = strip((await anon.get('/privacy')).text), tm = strip((await anon.get('/terms')).text), pr = strip((await anon.get('/points-rules')).text);
@@ -634,8 +634,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     { const anon = new C(); const home = async () => (await anon.get('/')).text;
       const titles = t => [...t.matchAll(/class="bnr-s[^"]*"[\s\S]*?<h2>([^<]*)<\/h2>/g)].map(m => m[1]);
       const en = db.all('SELECT title FROM banners WHERE status=1 ORDER BY sort, id').map(x => x.title);
-      let t = await home(); ok(en.length >= 2 && t.includes('class="hero bnr"') && t.includes(`data-n="${en.length}"`) && JSON.stringify(titles(t)) === JSON.stringify(en) && (t.match(/<button type="button"[^>]*aria-label="第 \d+ 张"/g) || []).length === en.length, '首页轮播展示全部启用 Banner(按排序)及圆点', titles(t));
-      ok(/\/static\/js\/home\.js\?v=\d+/.test(t) && !t.includes('home.css?v=9'), '首页引入轮播脚本,样式版本号已更新');
+      let t = await home(); ok(en.length >= 2 && !t.includes('bnr') && titles(t).length === 0, '首页方案A:后台 Banner 照常启用,但首页不再展示轮播');
+      ok(!/\/static\/js\/home\.js/.test(t) && !t.includes('home.css?v=9'), '首页不再引入轮播脚本,样式版本号已更新');
       await adm.get('/admin/banners/new');
       for (const bad of ['https://evil.example/x', 'http://evil.example', '//evil.example/x', '/\\evil.example', 'javascript:alert(1)', 'products']) {
         r = await adm.post('/admin/banners/save', { title: '外链测试', subtitle: '', image: '', link: bad, bg1: '#d4202a', bg2: '#f2a93b', sort: '9', status: '1' });
@@ -644,16 +644,16 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       r = await adm.post('/admin/banners/save', { title: '站内链接测试', subtitle: '副标题', image: '', link: '/product/1?from=banner', bg1: '#d4202a', bg2: '#f2a93b', sort: '98', status: '1' }); ok(r.status === 302 && db.get("SELECT 1 FROM banners WHERE title='站内链接测试'"), 'Banner 保存接受站内相对链接');
       r = await adm.post('/admin/banners/save', { title: '无链接测试', subtitle: '', image: '', link: '', bg1: '#d4202a', bg2: '#f2a93b', sort: '99', status: '1' }); ok(r.status === 302 && db.get("SELECT link FROM banners WHERE title='无链接测试'").link === '', 'Banner 链接可留空');
       db.prepare("INSERT INTO banners(title,subtitle,link,bg1,bg2,sort,status) VALUES('旧外链测试','','https://evil.example','#d4202a','#f2a93b',100,1)").run();
-      t = await home(); ok(/<div class="bnr-s[^"]*"[^>]*>[\s\S]*?<h2>无链接测试<\/h2>(?:(?!<\/div>)[\s\S])*?<\/div>/.test(t) && !/<h2>无链接测试<\/h2>[^<]*<span class="btn"/.test(t), '无链接 Banner 渲染为不可点击且无按钮');
-      ok(!t.includes('evil.example') && t.includes('<h2>旧外链测试</h2>') && t.includes('href="/product/1?from=banner"'), '旧数据中的外部链接不输出到首页');
+      t = await home(); ok(!t.includes('evil.example') && !t.includes('无链接测试') && !t.includes('旧外链测试'), '首页不输出任何 Banner(含旧数据外链)');
       db.prepare("DELETE FROM banners WHERE title IN ('站内链接测试','无链接测试','旧外链测试')").run();
       const keep = db.get('SELECT id FROM banners WHERE status=1 ORDER BY sort, id LIMIT 1').id, saved = db.all('SELECT id, status FROM banners');
       db.prepare('UPDATE banners SET status=CASE WHEN id=? THEN 1 ELSE 0 END').run(keep);
-      t = await home(); ok(t.includes('class="hero bnr"') && !t.includes('data-n=') && !t.includes('class="bnr-d"') && (t.match(/class="bnr-s/g) || []).length === 1, '仅一个启用 Banner:单张展示,无圆点/轮播');
+      t = await home(); ok(!t.includes('bnr') && !t.includes('data-n='), '仅一个启用 Banner:首页仍无轮播');
       db.prepare('UPDATE banners SET status=0').run();
-      t = await home(); ok(!t.includes('bnr') && t.includes('<a class="hero" href="/register">') && t.includes('新人注册有礼'), '无启用 Banner:回退为固定横幅');
+      { const S = require('../lib/svc').settings(); const real = +S.register_points > 0 || !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
+        t = await home(); ok(!t.includes('bnr') && (real ? t.includes('<a class="ent hero" href="/register">') && t.includes('新人有礼') : !t.includes('新人有礼')), '「新人有礼」入口仅在后台存在真实新人权益时显示(' + (real ? '有' : '无') + ')'); }
       const st = db.prepare('UPDATE banners SET status=? WHERE id=?'); saved.forEach(x => st.run(x.status, x.id));
-      t = await home(); ok(titles(t).length === en.length, 'Banner 状态已恢复'); }
+      t = await home(); ok(db.all('SELECT title FROM banners WHERE status=1').length === en.length && !t.includes('bnr'), 'Banner 状态已恢复'); }
   }
 
   console.log('== 积分专区 v1.3:限兑/库存/并发/包邮/退回积分/周期过期/无折现比例 ==');
@@ -669,7 +669,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     x = await a.get('/points-mall');
     ok(x.text.includes('class="pm-ptag">3000积分') && x.text.includes('class="pm-ship">包邮') && x.text.includes('立即兑换') && !x.text.includes('class="tag demo"'), '积分专区卡片:金色「xxx积分」+「包邮」+「立即兑换」,前台不显示演示标记');
     const grid = x.text.slice(x.text.indexOf('class="grid"')); ok(!/¥|退换|无理由/.test(grid), '积分商品卡片无金额、无退换说明');
-    ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('class="pm-head"') && x.text.includes('#9e1712'), '积分专区:无顶部横幅/占位,顶部一行「我的积分 · 去签到」(朱红金)');
+    ok(!x.text.includes('pm-banner') && !x.text.includes('points_mall_banner') && !x.text.includes('设计稿待提供') && x.text.includes('class="pm-head"') && x.text.includes('#23894C'), '积分专区:无顶部横幅/占位,顶部一行「我的积分 · 去签到」(清新绿)');
     const demoGoods = db.all('SELECT g.*, c.name cn, pc.name pn FROM points_goods g LEFT JOIN categories c ON c.id=g.category_id LEFT JOIN categories pc ON pc.id=c.parent_id');
     const CC = require('../lib/suppliers/jdvop/compliance');
     ok(demoGoods.length >= 6 && demoGoods.every(g => g.is_demo === 1) && demoGoods.every(g => g.type === 'coupon' || (g.category_id && !CC.scopeWarning([g.pn, g.cn]))) && demoGoods.some(g => g.pn === '新鲜农产品') && demoGoods.some(g => g.pn === '数码电脑') && demoGoods.some(g => g.type === 'coupon'), '演示积分商品均在经营范围(数码配件/新鲜农产品/优惠券)并标记演示');
@@ -821,7 +821,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
         x = await adm.get('/admin/service?uid=' + bid); ok(/已读 \d\d-\d\d \d\d:\d\d/.test(x.text), '后台显示已读及时间');
         x = await b.get('/service?partial=1'); ok(!/已读|未读/.test(x.text), '会员端会话不显示已读/未读', (x.text.match(/.{40}(已读|未读).{40}/) || [])[0]);
         // 合作专区
-        x = await b.get('/'); ok(x.text.includes('href="/service?from=coop"') && x.text.includes('合作专区') && x.text.includes('icon-coop@2x'), '首页「合作专区」入口 → 在线客服');
+        x = await b.get('/'); ok(x.text.includes('href="/service?from=coop"') && x.text.includes('合作专区'), '首页「合作专区」入口 → 在线客服');
         x = await b.get('/service?from=coop'); ok(x.text.includes('供应商、门店合作，请留言说明合作内容，我们会尽快联系您。') && !/招商|加盟|投资|代理|回报/.test(x.text), '合作专区进入客服页显示合作提示(无招商/投资类用语)');
         x = await b.get('/service'); ok(!x.text.includes('id="coopNote"'), '普通进入客服页不显示合作提示');
         // 实时推送(SSE):鉴权、事件隔离、心跳头
@@ -902,7 +902,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             await adm.get('/admin/settings'); await adm.post('/admin/settings/storecard', { storecard_name: '线下门店优惠卡', storecard_intro: '可储值使用' }); const sv = k => (db.get('SELECT value FROM settings WHERE key=?', k) || {}).value; ok(sv('storecard_on') !== '0' && !String(sv('storecard_intro') || '').includes('储值'), '后台拒绝「储值」类文案');
             await adm.post('/admin/settings/storecard', { storecard_on: '', storecard_name: '线下门店优惠卡', storecard_store_list: '海口国贸店|海口市龙华区国贸路 1 号' }); x = await b.get('/products'); y = await b.get('/storecard'); ok(!x.text.includes('data-storecard') && y.status === 404, '后台可关闭门店优惠卡');
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_store_list: '海口国贸店|海口市龙华区国贸路 1 号' }); y = await b.get('/storecard'); ok(y.text.includes('海口国贸店') && y.text.includes('海口市龙华区国贸路 1 号') && y.text.includes('卡的性质') && y.text.includes('待确认'), '后台编辑门店列表;留空字段显示「待确认」');
-            x = await b.get('/products'); ok(y.text.includes('到店或联系客服办理') && !y.text.includes('/ 1年') && !x.text.includes('客服办理') && !(await b.get('/')).text.includes('客服办理'), '未设售价:详情显示「到店或联系客服办理」,列表/首页卡片不显示价格文案');
+            x = await b.get('/products'); ok(y.text.includes('到店或联系客服办理') && !y.text.includes('/ 1年') && !x.text.includes('客服办理') && !(((await b.get('/')).text.match(/<div class="pk sc-pk">[\s\S]*?<\/div>/) || [''])[0].includes('客服办理')), '未设售价:详情显示「到店或联系客服办理」,列表/首页卡片不显示价格文案');
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_price: '99', storecard_price_unit: '1年' }); y = await b.get('/storecard'); x = await b.get('/products'); const hm = await b.get('/'); ok(y.text.includes('¥99 / 1年') && x.text.includes('<big>¥99</big>') && hm.text.includes('sc-row">¥99<'), '设置售价后详情显示「¥99 / 1年」,列表/首页显示 ¥99');
             
             await adm.post('/admin/settings/storecard', { storecard_on: '1', storecard_name: '线下门店优惠卡', storecard_price: 'abc' }); ok((db.get("SELECT value FROM settings WHERE key='storecard_price'") || {}).value === '99', '非法售价被拒绝');
