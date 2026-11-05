@@ -1,5 +1,5 @@
 <div class="crumb"><a href="/">首页</a> › 购物车</div>
-<% if (!items.length) { %><div class="card empty"><div class="e">🛒</div>购物车还是空的,去逛逛吧<br><br><a class="btn primary" href="/products">去选购</a></div>
+<% if (!items.length) { %><div class="card empty cart-empty"><div class="e ce-ic"><%- include('../partials/ic', { icn: 'cart', isz: 56 }) %></div><b class="ce-t">购物车还是空的</b><p class="ce-s">挑点新鲜好物放进来吧</p><a class="btn primary" href="/products">去逛逛</a></div>
 <% } else { %>
 <form method="post" action="/checkout" id="cartForm" class="card">
   <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="from_cart" value="1">

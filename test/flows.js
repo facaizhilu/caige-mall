@@ -623,8 +623,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     await adm.post(`/admin/cloud-cards/${ctp.id}/delete`, {}); ok(db.get('SELECT 1 FROM cloud_card_types WHERE id=?', ctp.id), '已有会员开通的云商卡类型不能删除');
     // 7) 数组/对象形式的查询参数不再导致 500
     for (const [c, u] of [[a, '/products?q[]=1&q[]=2&cat[]=1&sort[a]=x&page[]=2'], [a, '/orders?status[]=paid&status[]=x'], [adm, '/admin/orders?q[]=1&status[]=paid&from[a]=1'], [adm, '/admin/members?q[]=1&level[]=1'], [adm, '/admin/products?q[a]=1&cat[]=1'], [adm, '/admin/reviews?status[]=a&status[]=b'], [adm, '/admin/cloud-members?q[]=1']]) { r = await c.get(u); ok(r.status === 200, '数组查询参数不报错 ' + u.split('?')[0], r.status); }
-    // 8) 设置页「注销账号」在最下方
-    r = await a.get('/me/settings'); { const i = r.text.indexOf('<div class="card"><h3'); const sl = r.text.slice(i, r.text.indexOf('</div></div>', i)); const ls = [...sl.matchAll(/href="([^"]+)"/g)].map(x => x[1]); ok(ls[ls.length - 1] === '/me/cancel', '设置页「注销账号」位于最下方', ls.join(',')); }
+    // 8) 设置页「注销账号」在「账号与安全」组内(业主 2026-11 决定)
+    r = await a.get('/me/settings'); { const i = r.text.indexOf('<div class="card"><h3'); const sl = r.text.slice(i, r.text.indexOf('</div></div>', i)); const ls = [...sl.matchAll(/href="([^"]+)"/g)].map(x => x[1]); ok(ls.indexOf('/me/cancel') === ls.indexOf('/me/profile#password') + 2 && sl.indexOf('注销后账号数据将无法恢复') > 0, '设置页「注销账号」位于「账号与安全」组内(修改密码之后),右侧灰字提示', ls.join(',')); }
     // 9) 通用开关切换不跳转到站外 Referer
     const bn = db.get('SELECT id FROM banners LIMIT 1'); r = await adm.req('POST', `/admin/banners/${bn.id}/toggle`, { _csrf: adm.t }, {}); await adm.get('/admin/banners');
     const rr = await fetch(base + `/admin/banners/${bn.id}/toggle`, { method: 'POST', redirect: 'manual', headers: { Cookie: Object.entries(adm.k).map(([x, y]) => x + '=' + y).join('; '), 'Content-Type': 'application/x-www-form-urlencoded', Referer: 'https://evil.example/admin/x' }, body: '_csrf=' + adm.t });

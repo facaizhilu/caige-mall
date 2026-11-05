@@ -4,6 +4,7 @@
   <div class="info">
     <div class="name"><%= p.name %></div>
     <div class="sub"><%= p.subtitle %></div>
-    <div class="meta"><span class="price"><big><%= (+p.price).toFixed(p.price%1?2:0) %></big></span><% if (shop.show_sales === '1' && +p.sales > 0) { %><span class="sales">已售 <%= p.sales %></span><% } %></div>
+    <div class="meta"><span class="price"><% const pps = (+p.price).toFixed(p.price%1?2:0).split('.'); %><big><%= pps[0] %></big><% if (pps[1]) { %><small class="pdec">.<%= pps[1] %></small><% } %></span><% if (shop.show_sales === '1' && +p.sales > 0) { %><span class="sales">已售 <%= p.sales %></span><% } %></div>
   </div>
+  <i class="pc-add" aria-hidden="true"></i>
 </a>

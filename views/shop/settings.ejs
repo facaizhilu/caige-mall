@@ -9,6 +9,7 @@
   <div class="setlist">
     <a href="/me/profile#password">手机号<span class="muted"><%= U.maskPhone(user.phone) %></span></a>
     <a href="/me/profile#password">修改密码<span class="muted">›</span></a>
+    <a href="/me/cancel">注销账号<span class="muted">注销后账号数据将无法恢复 ›</span></a>
   </div>
   <h4 class="muted" style="margin:16px 0 2px;font-size:13px;font-weight:500">隐私</h4>
   <div class="setlist">
@@ -21,8 +22,6 @@
     <a href="/help">帮助中心<span class="muted">›</span></a>
     <a href="/service">联系客服<span class="muted">›</span></a>
   </div>
-  <div class="setlist" style="margin-top:16px">
-    <a href="/me/cancel">注销账号<span class="muted">›</span></a>
-  </div>
+  <form method="post" action="/logout" class="set-logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button>退出登录</button></form>
 </div>
 </div></div>

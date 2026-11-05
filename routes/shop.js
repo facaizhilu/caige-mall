@@ -24,13 +24,14 @@ module.exports = function (app, { filesOf }) {
     // 首页「朱漆金韵」:仅入口与专区;横幅只写真实存在的权益(注册积分 / 新人券)
     const regPts = int(svc.settings().register_points);
     const newbieCoupon = !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
+    const gbOn = !!db.get('SELECT 1 FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1 LIMIT 1'); // 仅用于显示:无进行中拼团时首页隐藏「拼团」入口
     // 好物精选:仅在售商品(下架/待审/禁售/供应商自动下架不显示);按后台推荐排序(置顶、权重)再按上架时间;不做个性化,不显示销量
     const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
     // 轮播横幅:后台「Banner 管理」中启用的条目,按排序;链接仅允许站内相对路径(旧数据中的外链不输出 href),颜色不合法时回退默认
     const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
     const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 8')
       .map(b => ({ ...b, link: U.isInternalLink(b.link) ? b.link : '', bg1: hex(b.bg1, '#d4202a'), bg2: hex(b.bg2, '#f2a93b') }));
-    res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon, picks, storecard: require('../lib/storecard').get(), banners, PH: U.PLACEHOLDER_PNG, IMG_FALLBACK: U.IMG_FALLBACK });
+    res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon, gbOn, picks, storecard: require('../lib/storecard').get(), banners, PH: U.PLACEHOLDER_PNG, IMG_FALLBACK: U.IMG_FALLBACK });
   });
 
   // ---------------- 商品列表 ----------------

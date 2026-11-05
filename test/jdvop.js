@@ -400,7 +400,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
     const ar = await u.post('/cart/add', { sku_id: String(esku), qty: '1' }, { json: true }); ok(/不支持7天无理由/.test(ar.text) && !db.get('SELECT 1 FROM cart WHERE user_id=3 AND sku_id=?', esku), '未确认知晓不能加购不支持7天无理由的商品', ar.text.slice(0, 200));
     const al = (await adm.get('/admin/products?q=' + encodeURIComponent('蓝牙耳机'))).text; ok(stripTags(al).includes('不支持7天无理由退货'), '后台商品列表显示接口退货规则');
     const jl = stripTags((await adm.get('/admin/jdvop/products')).text); ok(jl.includes('不支持7天无理由退货') && jl.includes('支持7天无理由退货'), '已导入供应商商品列表显示接口退货规则');
-    const home = stripTags((await g.get('/')).text); ok(!home.includes('七天无理由') && !home.includes('7天无理由') && home.includes('正品保障'), '首页不再出现「七天无理由退货」');
+    const home = stripTags((await g.get('/')).text); ok(!home.includes('七天无理由') && !home.includes('7天无理由'), '首页不再出现「七天无理由退货」');
     const help = db.get("SELECT content FROM articles WHERE category='help' AND title='退款退货政策'"), terms = db.get("SELECT content FROM articles WHERE topic='terms'");
     ok(help && !help.content.includes('均支持') && help.content.includes('以商品页') && help.content.includes('非质量问题不退不换'), '帮助文:不再声明全部商品支持,按商品页标示;积分兑换非质量问题不退不换保留');
     ok(terms && !terms.content.includes('均支持签收后 7 天内无理由退货') && terms.content.includes('以商品页面「服务」栏标示为准'), '用户协议:按商品页标示'); }

@@ -2,7 +2,7 @@
 .zq{--tabh:54px;position:relative;width:100%;max-width:600px;margin:0 auto;min-height:100vh;min-height:100dvh;padding-bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 6px);background:var(--bg);overflow:hidden}
 .zq a{color:inherit;text-decoration:none}
 .zq .top{position:relative}
-.hm{position:relative;z-index:3;padding:0 12px;margin-top:-30px}
+.hm{position:relative;z-index:3;padding:0 12px;margin-top:14px}
 .hm .flash{margin:0 0 10px;padding:8px 12px;border-radius:10px;font-size:13px;line-height:1.4}
 .hm-card{display:block;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(30,38,32,.03)}
 .hm-card+.hm-card,.hm-card+.svc{margin-top:12px}
@@ -20,10 +20,10 @@
 .hc-s em{font-style:normal;color:var(--price);font-weight:600}
 .hc-img{position:absolute;right:8px;bottom:10px;width:46px;height:46px;object-fit:contain;mix-blend-mode:multiply}
 @media(max-width:340px){.hc-img{width:38px;height:38px;right:4px}.hc-s{padding-right:44px;font-size:12px}.hc-t b{font-size:14px}}
-.ents{display:grid;padding:14px 4px 12px;row-gap:12px}
-.ent{min-width:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;color:#333;white-space:nowrap;text-align:center}
+.ents{display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:14px 0 12px;scroll-snap-type:x proximity}.ents::-webkit-scrollbar{display:none}
+.ent{flex:0 0 23%;scroll-snap-align:start;min-width:0;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;color:#333;white-space:nowrap;text-align:center}
 .ent b{display:grid;place-items:center;color:#2b322d;height:24px}
-.ent.hero b{color:var(--price)}
+.ent.hero b{color:#2b322d}
 .svc{display:flex;justify-content:center;gap:18px;padding:2px 0 0;font-size:12px;color:var(--t3)}
 .svc div{display:flex;align-items:center;gap:4px}.svc i{display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--tint);color:var(--p);font-style:normal;font-size:10px;font-weight:700}
 .picks{margin-top:6px}
@@ -48,3 +48,9 @@
 .hm-end{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0 0;font-size:12px;color:var(--t3)}.hm-end i{width:28px;height:1px;background:#ddd}
 .zq-foot{margin:10px 12px 0;padding:6px 0 10px;font-size:12px;line-height:19px;color:var(--t3);text-align:center}
 .zq-foot .op-line{margin:0}
+
+/* 公告:CSS 跑马灯(高度固定 48px);减少动态效果时回退为省略号 */
+.hm-ann .hm-mq{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8px,#000 calc(100% - 12px),transparent);mask-image:linear-gradient(90deg,transparent,#000 8px,#000 calc(100% - 12px),transparent)}
+.hm-ann .hm-mq em{display:inline-block;font-style:normal;padding-left:100%;animation:hmq 16s linear infinite;will-change:transform}
+@keyframes hmq{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}
+@media(prefers-reduced-motion:reduce){.hm-ann .hm-mq{text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}.hm-ann .hm-mq em{display:inline;padding-left:0;animation:none}}

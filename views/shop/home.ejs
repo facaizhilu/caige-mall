@@ -4,7 +4,8 @@
    const streak = user ? ((user.last_signin === T0 || user.last_signin === Y0) ? (+user.signin_streak || 0) : 0) : 0;
    const ents = [];
    if (!user && (regPts || newbieCoupon)) ents.push(['/register', 'gift', '新人有礼', ' hero']); // 仅后台存在真实新人权益(注册积分/新人券)时显示
-   ents.push(['/groupbuy', 'share', '拼团', ''], ['/activity', 'flag', '活动专区', ''], ['/me/invite', 'userplus', '邀请好友', '']);
+   if (gbOn) ents.push(['/groupbuy', 'share', '拼团', '']);
+   ents.push(['/activity', 'flag', '活动专区', ''], ['/me/invite', 'userplus', '邀请好友', '']);
    if (user) ents.push(['/coupons', 'ticket', '领券中心', '']);
    ents.push(['/service?from=coop', 'store', '合作专区', ''], ['/service', 'headset', '客服售后', '']);
    const cols = ents.length <= 5 ? ents.length : Math.ceil(ents.length / 2); %>
@@ -13,7 +14,7 @@
 </div>
 <div class="hm">
   <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
-  <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag">公告</b><i class="hm-nsep"></i><span><%= shop.announcement || '暂无公告' %></span><%- ic('chev', 14) %></a>
+  <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag">公告</b><i class="hm-nsep"></i><span class="hm-mq"><em><%= shop.announcement || '暂无公告' %></em></span><%- ic('chev', 14) %></a>
   <nav class="hm-duo hm-card" aria-label="精选入口">
     <a class="hc" href="/products"><span class="hc-t"><b>精选好物</b><%- go('acc') %></span><span class="hc-s">平台优选好物</span><img class="hc-img" src="/static/img/home/ill-basket.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
     <a class="hc" href="/me/points"><span class="hc-t"><b>签到</b><%- go() %></span><span class="hc-s"><% if (!user) { %>登录后签到领积分<% } else if (user.last_signin === T0) { %>今日已签 · 连续 <em><%= streak %></em> 天<% } else { %>已连续签到 <em><%= streak %></em> 天<% } %></span><img class="hc-img" src="/static/img/home/ill-calendar.jpg" alt="" width="46" height="46" decoding="async"></a>
@@ -22,10 +23,9 @@
     <a class="hc" href="/points-mall"><span class="hc-t"><b>积分专区</b><%- go('acc') %></span><span class="hc-s">好礼兑换</span><img class="hc-img" src="/static/img/home/ill-gift.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
     <a class="hc" href="/me/cloud"><span class="hc-t"><b>云商会员</b><%- go() %></span><span class="hc-s">联系客服办理</span><img class="hc-img" src="/static/img/home/ill-card.jpg" alt="" width="46" height="46" decoding="async"></a>
   </nav>
-  <nav class="ents hm-card" aria-label="快捷入口" style="grid-template-columns:repeat(<%= cols %>,minmax(0,1fr))">
+  <nav class="ents hm-card" aria-label="快捷入口">
     <% ents.forEach(function (e) { %><a class="ent<%= e[3] %>" href="<%= e[0] %>"><b><%- ic(e[1], 24) %></b><%= e[2] %></a><% }) %>
   </nav>
-  <div class="svc" aria-label="服务保障"><div><i>正</i>正品保障</div><div><i>服</i>客服售后</div></div>
   <section class="picks" aria-labelledby="picks-t">
     <h2 class="rt" id="picks-t"><span class="sl"><b></b><b></b></span>推荐商品<span class="sl"><b></b><b></b></span></h2>
     <div class="pk-h"><span class="pk-tab on">好物精选</span><% navCats.forEach(function (c) { %><a class="pk-tab" href="/products?cat=<%= c.id %>"><%= c.name %></a><% }) %><a class="pk-more" href="/products">更多 ›</a></div>

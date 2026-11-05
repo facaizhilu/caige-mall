@@ -5,7 +5,7 @@
 <div class="me-hd"><i class="gh-c1"></i><i class="gh-c2"></i>
   <div class="me-tools"><% if (!guest) { %><a href="/me/profile" aria-label="个人资料"><%- ic('edit', 22) %></a><a href="/me/settings" aria-label="设置"><%- ic('gear', 22) %></a><% } %></div>
 <% if (guest) { %>
-  <div class="mecard guest"><div class="avatar"><img src="/static/img/mark-green.svg?v=1" alt="" width="46" height="46"></div><div class="mc-info"><a class="mc-name" href="/login?next=/me">登录/注册</a><div class="mc-sub">登录后查看订单、积分与会员权益</div></div><div class="mc-act"><a class="mc-sign" href="/login?next=/me">登录</a><a class="mc-reg" href="/register">注册</a></div></div>
+  <div class="mecard guest"><div class="avatar"><img src="/static/img/mark-green.svg?v=1" alt="" width="46" height="46"></div><div class="mc-info"><a class="mc-name" href="/login?next=/me">登录/注册</a><div class="mc-sub">登录后查看订单、积分与会员权益</div></div><div class="mc-act"><a class="mc-sign" href="/login?next=/me">登录/注册</a></div></div>
 <% } else { %>
   <div class="mecard"><div class="avatar"><img src="/static/img/mark-green.svg?v=1" alt="<%= user.nickname.slice(0,1) %>" width="46" height="46"></div>
     <div class="mc-info"><div class="mc-name"><%= user.nickname %></div><div class="mc-sub"><%= U.maskPhone(user.phone) %> · 邀请码 <%= user.invite_code %></div><div class="mc-tags"><span class="lvtag"><%- include('../partials/ic', { icn: 'crown', isz: 12 }) %><%= user.level_name %></span><% if (cloudOn) { %><span class="lvtag gold">云商会员</span><% } %></div></div>
@@ -25,11 +25,11 @@
   <a class="me-cloud" href="/me/cloud"><span class="mcl-i"><%- ic('card', 22) %></span><span class="mcl-t"><b>云商会员</b><small><%= !guest && cloudOn ? '已开通 · 享云商会员价' : '专享云商会员价 · 联系客服办理' %></small></span><span class="mcl-b"><%= !guest && cloudOn ? '查看' : '去了解' %></span></a>
   <% if (!guest) { const lo = prev ? prev.min_growth : 0, pct = next ? Math.max(0, Math.min(100, Math.round((user.growth - lo) * 100 / Math.max(1, next.min_growth - lo)))) : 100; %>
   <a class="card me-grow" href="/me/levels"><span class="mg-t"><b>成长值 <%= user.growth %></b><small class="mc-grow"><% if (next) { %>再 <%= next.min_growth-user.growth %> 升级「<%= next.name %>」<% } else { %>已是最高等级<% } %></small></span><span class="mg-bar"><i style="width:<%= pct %>%"></i></span><span class="mg-l">会员等级<%- include('../partials/ic', { icn: 'chev', isz: 13 }) %></span></a>
-  <a class="card me-pts" href="/me/points"><span>我的积分</span><b><%= user.points %></b></a>
+  <a class="card me-pts" href="/me/points"><span>积分数量</span><b><%= user.points %></b></a>
   <% } else { %>
-  <a class="card me-pts" href="/login?next=/me/points"><span>我的积分</span><b>登录查看</b></a>
+  <a class="card me-pts" href="/login?next=/me/points"><span>积分数量</span><b>登录查看</b></a>
   <% } %>
-  <div class="card me-sec me-fn"><div class="sec-h"><h2>常用功能</h2></div>
+  <div class="card me-sec me-fn"><div class="sec-h vh"><h2>常用功能</h2></div>
     <div class="me-grid g4">
       <% if (!guest) { %><a href="/me/points"><span><%- ic('cal') %><%- dot %></span><%= signed?'今日已签':'每日签到' %></a><% } else { %><a href="/login?next=/me/points"><span><%- ic('cal') %><%- dot %></span>每日签到</a><% } %>
       <a href="/points-mall"><span><%- ic('coin') %><%- dot %></span>积分专区</a>
@@ -46,5 +46,6 @@
   <% if (!guest) { %><form method="post" action="/logout" class="me-logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button>退出登录</button></form><% } %></div>
   <% if (recs && recs.length) { %><section class="me-recs"><h2 class="rt"><span class="sl"><b></b><b></b></span>推荐商品<span class="sl"><b></b><b></b></span></h2>
     <div class="pk-g"><% recs.forEach(function (g) { const pr = Number(g.price).toFixed(2).split('.'); %><a class="pk" href="/product/<%= g.id %>"><span class="pk-i"><img src="<%= g.img %>" alt="" width="200" height="200" loading="lazy" decoding="async" onerror="<%= U.IMG_FALLBACK %>"></span><span class="pk-n"><%= g.name %></span><span class="pk-b"><span class="pk-p">¥<%= pr[0] %><small>.<%= pr[1] %></small></span><i class="pk-add" aria-hidden="true"><%- include('../partials/ic', { icn: 'plus', isz: 14 }) %></i></span></a><% }) %></div></section><% } %>
+  <p class="me-legal"><a href="/terms">用户协议</a><i>|</i><a href="/privacy">隐私政策</a></p>
 </div>
 </div>
