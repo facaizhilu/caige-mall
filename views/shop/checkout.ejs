@@ -55,7 +55,7 @@
   function showNote(t){var n=document.getElementById('couponNote');if(!n)return;n.textContent=t||'';n.classList.toggle('hide',!t)}
   var couponEl=document.getElementById('coupon'), ptsEl=document.getElementById('pts');
   function recalc(){var my=++seq;var aid=(f.querySelector('[name=address_id]:checked')||{}).value;
-    var d={items:f.items.value,address_id:aid,coupon_id:couponEl?couponEl.value:'',use_points:ptsEl?ptsEl.value:0};
+    var d={items:(f.querySelector('[name=items]')||{}).value||'',address_id:aid,coupon_id:couponEl?couponEl.value:'',use_points:ptsEl?ptsEl.value:0};
     if(aid==='new'){d.province=nv('new_province');d.city=nv('new_city');d.district=nv('new_district');d.detail=nv('new_detail')}
     var pt=f.querySelector('[name=promo_type]');if(pt){d.promo_type=pt.value;d.promo_id=f.promo_id.value;d.group_id=f.group_id.value}
     postJSON('/api/quote',d).then(function(r){if(my!==seq)return;if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);showNote(r.couponNote);if(ptsEl&&+ptsEl.value>r.pointsUsed){ptsEl.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
