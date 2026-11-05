@@ -338,7 +338,7 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
  .g-theme .pd .opt .qty button{width:28px;font-size:15px}.g-theme .pd .opt .qty input{width:36px;border-left:1px solid #e3e5e1;border-right:1px solid #e3e5e1}
  .g-theme .pd .opt .flex{flex:1;justify-content:space-between;flex-direction:row-reverse}
 }
-.g-theme .me-grid.g5 a>span svg{fill:var(--p)!important;stroke:#fff!important}
+.g-theme .me-ord .me-grid.g5 a>span{display:grid!important;place-items:center;width:40px;height:40px;margin:0 auto 6px;border-radius:12px;background:linear-gradient(135deg,#3FB56E,#23894C)!important}.g-theme .me-ord .me-grid.g5 a>span svg{width:22px!important;height:22px!important;fill:none!important;stroke:#fff!important;stroke-width:1.8}
 .g-theme .sg-rules{background:#fff;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px;color:#666;line-height:1.7}
 .g-theme .sg-rules .sr-h{font-size:14px;color:#222;margin:0 0 6px}.g-theme .sg-rules p{margin:0 0 6px}.g-theme .sg-rules p:last-child{margin:0}
 .g-theme .btn.pts-go{background:var(--p);border-color:var(--p);color:#fff}
