@@ -21,7 +21,7 @@
   </nav>
   <nav class="hm-duo hm-card" aria-label="会员权益">
     <a class="hc" href="/points-mall"><span class="hc-t"><b>积分专区</b><%- go('acc') %></span><span class="hc-s">好礼兑换</span><img class="hc-img" src="/static/img/home/ill-gift.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
-    <a class="hc" href="/me/cloud"><span class="hc-t"><b>云商会员</b><%- go() %></span><span class="hc-s">联系客服办理</span><img class="hc-img" src="/static/img/home/ill-card.jpg" alt="" width="46" height="46" decoding="async"></a>
+    <a class="hc hc-solo" href="/me/cloud"><span class="hc-t"><b>云商会员</b><%- go() %></span><img class="hc-img" src="/static/img/home/ill-card.jpg" alt="" width="46" height="46" decoding="async"></a>
   </nav>
   <nav class="ents hm-card" aria-label="快捷入口" style="grid-template-columns:repeat(<%= ents.length %>,minmax(0,1fr))">
     <% ents.forEach(function (e) { %><a class="ent<%= e[3] %>" href="<%= e[0] %>"><b><%- ic(e[1], 28) %></b><%= e[2] %></a><% }) %>
