@@ -198,6 +198,7 @@ sudo certbot --nginx -d mall.example.com      # 自动改写 Nginx 配置并配�
 | `JDVOP_ORDER_MAX_AMOUNT` | 手动下单单笔上限(元,供应商部分),默认 300;`0` = 不限 |
 | `JDVOP_IMAGE_STORE` | live 模式默认直链京东图床图片;设为 `1` 时导入时下载转存到本站 `/uploads/supplier` |
 | `JDVOP_HIDE_DEMO` | live 模式默认下架自营演示占位商品;设为 `0` 保留 |
+| `JDVOP_CLEAN_TITLES` | 默认关闭:京东商品标题/规格/详情按接口原文展示,京东原文不做违禁词待审核(后台自建/人工编辑仍检查)。设为 `1` 时导入清理极限词/宣称并对残留违禁词进待审核。经营范围剔除与单价上限 `JDVOP_MAX_PRICE`(默认 20000)始终生效 |
 | `JDVOP_STARTER_SKUS` | live + `DEMO_MODE=1` 时启动自动导入的商品 ID(逗号分隔),默认见 `lib/suppliers/jdvop/starter-skus.js` |
 
 **演示环境自动导入**:`JDVOP_MODE` 为 mock(默认)且 `DEMO_MODE=1` 时,服务启动(listen 之后异步执行)若库里没有任何供应商商品,会通过正常导入流程自动导入全部 mock 商品:禁售类目不导入,违禁词商品为待审核/下架,其余上架并显示「演示」「由供应商发货」,并给一个推荐排序权重使其与自营商品在「全部商品」交错显示。live 模式绝不执行;可用 `JDVOP_DEMO_SEED=0` 关闭。

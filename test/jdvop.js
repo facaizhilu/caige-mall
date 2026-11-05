@@ -81,7 +81,7 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(!db.get("SELECT 1 FROM skus WHERE supplier_sku='900016003'") && db.get("SELECT 1 FROM skus WHERE supplier_sku='900016001'") && db.get("SELECT 1 FROM skus WHERE supplier_sku='900016004'"), '数码类只要求自营(非自营不导入);不支持7天无理由的也可导入');
   { const e = prodOf('900016004'), c = prodOf('900016001'); ok(e && e.no_reason_return === 0 && e.supports_7day_return === 0 && e.return_rule_text === '不支持7天无理由退货' && c.no_reason_return === 1 && c.supports_7day_return === 1 && c.return_rule_text === '支持7天无理由退货', '退货规则按接口记录(returnRuleType 0 → 不支持,1 → 支持)', JSON.stringify([e && e.return_rule_text, c && c.return_rule_text])); }
   const seededMouse = seeded.find(p => p.name.includes('鼠标'));
-  ok(seededMouse && seededMouse.status === 0 && seededMouse.supplier_state === 'pending_review', '自动导入的违禁词商品为待审核/下架', JSON.stringify(seededMouse));
+  ok(seededMouse && seededMouse.status === 1 && seededMouse.supplier_state === 'ok' && seededMouse.name.includes('全国联保'), '自动导入:京东原文含违禁词仍按原文上架(不清理、不待审核)', JSON.stringify(seededMouse));
   ok(seeded.some(p => p.name === '磨砂防摔手机壳') && seeded.some(p => p.name === 'Type-C 快充数据线'), '多规格商品名去掉规格值(颜色/长度)', seeded.map(p => p.name).join('|'));
   ok(new Set(seeded.map(p => p.supplier_spu)).size === seeded.length && db.get("SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier='jdvop'").n === db.get("SELECT COUNT(DISTINCT supplier_sku) n FROM skus WHERE supplier_sku IS NOT NULL").n, '每个商品(SPU)只导入一次,SKU 不重复', seeded.length);
   let r = await g.get('/products'); ok(!!db.get("SELECT 1 FROM products WHERE supplier IS NOT NULL AND status=1") && !r.text.includes('class="tag demo"'), '新部署打开「全部商品」即可看到供应商商品(前台不显示演示标记)');
@@ -187,7 +187,9 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   ok(impMsg.includes('办公设备(仅租赁') && impMsg.includes('文具/办公用品'), '导入结果提示打印机/文具的拦截原因');
   ok(prodOf('900016004') && !impMsg.includes('不支持7天无理由'), '数码类不支持7天无理由 → 仍可导入(不再拦截)');
   ok(impMsg.includes('禁售类目'), '导入结果提示禁售原因');
-  ok(mouse && mouse.status === 0 && mouse.supplier_state === 'pending_review' && /全国联保/.test(mouse.supplier_review_note), '违禁词命中 → 导入为待审核/下架,并记录原因', JSON.stringify(mouse));
+  ok(mouse && mouse.status === 1 && mouse.supplier_state === 'ok' && mouse.name.includes('全国联保'), '京东原文含违禁词:默认按原文展示、不进待审核(JDVOP_CLEAN_TITLES 未开启)', JSON.stringify(mouse));
+  // 人工编辑流程仍做违禁词复检:模拟一个待审核的供应商商品
+  db.exec1("UPDATE products SET status=0, supplier_state='pending_review', supplier_review_note='违禁/敏感词:「全国联保」(名称),请修改后再上架' WHERE id=?", mouse.id); Object.assign(mouse, db.get('SELECT * FROM products WHERE id=?', mouse.id));
   r = await adm.get('/admin/jdvop/products'); ok(r.text.includes('待审核') && r.text.includes('全国联保'), '后台已导入列表显示审核原因');
   await adm.post('/admin/products/' + mouse.id + '/toggle'); ok(db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '待审核商品不能直接上架');
   await adm.post('/admin/products/batch', { ids: [String(mouse.id)], action: 'on' }); ok(db.get('SELECT status FROM products WHERE id=?', mouse.id).status === 0, '批量上架也被拦截');
