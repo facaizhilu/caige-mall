@@ -14,7 +14,7 @@
 </div>
 <div class="hm">
   <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
-  <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag">公告</b><i class="hm-nsep"></i><span class="hm-mq"><em><%= shop.announcement || '暂无公告' %></em></span><%- ic('chev', 14) %></a>
+  <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag"><%- ic('megaphone', 16) %>公告</b><i class="hm-nsep"></i><span class="hm-mq"><em><%= String(shop.announcement || '暂无公告').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\s]+/u,'') %></em></span><%- ic('chev', 14) %></a>
   <nav class="hm-duo hm-card" aria-label="精选入口">
     <a class="hc" href="/products"><span class="hc-t"><b>精选好物</b><%- go('acc') %></span><span class="hc-s">平台优选好物</span><img class="hc-img" src="/static/img/home/ill-basket.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>
     <a class="hc" href="/me/points"><span class="hc-t"><b>签到</b><%- go() %></span><span class="hc-s"><% if (!user) { %>登录后签到领积分<% } else if (user.last_signin === T0) { %>今日已签 · 连续 <em><%= streak %></em> 天<% } else { %>已连续签到 <em><%= streak %></em> 天<% } %></span><img class="hc-img" src="/static/img/home/ill-calendar.jpg" alt="" width="46" height="46" decoding="async"></a>

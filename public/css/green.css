@@ -363,3 +363,90 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 .g-theme .ad-rgrow,.g-theme .ad-def{border:1px solid #e6e8e3}
 .g-theme .ad-rgrow .rg{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .g-theme .ad-rgrow select{text-overflow:ellipsis}
+/* ===== r4:线性图标替换 emoji / 320 布局 / 配色归一(仅样式) ===== */
+.g-theme{--cloud:#C9A04E;--ok:#2E9E5B;--info-bg:#EEF8F2;--info-t:#17723D;--warn-bg:#FFF6E8;--warn-t:#B26A00}
+.g-theme .g-ih,.g-theme .g-ib{display:inline-flex;align-items:center;gap:6px;vertical-align:middle}
+.g-theme .g-ih>.ic,.g-theme .g-ib>.ic{flex:none;color:var(--p)}
+.g-theme .btn.primary .g-ib>.ic,.g-theme .btn.primary>.ic,.g-theme .card[style*=gradient] .g-ih>.ic,.g-theme .flash-sale .g-ih>.ic{color:currentColor}
+.g-theme .btn>.ic{vertical-align:-3px;margin-right:4px}
+.g-theme .g-ie{color:var(--g1);line-height:0;opacity:.85}.g-theme .g-ie .ic{stroke-width:1.3}
+.g-theme .filters a>.ic,.g-theme .mchip>.ic{vertical-align:-3px;margin-right:4px;color:var(--p)}
+.g-theme .tag>.ic{vertical-align:-2px;margin-right:2px}
+/* 首页公告:去 emoji,图标 + 整句滚动(起始即可读) */
+.hm-ann .hm-ntag{display:inline-flex;align-items:center;gap:4px}
+.hm-ann .hm-mq em{padding-left:0;padding-right:48px;animation:hmq 18s linear 1.5s infinite}
+/* 收藏 */
+.g-theme .g-fav{display:inline-flex;align-items:center;justify-content:center;gap:4px}.g-theme .g-fav .ic{margin:0}
+.g-theme .g-fav.on .ic{fill:#F2B33D;stroke:#F2B33D}
+/* 客服工具栏 */
+.g-theme .snd-tg{display:inline-grid;place-items:center;color:var(--p);position:relative}
+.g-theme .snd-tg.muted-on{color:#aaa}.g-theme .snd-tg.muted-on:after{content:"";position:absolute;left:50%;top:50%;width:20px;height:1.6px;background:currentColor;transform:translate(-50%,-50%) rotate(-45deg);border-radius:1px}
+.g-theme .sh-grid button>span{display:grid;place-items:center;color:var(--p)}
+/* 信息块 / 警示块 */
+.g-theme .sim,.g-theme .notice-bar{background:var(--info-bg);border:0;color:var(--info-t)}
+.g-theme .sim.g-info{display:flex;align-items:flex-start;gap:6px}.g-theme .sim.g-info>.ic{flex:none;margin-top:1px;color:var(--p)}
+.g-theme .ban-warn{background:var(--warn-bg);border:1px solid #F5DDB5;color:var(--warn-t)}
+/* 详情 售后服务:不支持7天无理由 = 强制提示(警示色,字号不变,靠布局解决 320 折行) */
+.g-theme .pd-kv dt{white-space:nowrap}
+.g-theme .pd-kv dd .tag{margin:0}
+.g-theme .pd-kv dd:has(>.tag){display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.g-theme .pd-kv dd .no7-note{flex-basis:100%}
+.g-theme .tag.no7{background:var(--warn-bg);color:var(--warn-t);border-color:#F5DDB5;white-space:normal}
+.g-theme .no7-note,.g-theme .no7-tip{color:var(--warn-t)}
+.g-theme .no7-ack{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;background:var(--warn-bg);border:1px solid #F5DDB5;color:var(--warn-t)}
+.g-theme .no7-ack .no7-tip{flex-basis:100%;margin:0 0 0 26px}
+.g-theme .tag.green[title]{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 自定义圆形勾选框(保留原生 input,功能/无障碍不变) */
+.g-theme .agree input[type=checkbox],.g-theme .no7-ack input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:none;width:18px;height:18px;margin:1px 6px 0 0;border:1.5px solid #C5CCC7;border-radius:50%;background:#fff;vertical-align:-4px;cursor:pointer;display:inline-grid;place-items:center;transition:background .15s,border-color .15s}
+.g-theme .agree input[type=checkbox]:checked,.g-theme .no7-ack input[type=checkbox]:checked{background:var(--p) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/12px no-repeat;border-color:var(--p)}
+.g-theme .agree input[type=checkbox]:focus-visible,.g-theme .no7-ack input[type=checkbox]:focus-visible{outline:2px solid rgba(46,158,91,.4);outline-offset:2px}
+.g-theme .no7-ack input[type=checkbox]{margin:2px 0 0}
+/* 云商金:仅云商会员价 / 云商卡,统一 #C9A04E */
+.g-theme .pd .cloud-price,.g-theme .pd .cloud-range{background:rgba(201,160,78,.12)!important;color:var(--cloud)!important;font-weight:600}
+.g-theme .pd .cloud-price b{color:var(--cloud)}
+.me-cloud,.me-cloud:hover{color:var(--cloud)}
+.me-cloud .mcl-b{background:var(--cloud);color:#fff}
+.g-theme .mecard .lvtag.gold{background:var(--cloud);color:#fff}
+.cloud-hero.gold{background:linear-gradient(120deg,#B48A3C,#C9A04E);color:#fff}
+.cloud-hero.gold .btn:not(.gold):not(.primary){color:#8C6A2A}
+.cloud-tier.gold{border-color:var(--cloud);background:rgba(201,160,78,.08)}
+/* 其余回归绿色系 */
+.g-theme .tag.gold,.g-theme .lvtag.gold:not(.mecard .lvtag){background:var(--tint);color:var(--p);border-color:#CDE8D7}
+.g-theme .pts{color:var(--p)!important}
+.g-theme .signgrid div.ok{background:var(--tint);color:var(--p)}
+.g-theme .signgrid div .g-ib{gap:2px}.g-theme .signgrid div .g-ib .ic{color:var(--p)}
+.g-theme .lv-card b,.g-theme .lv-card b .ic{color:var(--p)!important}.g-theme .lv-card.on{border-color:var(--p)!important}
+.g-theme .sc-card .sc-pt,.g-theme .sc-pt{color:var(--deep)}
+.g-theme .pm-ship{border-color:#CDE8D7!important;color:var(--p)!important;background:var(--tint)}
+/* 数字统一无衬线 */
+.me-pts b{font-family:inherit;font-variant-numeric:tabular-nums}
+/* 「我的」头部:手机号/邀请码不拆行;云商卡副标题「联系客服办理」不拆 */
+.g-theme .mc-sub,.mcl-t small{word-break:normal}
+.g-theme .nw{white-space:nowrap}
+@media(max-width:360px){
+ .g-theme .mc-sub{font-size:12px}
+ .mcl-t small{font-size:11.5px}
+ /* 分类列表:价格不被裁切、不压住「+」 */
+ .g-theme.pg-products .plist .pcard .meta{min-width:0;padding-right:30px;display:flex;align-items:baseline;gap:4px;flex-wrap:nowrap}
+ .g-theme.pg-products .plist .pcard .meta .price{min-width:0;white-space:nowrap;font-size:15px}
+ .g-theme.pg-products .plist .pcard .meta .price big{font-size:15px}
+ .g-theme.pg-products .plist .pcard .meta .sales{display:none}
+ .g-theme.pg-products .plist .pcard .pc-add{flex-shrink:0}
+ .g-theme.pg-products .plist .pcard .pic{width:92px;height:92px}
+ .g-theme.pg-products .plist .pcard{gap:10px}
+ .g-theme .sc-card .name{word-break:keep-all;overflow-wrap:anywhere}
+ /* 购物车:小计不挤「−」,底部合计栏 */
+ .g-theme .cartrow>:nth-child(5){padding-left:0;font-size:15px}
+ .g-theme .cartrow{grid-template-columns:22px minmax(0,1fr) auto;gap:6px 8px}
+ .g-theme .cartrow img{width:72px;height:72px}
+ .g-theme.pg-cart .sumbar{padding:8px 10px;gap:6px}
+ .g-theme.pg-cart .sumbar>label{font-size:13px;gap:4px}
+ .g-theme.pg-cart .sumbar>.flex>span{font-size:12px}
+ .g-theme.pg-cart .sumbar big{font-size:17px}
+ .g-theme.pg-cart .sumbar .muted{font-size:10.5px}
+ .g-theme.pg-cart .sumbar .btn.primary{height:38px;padding:0 14px;font-size:14px}
+}
+.g-theme .pd-kv dd .tag.no7,.g-theme .pd-kv dd .tag.green[title]{order:-1}.g-theme .pd-kv dd .no7-note{order:9}
+.g-theme .agree{display:block;position:relative;padding-left:26px}
+.g-theme .agree input[type=checkbox]{position:absolute;left:0;top:1px;margin:0}
+.g-theme .agree a{display:inline!important;min-height:0!important}

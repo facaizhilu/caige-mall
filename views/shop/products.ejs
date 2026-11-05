@@ -3,7 +3,7 @@
   <aside class="filters card">
     <h4>商品分类</h4>
     <a href="<%= qs(req,{cat:'',page:''}) %>" class="<%= !cat?'on':'' %>">全部分类</a>
-    <% navCats.forEach(c=>{ %><a href="<%= qs(req,{cat:c.id,page:''}) %>" class="<%= String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id)?'on':'' %>"><%= c.icon %> <%= c.name %></a>
+    <% navCats.forEach(c=>{ %><a href="<%= qs(req,{cat:c.id,page:''}) %>" class="<%= String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id)?'on':'' %>"><%- include('../partials/ic',{icn:/数码|电脑|手机/.test(c.name)?'phone':/农|果|蔬|鲜/.test(c.name)?'apple':'grid',isz:16}) %><%= c.name %></a>
       <% if (curCat && (curCat.id===c.id||curCat.parent_id===c.id)) { subCats.forEach(s=>{ %><a style="padding-left:30px;font-size:13px" class="<%= String(cat)===String(s.id)?'on':'' %>" href="<%= qs(req,{cat:s.id,page:''}) %>">└ <%= s.name %></a><% }) } %>
     <% }) %>
     <h4>品牌</h4>
@@ -19,7 +19,7 @@
     <div class="mfilter">
       <div class="chiprow">
         <a class="mchip <%= !cat?'on':'' %>" href="<%= qs(req,{cat:'',page:''}) %>">全部</a>
-        <% navCats.forEach(c=>{ const con = String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id); %><a class="mchip <%= con?'on':'' %>" href="<%= qs(req,{cat:c.id,page:''}) %>"><%= c.icon %> <%= c.name %></a><% }) %>
+        <% navCats.forEach(c=>{ const con = String(cat)===String(c.id)||(curCat&&curCat.parent_id===c.id); %><a class="mchip <%= con?'on':'' %>" href="<%= qs(req,{cat:c.id,page:''}) %>"><%- include('../partials/ic',{icn:/数码|电脑|手机/.test(c.name)?'phone':/农|果|蔬|鲜/.test(c.name)?'apple':'grid',isz:16}) %><%= c.name %></a><% }) %>
       </div>
       <% if (curCat && subCats.length) { const pcid = curCat.parent_id || curCat.id; %>
       <div class="chiprow sub">
@@ -46,7 +46,7 @@
       <a class="<%= sort==='sales'?'on':'' %>" href="<%= qs(req,{sort:'sales',page:''}) %>">销量</a>
       <a class="<%= sort==='new'?'on':'' %>" href="<%= qs(req,{sort:'new',page:''}) %>">新品</a>
     </div>
-    <% if (!pg.rows.length) { %><% if (storecard && storecard.on) { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)"><%- include('../partials/storecard-card',{sc:storecard}) %></div><% } %><div class="card empty"><div class="e">📦</div>暂无商品<% if (q||cat||brand||min!==''||max!=='') { %><br><br><a class="btn" href="/products">查看全部商品</a><% } %></div>
+    <% if (!pg.rows.length) { %><% if (storecard && storecard.on) { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)"><%- include('../partials/storecard-card',{sc:storecard}) %></div><% } %><div class="card empty"><div class="e g-ie"><%- include('../partials/ic',{icn:'search',isz:44}) %></div>暂无商品<% if (q||cat||brand||min!==''||max!=='') { %><br><br><a class="btn" href="/products">查看全部商品</a><% } %></div>
     <% } else { %><div class="grid g3 plist" style="grid-template-columns:repeat(3,1fr)" data-infinite data-page="<%= pg.page %>" data-pages="<%= pg.pages %>"><% if (storecard && storecard.on) { %><%- include('../partials/storecard-card',{sc:storecard}) %><% } %><%- include('../partials/cards',{rows:pg.rows}) %></div><div class="pmore muted" data-more hidden>加载中…</div><% } %>
     <%- include('../partials/pager') %>
   </section>

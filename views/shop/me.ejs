@@ -8,7 +8,7 @@
   <div class="mecard guest"><div class="avatar"><img src="/static/img/mark-green.svg?v=1" alt="" width="46" height="46"></div><div class="mc-info"><a class="mc-name" href="/login?next=/me">登录/注册</a><div class="mc-sub">登录后查看订单、积分与会员权益</div></div><div class="mc-act"><a class="mc-sign" href="/login?next=/me">登录/注册</a></div></div>
 <% } else { %>
   <div class="mecard"><div class="avatar"><img src="/static/img/mark-green.svg?v=1" alt="<%= user.nickname.slice(0,1) %>" width="46" height="46"></div>
-    <div class="mc-info"><div class="mc-name"><%= user.nickname %></div><div class="mc-sub"><%= U.maskPhone(user.phone) %> · 邀请码 <%= user.invite_code %></div><div class="mc-tags"><span class="lvtag"><%- include('../partials/ic', { icn: 'crown', isz: 12 }) %><%= user.level_name %></span><% if (cloudOn) { %><span class="lvtag gold">云商会员</span><% } %></div></div>
+    <div class="mc-info"><div class="mc-name"><%= user.nickname %></div><div class="mc-sub"><span class="nw"><%= U.maskPhone(user.phone) %></span> · <span class="nw">邀请码 <%= user.invite_code %></span></div><div class="mc-tags"><span class="lvtag"><%- include('../partials/ic', { icn: 'crown', isz: 12 }) %><%= user.level_name %></span><% if (cloudOn) { %><span class="lvtag gold">云商会员</span><% } %></div></div>
     <form method="post" action="/me/signin" class="me-signin"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="mc-sign" <%= signed?'disabled':'' %>><%= signed?'已签到':'签到' %></button></form></div>
 <% } %>
 </div>
@@ -22,7 +22,7 @@
       <a href="/aftersales"><span><%- ic('return', 26) %></span>退换/售后<% if (!guest && stats.as) { %><b class="qbadge"><%= stats.as %></b><% } %></a>
     </div>
   </div>
-  <a class="me-cloud" href="/me/cloud"><span class="mcl-i"><%- ic('card', 22) %></span><span class="mcl-t"><b>云商会员</b><small><%= !guest && cloudOn ? '已开通 · 享云商会员价' : '专享云商会员价 · 联系客服办理' %></small></span><span class="mcl-b"><%= !guest && cloudOn ? '查看' : '去了解' %></span></a>
+  <a class="me-cloud" href="/me/cloud"><span class="mcl-i"><%- ic('card', 22) %></span><span class="mcl-t"><b>云商会员</b><small><%- !guest && cloudOn ? '已开通 · 享云商会员价' : '专享云商会员价 · <span class="nw">联系客服办理</span>' %></small></span><span class="mcl-b"><%= !guest && cloudOn ? '查看' : '去了解' %></span></a>
   <% if (!guest) { const lo = prev ? prev.min_growth : 0, pct = next ? Math.max(0, Math.min(100, Math.round((user.growth - lo) * 100 / Math.max(1, next.min_growth - lo)))) : 100; %>
   <a class="card me-grow" href="/me/levels"><span class="mg-t"><b>成长值 <%= user.growth %></b><small class="mc-grow"><% if (next) { %>再 <%= next.min_growth-user.growth %> 升级「<%= next.name %>」<% } else { %>已是最高等级<% } %></small></span><span class="mg-bar"><i style="width:<%= pct %>%"></i></span><span class="mg-l">会员等级<%- include('../partials/ic', { icn: 'chev', isz: 13 }) %></span></a>
   <a class="card me-pts" href="/me/points"><span>积分数量</span><b><%= user.points %></b></a>

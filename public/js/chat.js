@@ -44,7 +44,7 @@
   function muted() { try { return localStorage.getItem(SK) === '0'; } catch (e) { return false; } }
   function actxGet() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== 'running') actx.resume(); } catch (e) {} return actx; }
   ['pointerdown', 'touchend', 'keydown'].forEach(function (ev) { document.addEventListener(ev, function () { if (!muted()) actxGet(); }, { passive: true }); }); // 首次点击解锁音频
-  function sbRender() { if (sb) { sb.textContent = muted() ? '🔕' : '🔔'; sb.setAttribute('aria-label', muted() ? '提示音已关闭,点击开启' : '提示音已开启,点击关闭'); sb.title = sb.getAttribute('aria-label'); } }
+  function sbRender() { if (sb) { sb.classList.toggle('muted-on', muted()); sb.setAttribute('aria-label', muted() ? '提示音已关闭,点击开启' : '提示音已开启,点击关闭'); sb.title = sb.getAttribute('aria-label'); } }
   sb && sb.addEventListener('click', function () { try { localStorage.setItem(SK, muted() ? '1' : '0'); } catch (e) {} sbRender(); toast(muted() ? '已关闭客服回复提示音' : '已开启客服回复提示音(页面在后台时提醒)'); });
   sbRender();
   function replyAlert() {

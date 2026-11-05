@@ -25,7 +25,7 @@
     <div class="form-row mt"><label>订单备注</label><input name="remark" maxlength="100" placeholder="选填,如:请工作日送货"></div>
   </div>
   <% if (!promo) { %>
-  <div class="card ck-sec"><h3>🎟️ 优惠</h3>
+  <div class="card ck-sec"><h3 class="g-ih"><%- include('../partials/ic',{icn:'ticket',isz:18}) %>优惠</h3>
     <div class="form-row"><label>优惠券(<%= coupons.length %> 张可用)</label>
       <select name="coupon_id" id="coupon"><option value="">不使用优惠券</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>">减¥<%= c.amount %> · <%= c.name %>(<%= c.threshold?'满'+c.threshold:'无门槛' %>)· 至<%= c.expire_at.slice(0,10) %></option><% }) %></select></div>
     <% if (shop.points_deduct_enable==='1') { %>    <div class="form-row"><label>积分抵扣(持有 <%= user.points %> 积分,<%= q.rate %> 积分抵 ¥1,最多可用 <b id="maxpts"><%= q.maxPoints %></b>)</label>

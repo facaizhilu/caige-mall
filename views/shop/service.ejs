@@ -1,6 +1,6 @@
 <%# 在线客服(微信风格):全屏会话,底部固定输入栏(+ / 输入框 / 发送),快捷问题,图片与订单卡片;联系方式在会话顶部「联系方式」入口(不占右上角胶囊区) %>
 <div class="chatpg" id="chatpg" data-login="<%= user ? 1 : 0 %>">
-  <div class="chat-top"><span class="muted"><%= shop.service_hours %></span><button type="button" class="snd-tg" id="sndToggle" aria-label="提示音">🔔</button><button type="button" class="ct-link" id="ctBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>联系方式</button></div>
+  <div class="chat-top"><span class="muted"><%= shop.service_hours %></span><button type="button" class="snd-tg" id="sndToggle" aria-label="提示音"><%- include('../partials/ic',{icn:'bell',isz:18}) %></button><button type="button" class="ct-link" id="ctBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>联系方式</button></div>
   <% if (storecardFrom) { %><div class="coop-note" id="scNote">您正在购买：线下门店优惠卡，客服将为您办理</div><% } %>
   <% if (coop) { %><div class="coop-note" id="coopNote">供应商、门店合作，请留言说明合作内容，我们会尽快联系您。</div><% } %>
   <div class="chat-list" id="chatList" aria-live="polite">
@@ -19,7 +19,7 @@
 <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 <div class="sheet-bg" id="sheetBg" hidden></div>
 <div class="sheet" id="plusSheet" hidden role="dialog" aria-label="发送图片或订单">
-  <div class="sh-grid"><button type="button" data-act="album"><span>🖼️</span>相册</button><button type="button" data-act="camera"><span>📷</span>拍照</button><button type="button" data-act="order"><span>🧾</span>订单</button></div>
+  <div class="sh-grid"><button type="button" data-act="album"><span><%- include('../partials/ic',{icn:'image',isz:24}) %></span>相册</button><button type="button" data-act="camera"><span><%- include('../partials/ic',{icn:'camera',isz:24}) %></span>拍照</button><button type="button" data-act="order"><span><%- include('../partials/ic',{icn:'receipt',isz:24}) %></span>订单</button></div>
   <button type="button" class="sh-cancel" data-close>取消</button>
 </div>
 <div class="sheet" id="orderSheet" hidden role="dialog" aria-label="选择订单">

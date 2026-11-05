@@ -1,5 +1,5 @@
 <div class="me"><%- include("_menu",{cur:"invite"}) %><div>
-<div class="card"><h3 style="margin-top:0">🔗 我的邀请</h3>
+<div class="card"><h3 class="g-ih" style="margin-top:0"><%- include('../partials/ic',{icn:'link',isz:18}) %>我的邀请</h3>
   <div class="form-row"><label>我的邀请码</label><b style="font-size:22px;color:var(--red);letter-spacing:4px"><%= user.invite_code %></b></div>
   <div class="form-row"><label>邀请链接</label><input value="<%= link %>" readonly onclick="this.select()"></div>
   <div class="invite-rule">
