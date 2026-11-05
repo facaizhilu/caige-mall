@@ -362,7 +362,7 @@ textarea{resize:vertical}
 .hist-grid{grid-template-columns:repeat(3,1fr)}
 .hist-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 4px}
 .hist-meta .link{font-size:12px;padding:6px 4px;background:none;border:0;cursor:pointer}
-.tag.no7{background:#FFF6E8;color:#B26A00;border-color:#F5DDB5;font-size:14px}
+.tag.no7{background:#FFF6E8;color:#B26A00;border-color:#F5DDB5;font-size:14px!important}
 .no7-note{font-size:12px;color:#b45309;margin-top:4px}
 .no7-ack{background:#FFF6E8;border:1px solid #F5DDB5;border-radius:8px;padding:8px 10px;margin-top:10px;color:#B26A00;font-size:14px}
 @media (max-width:768px){.hist-grid{grid-template-columns:repeat(2,1fr)!important}}

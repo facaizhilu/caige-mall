@@ -23,7 +23,7 @@ body{padding-bottom:calc(54px + env(safe-area-inset-bottom) + 6px)}
 .ztab a.on{color:#2E9E5B;font-weight:700}
 .ztab .badge{position:absolute;top:0;right:auto;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#2E9E5B;color:#fff;font-size:12px;line-height:16px;font-style:normal}
 .mnav{display:none!important}
-.tag,.ribbon,.qbadge,.chat small,.coupon small,.coupon .r .muted,.coupon .muted{font-size:12px!important}
+.tag:not(.no7),.ribbon,.qbadge,.chat small,.coupon small,.coupon .r .muted,.coupon .muted{font-size:12px!important}
 /* 移动端页脚精简为一行(与首页一致) */
 @media(max-width:600px){.footer{padding:10px 0 12px;background:none;color:#9AA39C}.footer .cols{display:none}.footer .cp{border:0;padding:0;margin:0;font-size:12px;color:#9AA39C;text-align:center}}
 @media(max-width:600px){.footer .cp-x{display:none}}

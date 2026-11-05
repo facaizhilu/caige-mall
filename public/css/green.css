@@ -453,7 +453,7 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 
 
 /* ===== r5:结算警示/字号/勾选门禁/优惠券说明 ===== */
-.g-theme .tag.no7{font-size:14px;line-height:1.35;padding:2px 8px}
+.g-theme .tag.no7{font-size:14px!important;line-height:1.35;padding:2px 8px}
 .g-theme .no7-ack{font-size:14px;line-height:1.45}
 .g-theme .sup-err{display:flex;align-items:flex-start;gap:8px;background:var(--warn-bg);border:1px solid #F5DDB5;color:var(--warn-t);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px;overflow-wrap:anywhere}
 .g-theme .sup-err .sup-ic{flex:none;color:var(--warn-t);line-height:0;margin-top:2px}
