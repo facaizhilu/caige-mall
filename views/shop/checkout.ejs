@@ -64,7 +64,8 @@
   var nd=f.querySelector('[name=new_detail]');if(nd){nd.addEventListener('change',recalc);nd.addEventListener('input',function(){clearTimeout(nd._t);nd._t=setTimeout(recalc,280)})}
   if(couponEl)couponEl.addEventListener('change',recalc);
   if(ptsEl){ptsEl.addEventListener('change',recalc);var um=document.getElementById('useMax');if(um)um.onclick=function(){ptsEl.value=document.getElementById('maxpts').textContent;recalc()}}
-  // 进入结算页后立刻按当前地址重算,避免初始优惠券/运费与选择不一致
-  if(f.querySelector('[name=address_id]:checked')) recalc();
+  // 进入结算页后重算;须等 app.js 的 postJSON 就绪(本脚本在 layout 中早于 app.js)
+  function bootRecalc(){if(f.querySelector('[name=address_id]:checked'))recalc()}
+  if(window.postJSON)bootRecalc();else window.addEventListener('load',bootRecalc);
 })();
 </script>
