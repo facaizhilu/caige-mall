@@ -33,7 +33,7 @@
     fill(p,Object.keys(REGIONS),init&&init[0],'省/直辖市');
     function onP(v){fill(c,v?Object.keys(REGIONS[v]):[],init&&init[1],'市');onC(c.value)}
     function onC(v){fill(d,v&&p.value?REGIONS[p.value][v]:[],init&&init[2],'区/县')}
-    p.onchange=function(){init=null;onP(p.value);p.dispatchEvent(new CustomEvent('regionchange',{bubbles:true}))};c.onchange=function(){init=null;onC(c.value)};
+    function fireRg(){root.dispatchEvent(new CustomEvent('regionchange',{bubbles:true}))};p.onchange=function(){init=null;onP(p.value);fireRg()};c.onchange=function(){init=null;onC(c.value);fireRg()};d.onchange=function(){fireRg()};
     onP(p.value);
   };
   document.querySelectorAll('[data-region]').forEach(function(r){var v=r.dataset.region?r.dataset.region.split('|'):null;initRegion(r,v)});

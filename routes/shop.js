@@ -179,7 +179,10 @@ module.exports = function (app, { filesOf }) {
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
     // 立即购买/参团:不支持7天无理由的商品须在商品页勾选「我已知晓」(服务端校验,购物车加购时已校验)
     if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, '/cart'); }
-    const coupons = svc.userCoupons(req.user.id, 'unused').filter(c => !promo && q.goods >= c.threshold);
+    const coupons = promo ? [] : svc.userCoupons(req.user.id, 'unused').map(c => {
+      const fit = svc.couponFit(c, q.lines, q.goods);
+      return { ...c, ineligible: !fit.ok, why: fit.why };
+    }).filter(c => !c.ineligible || (c.category_id && c.ineligible)); // 可用券 + 分类不符的券(禁用并注明原因);纯门槛不足的不展示
     const no7Items = q.lines.filter(l => !svc.noReasonOf(l.product_id));
     res.page('shop/checkout', { title: '确认订单', items, fromCart, promo, q, addrs, coupons, no7Items, sup });
   }));
@@ -189,7 +192,7 @@ module.exports = function (app, { filesOf }) {
     const a = db.get('SELECT * FROM addresses WHERE id=? AND user_id=?', int(b.address_id), req.user.id) || (b.province ? { province: b.province, city: b.city, district: b.district, detail: String(b.detail || '').slice(0, 100) } : null);
     const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a, couponId: int(b.coupon_id), usePoints: int(b.use_points) });
     if (q.error) return res.json({ ok: false, msg: q.error });
-    res.json({ ok: true, goods: q.goods, freight: q.freight, levelDiscount: q.levelDiscount, couponDiscount: q.couponDiscount, pointsDiscount: q.pointsDiscount, pointsUsed: q.pointsUsed, pay: q.pay, maxPoints: q.maxPoints, supplierErrors: sup ? sup.errors : [] });
+    res.json({ ok: true, goods: q.goods, freight: q.freight, levelDiscount: q.levelDiscount, couponDiscount: q.couponDiscount, couponNote: q.couponNote || '', pointsDiscount: q.pointsDiscount, pointsUsed: q.pointsUsed, pay: q.pay, maxPoints: q.maxPoints, supplierErrors: sup ? (sup.errors || []) : [] });
   }));
   function readAddress(req) {
     const b = req.body;

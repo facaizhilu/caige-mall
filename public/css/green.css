@@ -450,3 +450,19 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 .g-theme .agree{display:block;position:relative;padding-left:26px}
 .g-theme .agree input[type=checkbox]{position:absolute;left:0;top:1px;margin:0}
 .g-theme .agree a{display:inline!important;min-height:0!important}
+
+
+/* ===== r5:结算警示/字号/勾选门禁/优惠券说明 ===== */
+.g-theme .tag.no7{font-size:14px;line-height:1.35;padding:2px 8px}
+.g-theme .no7-ack{font-size:14px;line-height:1.45}
+.g-theme .sup-err{display:flex;align-items:flex-start;gap:8px;background:var(--warn-bg);border:1px solid #F5DDB5;color:var(--warn-t);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px;overflow-wrap:anywhere}
+.g-theme .sup-err .sup-ic{flex:none;color:var(--warn-t);line-height:0;margin-top:2px}
+.g-theme .sup-err ul{margin:4px 0 0;padding-left:18px}
+.g-theme .coupon-note{margin:6px 0 0;font-size:13px;color:var(--warn-t);line-height:1.4}
+.g-theme .ck-sec h3.g-ih>.ic{width:24px;height:24px;color:var(--p)}
+.g-theme .btn.need-agree[disabled],.g-theme .btn.need-agree[aria-disabled="true"],.g-theme .btn.need-agree.is-locked,.g-theme .btn.need-no7[disabled],.g-theme .btn.need-no7[aria-disabled="true"]{background:#C9DCD0!important;color:#fff!important;border-color:#C9DCD0!important;box-shadow:none!important;opacity:1;cursor:not-allowed}
+.g-theme .agree-tip{display:inline-block;margin-left:8px;font-size:13px;color:var(--warn-t);vertical-align:middle}
+.g-theme .agree-tip.hide{display:none}
+@keyframes g-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.g-theme .agree.shake input[type=checkbox],.g-theme .no7-ack.shake input[type=checkbox]{animation:g-shake .35s ease}
+.g-theme .agree.shake{animation:g-shake .35s ease}

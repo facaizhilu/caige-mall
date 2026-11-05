@@ -29,7 +29,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok((await shop.get('/img/gen.svg?t=A&a=ff0000&b=00ff00')).text.includes('<svg'), '占位图 SVG');
   ok((await shop.get('/cart')).status === 302, '未登录访问购物车跳转登录');
   let r = await shop.get('/register');
-  ok(r.text.includes('name="agree"') && !/name="agree"[^>]*checked/.test(r.text) && r.text.includes('href="/privacy"') && r.text.includes('href="/terms"'), '注册页:协议勾选框默认未勾选且有链接');
+  ok(r.text.includes('name="agree"') && !/name="agree"[^>]*checked/.test(r.text) && r.text.includes('href="/privacy"') && r.text.includes('href="/terms"') && /need-agree"[^>]*aria-disabled="true"/.test(r.text) && r.text.includes('请先勾选'), '注册页:协议勾选框默认未勾选且有链接,提交按钮禁用并提示请先勾选');
   r = await shop.get('/privacy'); ok(r.text.includes('浏览记录') && r.text.includes('不会在后台访问') && r.text.includes('售后图片') && r.text.includes('海南韵农科技有限公司') && !r.text.includes('【公司全称】') && !r.text.includes('{{version}}'), '隐私政策页内容(仅主动选图、售后图片、运营者名称、版本号)');
   r = await shop.get('/terms'); ok(r.text.includes('不可提现') && !r.text.includes('不支持七天无理由退货'), '用户协议:积分不可提现,生鲜不再排除七天无理由');
   r = await shop.get('/'); { const ft = (r.text.match(/<footer class="zq-foot">([\s\S]*?)<\/footer>/) || [])[1] || ''; ok(ft && !/href="\/(help|service|terms|privacy)"/.test(ft) && !ft.includes('<nav') && /© 2026 韵农甄选 · ICP备案号:待公布/.test(ft) && !ft.includes('演示') && !r.text.includes('粤ICP'), '首页页脚仅一行 ©+备案号(无帮助/客服/协议/隐私链接,无演示站点长句)'); }

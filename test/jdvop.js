@@ -516,6 +516,57 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
     }
   }
 
+
+  console.log('== 结算优惠券/地址(回归) ==');
+  {
+    const svc = require('../lib/svc'), U = require('../lib/util');
+    // 演示会员保证可登录
+    const ens = require('../lib/seed').ensureDemoMembers();
+    ok(!!db.get('SELECT id FROM users WHERE phone=?', '13800000001'), 'ensureDemoMembers 后演示账号存在');
+    const u = db.get('SELECT id FROM users WHERE phone=?', '13800000001');
+    // 新人券
+    let uc = db.get("SELECT uc.id FROM user_coupons uc JOIN coupons c ON c.id=uc.coupon_id WHERE uc.user_id=? AND c.name='新人专享券' AND uc.status='unused' AND uc.expire_at>=?", u.id, U.now());
+    if (!uc) { svc.grantCoupon(u.id, db.get("SELECT id FROM coupons WHERE name='新人专享券'").id, true); uc = db.get("SELECT uc.id FROM user_coupons uc JOIN coupons c ON c.id=uc.coupon_id WHERE uc.user_id=? AND c.name='新人专享券' AND uc.status='unused'", u.id); }
+    ok(!!uc, '演示账号持有新人专享券');
+    // 找两个供应商 SKU(鸡蛋类 + 水果类),没有则用任意两个供应商 SKU
+    const eggs = db.get("SELECT s.id sid, p.id pid, p.category_id FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier IS NOT NULL AND p.status=1 AND s.stock>0 AND (p.name LIKE '%蛋%' OR p.name LIKE '%鸡蛋%') ORDER BY p.id LIMIT 1")
+      || db.get("SELECT s.id sid, p.id pid, p.category_id FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier IS NOT NULL AND p.status=1 AND s.stock>0 ORDER BY p.id LIMIT 1");
+    const apple = db.get("SELECT s.id sid, p.id pid, p.category_id FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier IS NOT NULL AND p.status=1 AND s.stock>0 AND p.id!=? AND (p.name LIKE '%苹果%' OR p.name LIKE '%水果%') ORDER BY p.id LIMIT 1", eggs.pid)
+      || db.get("SELECT s.id sid, p.id pid, p.category_id FROM skus s JOIN products p ON p.id=s.product_id WHERE p.supplier IS NOT NULL AND p.status=1 AND s.stock>0 AND p.id!=? ORDER BY p.id LIMIT 1", eggs.pid);
+    ok(!!eggs && !!apple, '有两个供应商商品可测结算', JSON.stringify({ eggs, apple }));
+    // 地址
+    let addr = db.get('SELECT * FROM addresses WHERE user_id=? ORDER BY is_default DESC, id DESC', u.id);
+    if (!addr) { db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,1)', u.id, '测试乙', '13900001111', '北京市', '北京市', '东城区', '测试路2号'); addr = db.get('SELECT * FROM addresses WHERE user_id=?', u.id); }
+    const itemsBoth = [{ sku_id: eggs.sid, qty: 1 }, { sku_id: apple.sid, qty: 1 }];
+    const qBoth = svc.quote(u.id, { items: itemsBoth, address: addr, couponId: uc.id });
+    ok(!qBoth.error && qBoth.couponDiscount === 10, '鸡蛋+水果选新人券 → 立减 ¥10', JSON.stringify({ d: qBoth.couponDiscount, note: qBoth.couponNote, goods: qBoth.goods }));
+    const qEgg = svc.quote(u.id, { items: [{ sku_id: eggs.sid, qty: 1 }], address: addr, couponId: uc.id });
+    ok(!qEgg.error && qEgg.couponDiscount === 10, '仅鸡蛋选新人券 → 立减 ¥10', JSON.stringify(qEgg.couponDiscount));
+    // 分类券不可用时返回说明(不改业务规则)
+    const fruitCp = db.get("SELECT * FROM coupons WHERE name LIKE '%水果%' AND category_id>0 LIMIT 1");
+    if (fruitCp) {
+      const fruUc = svc.grantCoupon(u.id, fruitCp.id, true);
+      const fruId = db.get("SELECT id FROM user_coupons WHERE user_id=? AND coupon_id=? AND status='unused' ORDER BY id DESC", u.id, fruitCp.id).id;
+      const qNo = svc.quote(u.id, { items: [{ sku_id: eggs.sid, qty: 1 }], address: addr, couponId: fruId });
+      ok(qNo.couponDiscount === 0 && /分类|不可用/.test(qNo.couponNote || ''), '分类券用于非该分类商品 → 折扣0并返回原因', qNo.couponNote);
+    }
+    // HTTP:带地址 quote 与无地址错误提示
+    const cli = new C(); await cli.login('13800000001', '123456');
+    let r = await cli.post('/checkout', { sku_id: String(eggs.sid), qty: '1', no7_ok: '1' });
+    ok(r.status === 200 && r.text.includes('确认订单'), '进入结算页', r.status);
+    const its = itemsRaw(r.text);
+    ok(its && its !== '[]', '结算页 items', its);
+    const q1 = JSON.parse((await cli.post('/api/quote', { items: its, address_id: String(addr.id), coupon_id: String(uc.id) }, { json: true })).text);
+    ok(q1.ok && q1.couponDiscount === 10, 'API quote 有地址+新人券 → couponDiscount=10', JSON.stringify(q1));
+    const q2 = JSON.parse((await cli.post('/api/quote', { items: its, address_id: 'new', coupon_id: String(uc.id) }, { json: true })).text);
+    ok(q2.ok && (q2.supplierErrors || []).some(e => /收货地址/.test(e)), '新地址未填省市区 → 提示选择收货地址', JSON.stringify(q2.supplierErrors));
+    const q3 = JSON.parse((await cli.post('/api/quote', { items: its, address_id: 'new', province: '北京市', city: '北京市', district: '东城区', detail: '测试路9号', coupon_id: String(uc.id) }, { json: true })).text);
+    ok(q3.ok && q3.couponDiscount === 10 && !(q3.supplierErrors || []).some(e => e === '请选择收货地址后再结算供应商发货商品'), '新地址填完整 → 不再提示选择地址且券可用', JSON.stringify(q3));
+    ok(/class="ic"/.test(r.text) && r.text.includes('sup-err') && r.text.includes('sup-ic'), '结算页线性图标 + 地址警示带定位图标');
+    ok(!/🛍️|📍|💳/.test(r.text), '结算页无购物/地址/支付 emoji');
+  }
+
+
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); console.log(`\n结果: ${pass} 通过, ${fail + 1} 失败`); process.exit(1); });

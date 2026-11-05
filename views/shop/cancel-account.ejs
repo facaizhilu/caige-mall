@@ -13,9 +13,19 @@
     <a class="btn" href="/orders">查看我的订单</a> <a class="btn" href="/aftersales">查看售后</a>
   <% } else { %>
   <% if (unpaid) { %><div class="sim mb">您有 <%= unpaid %> 笔待付款订单,将在注销时自动取消(已使用的优惠券与积分一并退回后随账号清零)。</div><% } %>
-  <form method="post" action="/me/cancel" style="max-width:460px" data-confirm="最后确认:注销后账号无法恢复,确定注销?"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <form method="post" action="/me/cancel" id="cancelForm" style="max-width:460px" data-confirm="最后确认:注销后账号无法恢复,确定注销?"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="form-row"><label>请输入「确认注销」</label><input name="confirm_text" required placeholder="确认注销" autocomplete="off" pattern="确认注销"></div>
-    <label class="agree"><input type="checkbox" name="ack" value="1" required> 我已了解上述注销后果</label>
-    <button class="btn danger lg block">申请注销账号</button></form>
+    <label class="agree" id="ackWrap"><input type="checkbox" name="ack" value="1" required id="ackBox"> 我已了解上述注销后果<span class="agree-tip hide" id="ackTip">请先勾选</span></label>
+    <button type="submit" class="btn danger lg block need-agree" aria-disabled="true">申请注销账号</button></form>
+<script>
+(function(){var c=document.getElementById('ackBox'),b=document.querySelector('#cancelForm .need-agree'),tip=document.getElementById('ackTip'),w=document.getElementById('ackWrap');
+  if(!c||!b)return;
+  function tipShake(){tip.classList.remove('hide');w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake')}
+  function sync(){var on=!!c.checked;b.setAttribute('aria-disabled',on?'false':'true');b.classList.toggle('is-locked',!on);if(on)tip.classList.add('hide')}
+  c.addEventListener('change',sync);sync();
+  document.getElementById('cancelForm').addEventListener('submit',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+  b.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+})();
+</script>
   <% } %>
 </div></div></div>

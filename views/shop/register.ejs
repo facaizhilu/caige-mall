@@ -1,12 +1,21 @@
 <div class="card auth">
   <h2>注册会员</h2>
-  <form method="post" action="/register"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <form method="post" action="/register" id="regForm"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="form-row"><label>手机号</label><input type="tel" name="phone" maxlength="11" required placeholder="11 位手机号" value="<%= form.phone||'' %>"></div>
     <div class="form-row"><label>昵称(选填)</label><input name="nickname" maxlength="20" value="<%= form.nickname||'' %>"></div>
     <div class="form-row"><label>密码</label><input type="password" name="password" required minlength="6" placeholder="6-32 位"></div>
     <div class="form-row"><label>确认密码</label><input type="password" name="password2" required minlength="6"></div>
     <div class="form-row"><label>邀请码(选填)</label><input name="ref" value="<%= ref %>" maxlength="10" placeholder="好友邀请码"></div>
-    <label class="agree"><input type="checkbox" name="agree" value="1" required> 我已阅读并同意<a href="/terms" target="_blank">《用户协议》</a><a href="/privacy" target="_blank">《隐私政策》</a></label>
-    <button class="btn primary lg block">注 册</button></form>
+    <label class="agree" id="agreeWrap"><input type="checkbox" name="agree" value="1" required id="agreeBox"> 我已阅读并同意<a href="/terms" target="_blank">《用户协议》</a><a href="/privacy" target="_blank">《隐私政策》</a><span class="agree-tip hide" id="agreeTip">请先勾选</span></label>
+    <button type="submit" class="btn primary lg block need-agree" aria-disabled="true">注 册</button></form>
   <p class="right"><a href="/login">已有账号?去登录</a></p>
 </div>
+<script>
+(function(){var c=document.getElementById('agreeBox'),b=document.querySelector('#regForm .need-agree'),tip=document.getElementById('agreeTip'),w=document.getElementById('agreeWrap');
+  function tipShake(){tip.classList.remove('hide');w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake')}
+  function sync(){var on=!!c.checked;b.setAttribute('aria-disabled',on?'false':'true');b.classList.toggle('is-locked',!on);if(on)tip.classList.add('hide')}
+  c.addEventListener('change',sync);sync();
+  document.getElementById('regForm').addEventListener('submit',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+  b.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+})();
+</script>

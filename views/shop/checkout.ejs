@@ -4,7 +4,7 @@
   <% if (fromCart) { %><input type="hidden" name="from_cart" value="1"><% } %>
   <input type="hidden" name="items" value='<%= JSON.stringify(items) %>'>
   <% if (promo) { %><input type="hidden" name="promo_type" value="<%= promo.type==='seckill'?'activity':promo.type %>"><input type="hidden" name="promo_id" value="<%= promo.id %>"><input type="hidden" name="group_id" value="<%= promo.groupId||'' %>"><% } %>
-  <div class="card ck-sec"><h3>📍 收货地址</h3>
+  <div class="card ck-sec"><h3 class="g-ih"><%- include('../partials/ic',{icn:'pin',isz:24}) %>收货地址</h3>
     <div class="addrs">
       <% addrs.forEach((a,i)=>{ %><label class="addr<%= i===0?' on':'' %>"><input type="radio" name="address_id" value="<%= a.id %>" data-prov="<%= a.province %>" <%= i===0?'checked':'' %>><b><%= a.name %></b> <%= U.maskPhone(a.phone) %> <% if (a.is_default) { %><span class="tag">默认</span><% } %><br><span class="muted"><%= a.province %> <%= a.city %> <%= a.district %> <%= a.detail %></span></label><% }) %>
       <label class="addr<%= !addrs.length?' on':'' %>"><input type="radio" name="address_id" value="new" <%= !addrs.length?'checked':'' %>><b>＋ 使用新地址</b><br><span class="muted">填写省市区与详细地址</span></label>
@@ -18,21 +18,22 @@
       <label><input type="checkbox" name="save_addr" value="1" checked style="width:auto"> 保存到我的地址</label>
     </div>
   </div>
-  <div class="sup-err<%= sup && sup.errors.length ? '' : ' hide' %>" id="supErr" role="alert"><b>部分商品暂时无法下单:</b><ul><% (sup ? sup.errors : []).forEach(e=>{ %><li><%= e %></li><% }) %></ul></div>
-  <div class="card ck-sec"><h3>🛍️ 商品清单</h3>
+  <div class="sup-err<%= sup && sup.errors.length ? '' : ' hide' %>" id="supErr" role="alert"><span class="sup-ic"><%- include('../partials/ic',{icn:'pin',isz:16}) %></span><div><b>部分商品暂时无法下单:</b><ul><% (sup ? sup.errors : []).forEach(e=>{ %><li><%= e %></li><% }) %></ul></div></div>
+  <div class="card ck-sec"><h3 class="g-ih"><%- include('../partials/ic',{icn:'bag',isz:24}) %>商品清单</h3>
     <% q.lines.forEach(l=>{ %><div class="oi"><img loading="lazy" decoding="async" src="<%= l.image %>" onerror="<%= U.IMG_FALLBACK %>"><div style="flex:1"><b><%= l.name %></b><br><span class="muted"><%= l.spec_text %></span><% if (l.supplier) { %> <span class="tag gray">由供应商发货</span><% } %><% if (no7Items.some(x=>x.product_id===l.product_id)) { %><br><span class="tag no7">不支持7天无理由退货</span><% } %></div><span class="price"><%= l.price %></span><span>× <%= l.qty %></span></div><% }) %>
     <% if (no7Items.length) { %><label class="agree no7-ack"><input type="checkbox" name="no7_confirm" value="1" required> 本商品不支持7天无理由退货,我已知晓<% if (no7Items.length>1 || q.lines.length>1) { %>(<%= no7Items.map(x=>'「'+x.name.slice(0,12)+'」').join('') %>)<% } %></label><% } %>
     <div class="form-row mt"><label>订单备注</label><input name="remark" maxlength="100" placeholder="选填,如:请工作日送货"></div>
   </div>
   <% if (!promo) { %>
   <div class="card ck-sec"><h3 class="g-ih"><%- include('../partials/ic',{icn:'ticket',isz:18}) %>优惠</h3>
-    <div class="form-row"><label>优惠券(<%= coupons.length %> 张可用)</label>
-      <select name="coupon_id" id="coupon"><option value="">不使用优惠券</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>">减¥<%= c.amount %> · <%= c.name %>(<%= c.threshold?'满'+c.threshold:'无门槛' %>)· 至<%= c.expire_at.slice(0,10) %></option><% }) %></select></div>
+    <div class="form-row"><label>优惠券(<%= coupons.filter(c=>!c.ineligible).length %> 张可用)</label>
+      <select name="coupon_id" id="coupon"><option value="">不使用优惠券</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>"<%= c.ineligible ? ' disabled' : '' %>><% if (c.ineligible) { %>[不可用] <% } %>减¥<%= c.amount %> · <%= c.name %>(<%= c.threshold?'满'+c.threshold:'无门槛' %>)· 至<%= c.expire_at.slice(0,10) %><% if (c.ineligible && c.why) { %> · <%= c.why %><% } %></option><% }) %></select>
+      <p class="coupon-note<%= q.couponNote ? '' : ' hide' %>" id="couponNote" role="status"><%= q.couponNote || '' %></p></div>
     <% if (shop.points_deduct_enable==='1') { %>    <div class="form-row"><label>积分抵扣(持有 <%= user.points %> 积分,<%= q.rate %> 积分抵 ¥1,最多可用 <b id="maxpts"><%= q.maxPoints %></b>)</label>
       <div class="flex"><input type="number" name="use_points" id="pts" min="0" value="0" step="<%= q.rate %>" style="max-width:200px"><button type="button" class="btn sm" id="useMax">全部使用</button></div></div><% } %>
   </div>
   <% } %>
-  <div class="card ck-sec"><h3>💳 支付方式 <span class="tag gold">模拟支付 · 不产生真实扣款</span></h3><p class="muted" style="margin:0">下一步在收银台选择微信支付或支付宝进行模拟支付。</p></div>
+  <div class="card ck-sec"><h3 class="g-ih"><%- include('../partials/ic',{icn:'wallet',isz:24}) %>支付方式 <span class="tag gold">模拟支付 · 不产生真实扣款</span></h3><p class="muted" style="margin:0">下一步在收银台选择微信支付或支付宝进行模拟支付。</p></div>
   <div class="card">
     <dl class="kv" style="grid-template-columns:1fr auto;max-width:420px;margin-left:auto">
       <dt>商品金额</dt><dd class="right" id="rGoods"><%= money(q.goods) %></dd>
@@ -46,18 +47,19 @@
 </form>
 <script>
 (function(){
-  var f=document.getElementById('ckForm');
+  var f=document.getElementById('ckForm'), seq=0;
   function prov(){var r=f.querySelector('[name=address_id]:checked');if(!r)return '';if(r.value==='new')return f.querySelector('[name=new_province]').value;return r.dataset.prov}
   function m(n){return '¥'+(+n).toFixed(2)}
   function nv(n){var e=f.querySelector('[name='+n+']');return e?e.value:''}
   function showSup(list){var b=document.getElementById('supErr');if(!b)return;var ul=b.querySelector('ul');ul.innerHTML='';(list||[]).forEach(function(t){var li=document.createElement('li');li.textContent=t;ul.appendChild(li)});b.classList.toggle('hide',!(list&&list.length))}
-  function recalc(){var d={items:f.items.value,address_id:(f.querySelector('[name=address_id]:checked')||{}).value,province:prov(),coupon_id:f.coupon?f.coupon.value:'',use_points:f.use_points?f.use_points.value:0};
+  function showNote(t){var n=document.getElementById('couponNote');if(!n)return;n.textContent=t||'';n.classList.toggle('hide',!t)}
+  function recalc(){var my=++seq;var d={items:f.items.value,address_id:(f.querySelector('[name=address_id]:checked')||{}).value,province:prov(),coupon_id:f.coupon?f.coupon.value:'',use_points:f.use_points?f.use_points.value:0};
     if(d.address_id==='new'){d.city=nv('new_city');d.district=nv('new_district');d.detail=nv('new_detail')}
     var pt=f.querySelector('[name=promo_type]');if(pt){d.promo_type=pt.value;d.promo_id=f.promo_id.value;d.group_id=f.group_id.value}
-    postJSON('/api/quote',d).then(function(r){if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);if(f.use_points&&+f.use_points.value>r.pointsUsed){f.use_points.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
+    postJSON('/api/quote',d).then(function(r){if(my!==seq)return;if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);showNote(r.couponNote);if(f.use_points&&+f.use_points.value>r.pointsUsed){f.use_points.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
   f.querySelectorAll('[name=address_id]').forEach(function(r){r.addEventListener('change',function(){newAddr.classList.toggle('hide',r.value!=='new'||!r.checked);recalc()})});
   newAddr.addEventListener('regionchange',recalc);
-  var nd=f.querySelector('[name=new_detail]');if(nd)nd.addEventListener('change',recalc);
+  var nd=f.querySelector('[name=new_detail]');if(nd){nd.addEventListener('change',recalc);nd.addEventListener('input',function(){clearTimeout(nd._t);nd._t=setTimeout(recalc,280)})}
   if(f.coupon)f.coupon.onchange=recalc;if(f.use_points){f.use_points.onchange=recalc;useMax.onclick=function(){f.use_points.value=document.getElementById('maxpts').textContent;recalc()}}
 })();
 </script>
