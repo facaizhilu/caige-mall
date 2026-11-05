@@ -304,3 +304,62 @@ body.g-theme.pg-me-settings{padding-bottom:calc(16px + env(safe-area-inset-botto
 body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 @media(max-width:900px){.g-theme.pg-cart .sumbar{bottom:calc(62px + env(safe-area-inset-bottom))}}
 @media(max-width:900px){.g-theme .cartrow .qty button,.g-theme .cartrow .qty input{box-sizing:border-box;padding:0!important;margin:0;line-height:28px!important;height:28px!important;min-height:0!important;vertical-align:top;display:block}}
+/* ---------- 第三轮:头部尺寸严格按稿 ---------- */
+.ztop .zh.gh.gh-arc,.gh.gh-arc{box-sizing:border-box;height:calc(250px + env(safe-area-inset-top));min-height:0;padding:calc(44px + env(safe-area-inset-top)) 0 0}
+.gh .gh-row{height:52px}
+.gh.gh-arc .search,.ztop .zh.gh .zh-search{box-sizing:border-box;height:36px;min-height:0;margin-top:6px;border-radius:18px}
+.gh .search input{height:34px}
+.ztop .zh.gh:not(.gh-arc):not(.gh-title),.g-theme.pg-products .gh{box-sizing:border-box;padding:calc(44px + env(safe-area-inset-top)) 0 12px}
+.gh:not(.gh-arc):not(.gh-title) .gh-row{height:48px}
+.gh:not(.gh-arc):not(.gh-title) .search{margin-top:4px}
+.gh:not(.gh-arc):before{border-radius:0 0 50% 50%/0 0 22px 22px}
+.ztop .zh.gh.gh-title,.gh.gh-title{box-sizing:border-box;padding:calc(44px + env(safe-area-inset-top)) 0 10px}
+.gh.gh-title .zh-title{height:48px;line-height:48px;padding-top:0}
+.g-theme.pg-products .gh{padding-bottom:12px}
+/* 详情 v3:规格行/分享/小数 */
+.pd-share{display:none}
+@media(max-width:900px){
+ .g-theme .pd{position:relative}
+ .g-theme .pd-share{display:grid;place-items:center;position:fixed;z-index:45;right:12px;top:calc(8px + env(safe-area-inset-top));width:36px;height:36px;border:0;border-radius:50%;background:rgba(0,0,0,.28);color:#fff;cursor:pointer}
+ .g-theme .pd .pricebox .pdec{font-size:18px;font-weight:700;color:var(--price)}
+ .g-theme .pd-spec{border-top:1px solid #f0efea;margin-top:2px}
+ .g-theme .pd-spec>summary{list-style:none;display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer}
+ .g-theme .pd-spec>summary::-webkit-details-marker{display:none}
+ .g-theme .pd-spec .ps-l{width:52px;flex:none;color:var(--t3)}
+ .g-theme .pd-spec .ps-v{flex:1;min-width:0;color:#222}
+ .g-theme .pd-spec .ps-a{color:#bbb;font-size:18px;transition:transform .2s}
+ .g-theme .pd-spec[open] .ps-a{transform:rotate(90deg)}
+ .g-theme .pd-spec .opt{padding:2px 0 8px}
+ .g-theme .pd .opt{display:flex;align-items:center;gap:12px;border-top:1px solid #f0efea;min-height:44px;margin:0}
+ .g-theme .pd .opt>label{width:52px;flex:none;margin:0}
+ .g-theme .pd .pd-spec .opt{border-top:0;align-items:flex-start}
+ .g-theme .pd .opt .qty{display:flex;height:28px;border:1px solid #e3e5e1;border-radius:6px;overflow:hidden}
+ .g-theme .pd .opt .qty button,.g-theme .pd .opt .qty input{box-sizing:border-box;height:26px!important;min-height:0!important;line-height:26px!important;padding:0!important;margin:0;border:0;background:#fff;text-align:center}
+ .g-theme .pd .opt .qty button{width:28px;font-size:15px}.g-theme .pd .opt .qty input{width:36px;border-left:1px solid #e3e5e1;border-right:1px solid #e3e5e1}
+ .g-theme .pd .opt .flex{flex:1;justify-content:space-between;flex-direction:row-reverse}
+}
+.g-theme .me-grid.g5 a>span svg{fill:var(--p)!important;stroke:#fff!important}
+.g-theme .sg-rules{background:#fff;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13px;color:#666;line-height:1.7}
+.g-theme .sg-rules .sr-h{font-size:14px;color:#222;margin:0 0 6px}.g-theme .sg-rules p{margin:0 0 6px}.g-theme .sg-rules p:last-child{margin:0}
+.g-theme .btn.pts-go{background:var(--p);border-color:var(--p);color:#fff}
+.g-theme .g-ic{display:inline-flex;vertical-align:-3px;color:var(--p)}.g-theme .empty .e.g-ic{display:flex;justify-content:center}
+/* 地址/登录 v3 */
+.g-theme .ad-rgrow{position:relative;background:#fff;border-radius:12px;padding:10px 30px 10px 14px;display:flex;align-items:center;gap:10px}
+.g-theme .ad-rgrow>label{flex:none;width:64px;margin:0}
+.g-theme .ad-rgrow:after{content:"›";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#bbb;font-size:18px}
+.g-theme .ad-rgrow .rg{flex:1;min-width:0;gap:4px}
+.g-theme .ad-rgrow select{border:0;background:transparent;padding:4px 0;min-width:0;font-size:14px;-webkit-appearance:none;appearance:none}
+.g-theme .ad-def{display:flex!important;align-items:center;justify-content:space-between;background:#fff;border-radius:12px;padding:0 14px;min-height:48px;cursor:pointer}
+.g-theme .g-sw{-webkit-appearance:none;appearance:none;position:relative;width:44px!important;height:26px;border-radius:13px;background:#e2e4e0;margin:0;cursor:pointer;transition:background .2s;flex:none;border:0}
+.g-theme .g-sw:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s}
+.g-theme .g-sw:checked{background:var(--p)}.g-theme .g-sw:checked:after{transform:translateX(18px)}
+.g-theme .g-sw:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.g-theme .btn.ad-save{display:block;width:100%;height:44px;border-radius:22px;font-size:16px;margin-bottom:10px}
+.g-theme.pg-login .flex.between.mt{margin-top:10px;font-size:14px}
+.g-theme.pg-login .policy-links,.g-theme.pg-login .agree{font-size:12px;line-height:1.6;color:#999;margin-top:8px}
+.g-theme.pg-login .policy-links a,.g-theme.pg-login .agree a{color:var(--p)}
+/* 页脚(空购物车/设置) */
+.g-theme.pg-cart .footer,.g-theme.pg-me-settings .footer{margin-top:24px!important;padding-top:0}.g-theme.pg-cart .footer *,.g-theme.pg-me-settings .footer *{font-size:11px!important;color:#999!important}
+.g-theme .ad-rgrow,.g-theme .ad-def{border:1px solid #e6e8e3}
+.g-theme .ad-rgrow .rg{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.g-theme .ad-rgrow select{text-overflow:ellipsis}

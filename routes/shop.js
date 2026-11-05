@@ -129,7 +129,7 @@ module.exports = function (app, { filesOf }) {
     const nq = (cur ? cur.qty : 0) + qty;
     if (nq > sku.stock) return fail(`库存不足,当前库存 ${sku.stock} 件`);
     db.exec1('INSERT INTO cart(user_id,sku_id,qty,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id,sku_id) DO UPDATE SET qty=?', req.user.id, skuId, qty, now(), nq);
-    const count = db.get('SELECT COALESCE(SUM(qty),0) n FROM cart WHERE user_id=?', req.user.id).n;
+    const count = db.get('SELECT COALESCE(SUM(c.qty),0) n FROM cart c JOIN skus s ON s.id=c.sku_id JOIN products p ON p.id=s.product_id WHERE c.user_id=?', req.user.id).n;
     if (wantsJson(req)) return res.json({ ok: true, count, msg: '已加入购物车' });
     flash(req, 'success', '已加入购物车'); back(req, res, '/cart');
   });
@@ -443,7 +443,10 @@ module.exports = function (app, { filesOf }) {
     if (req.body.agree !== '1') return err('请先阅读并勾选同意《用户协议》《隐私政策》');
     if (db.get('SELECT 1 FROM users WHERE phone=?', f.phone)) return err('该手机号已注册,请直接登录');
     const id = svc.createUser({ phone: f.phone, password_hash: bcrypt.hashSync(pw, 10), nickname: f.nickname, referrerCode: f.ref, consent: true });
-    req.session.regenerate(() => { req.session.uid = id; req.session.flash = { type: 'success', msg: '注册成功!已赠送新人积分与新人优惠券' }; req.session.save(() => res.redirect('/me')); });
+    // 提示按实际发放结果生成:有注册积分才提积分,确有发放新人券才提优惠券
+    const gotPts = db.get("SELECT COALESCE(SUM(delta),0) n FROM points_log WHERE user_id=? AND reason='注册奖励'", id).n, gotCp = db.get('SELECT COUNT(*) n FROM user_coupons WHERE user_id=?', id).n;
+    const gifts = [gotPts > 0 ? ' ' + gotPts + ' 积分' : '', gotCp > 0 ? ' ' + gotCp + ' 张新人优惠券' : ''].filter(Boolean);
+    req.session.regenerate(() => { req.session.uid = id; req.session.flash = { type: 'success', msg: '注册成功!' + (gifts.length ? '已赠送' + gifts.join(' 与') : '') }; req.session.save(() => res.redirect('/me')); });
   });
   app.post('/logout', (req, res) => { req.session.regenerate(() => res.redirect('/')); });
 

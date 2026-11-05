@@ -729,7 +729,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok(db.get('SELECT points FROM users WHERE id=?', cu).points === bp - 77 && db.get('SELECT remaining FROM point_lots WHERE id=?', cl.id).remaining === 0, '到期批次自动清零');
     const soon = require('../lib/util').offset(20 * 86400000).slice(0, 10) + ' 23:59:59';
     svc.addPoints(cu, 66, '回归提醒'); const rl = db.get("SELECT id FROM point_lots WHERE user_id=? ORDER BY id DESC LIMIT 1", cu).id; db.exec1('UPDATE point_lots SET expire_at=? WHERE id=?', soon, rl);
-    x = await b.get('/me/points'); const md = `${+soon.slice(5, 7)}月${+soon.slice(8, 10)}日`; ok(x.text.includes(`66积分将于${md}过期`), '积分页显示「xxx积分将于x月x日过期」', md);
+    x = await b.get('/me/points'); const md = `${soon.slice(0, 4)}年${+soon.slice(5, 7)}月${+soon.slice(8, 10)}日`; ok(x.text.includes(`66积分将于${md}过期`), '积分页显示「xxx积分将于x月x日过期」', md);
     const m0 = db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n; const sent = svc.remindExpiringPoints();
     ok(sent.some(s => s.uid === cu && s.n === 66) && db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n === m0 + 1 && db.get("SELECT content FROM messages WHERE user_id=? ORDER BY id DESC", cu).content.includes(`66 积分将于 ${md}过期`), '到期前 30 天站内消息提醒');
     svc.remindExpiringPoints(); ok(db.get('SELECT COUNT(*) n FROM messages WHERE user_id=?', cu).n === m0 + 1, '提醒不重复发送');
