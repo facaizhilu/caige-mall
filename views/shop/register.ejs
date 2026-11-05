@@ -7,15 +7,15 @@
     <div class="form-row"><label>确认密码</label><input type="password" name="password2" required minlength="6"></div>
     <div class="form-row"><label>邀请码(选填)</label><input name="ref" value="<%= ref %>" maxlength="10" placeholder="好友邀请码"></div>
     <label class="agree" id="agreeWrap"><input type="checkbox" name="agree" value="1" required id="agreeBox"> 我已阅读并同意<a href="/terms" target="_blank">《用户协议》</a><a href="/privacy" target="_blank">《隐私政策》</a><span class="agree-tip hide" id="agreeTip">请先勾选</span></label>
-    <button type="submit" class="btn primary lg block need-agree" aria-disabled="true">注 册</button></form>
+    <div class="need-agree-wrap" id="agreeBtnWrap"><button type="submit" class="btn primary lg block need-agree" aria-disabled="true">注 册</button></div></form>
   <p class="right"><a href="/login">已有账号?去登录</a></p>
 </div>
 <script>
-(function(){var c=document.getElementById('agreeBox'),b=document.querySelector('#regForm .need-agree'),tip=document.getElementById('agreeTip'),w=document.getElementById('agreeWrap');
+(function(){var c=document.getElementById('agreeBox'),b=document.querySelector('#regForm .need-agree'),tip=document.getElementById('agreeTip'),w=document.getElementById('agreeWrap'),wrap=document.getElementById('agreeBtnWrap');
   function tipShake(){tip.classList.remove('hide');w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake')}
   function sync(){var on=!!c.checked;b.setAttribute('aria-disabled',on?'false':'true');b.classList.toggle('is-locked',!on);if(on)tip.classList.add('hide')}
   c.addEventListener('change',sync);sync();
   document.getElementById('regForm').addEventListener('submit',function(e){if(c.checked)return;e.preventDefault();tipShake()});
-  b.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+  wrap.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
 })();
 </script>

@@ -53,13 +53,18 @@
   function nv(n){var e=f.querySelector('[name='+n+']');return e?e.value:''}
   function showSup(list){var b=document.getElementById('supErr');if(!b)return;var ul=b.querySelector('ul');ul.innerHTML='';(list||[]).forEach(function(t){var li=document.createElement('li');li.textContent=t;ul.appendChild(li)});b.classList.toggle('hide',!(list&&list.length))}
   function showNote(t){var n=document.getElementById('couponNote');if(!n)return;n.textContent=t||'';n.classList.toggle('hide',!t)}
-  function recalc(){var my=++seq;var d={items:f.items.value,address_id:(f.querySelector('[name=address_id]:checked')||{}).value,province:prov(),coupon_id:f.coupon?f.coupon.value:'',use_points:f.use_points?f.use_points.value:0};
-    if(d.address_id==='new'){d.city=nv('new_city');d.district=nv('new_district');d.detail=nv('new_detail')}
+  var couponEl=document.getElementById('coupon'), ptsEl=document.getElementById('pts');
+  function recalc(){var my=++seq;var aid=(f.querySelector('[name=address_id]:checked')||{}).value;
+    var d={items:f.items.value,address_id:aid,coupon_id:couponEl?couponEl.value:'',use_points:ptsEl?ptsEl.value:0};
+    if(aid==='new'){d.province=nv('new_province');d.city=nv('new_city');d.district=nv('new_district');d.detail=nv('new_detail')}
     var pt=f.querySelector('[name=promo_type]');if(pt){d.promo_type=pt.value;d.promo_id=f.promo_id.value;d.group_id=f.group_id.value}
-    postJSON('/api/quote',d).then(function(r){if(my!==seq)return;if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);showNote(r.couponNote);if(f.use_points&&+f.use_points.value>r.pointsUsed){f.use_points.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
+    postJSON('/api/quote',d).then(function(r){if(my!==seq)return;if(!r.ok){toast(r.msg);return}rGoods.textContent=m(r.goods);rFreight.textContent=m(r.freight);rLevel.textContent='-'+m(r.levelDiscount);window.rCloudPx&&(rCloudPx.textContent=(r.goods-r.levelDiscount).toFixed(2));rCoupon.textContent='-'+m(r.couponDiscount);window.rPts&&(rPts.textContent='-'+m(r.pointsDiscount));rPay.textContent=r.pay.toFixed(2);showSup(r.supplierErrors);showNote(r.couponNote);if(ptsEl&&+ptsEl.value>r.pointsUsed){ptsEl.value=r.pointsUsed}document.getElementById('maxpts')&&(maxpts.textContent=r.maxPoints)})}
   f.querySelectorAll('[name=address_id]').forEach(function(r){r.addEventListener('change',function(){newAddr.classList.toggle('hide',r.value!=='new'||!r.checked);recalc()})});
   newAddr.addEventListener('regionchange',recalc);
   var nd=f.querySelector('[name=new_detail]');if(nd){nd.addEventListener('change',recalc);nd.addEventListener('input',function(){clearTimeout(nd._t);nd._t=setTimeout(recalc,280)})}
-  if(f.coupon)f.coupon.onchange=recalc;if(f.use_points){f.use_points.onchange=recalc;useMax.onclick=function(){f.use_points.value=document.getElementById('maxpts').textContent;recalc()}}
+  if(couponEl)couponEl.addEventListener('change',recalc);
+  if(ptsEl){ptsEl.addEventListener('change',recalc);var um=document.getElementById('useMax');if(um)um.onclick=function(){ptsEl.value=document.getElementById('maxpts').textContent;recalc()}}
+  // 进入结算页后立刻按当前地址重算,避免初始优惠券/运费与选择不一致
+  if(f.querySelector('[name=address_id]:checked')) recalc();
 })();
 </script>

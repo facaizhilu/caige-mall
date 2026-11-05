@@ -16,15 +16,15 @@
   <form method="post" action="/me/cancel" id="cancelForm" style="max-width:460px" data-confirm="最后确认:注销后账号无法恢复,确定注销?"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="form-row"><label>请输入「确认注销」</label><input name="confirm_text" required placeholder="确认注销" autocomplete="off" pattern="确认注销"></div>
     <label class="agree" id="ackWrap"><input type="checkbox" name="ack" value="1" required id="ackBox"> 我已了解上述注销后果<span class="agree-tip hide" id="ackTip">请先勾选</span></label>
-    <button type="submit" class="btn danger lg block need-agree" aria-disabled="true">申请注销账号</button></form>
+    <div class="need-agree-wrap" id="ackBtnWrap"><button type="submit" class="btn danger lg block need-agree" aria-disabled="true">申请注销账号</button></div></form>
 <script>
-(function(){var c=document.getElementById('ackBox'),b=document.querySelector('#cancelForm .need-agree'),tip=document.getElementById('ackTip'),w=document.getElementById('ackWrap');
+(function(){var c=document.getElementById('ackBox'),b=document.querySelector('#cancelForm .need-agree'),tip=document.getElementById('ackTip'),w=document.getElementById('ackWrap'),wrap=document.getElementById('ackBtnWrap');
   if(!c||!b)return;
   function tipShake(){tip.classList.remove('hide');w.classList.remove('shake');void w.offsetWidth;w.classList.add('shake')}
   function sync(){var on=!!c.checked;b.setAttribute('aria-disabled',on?'false':'true');b.classList.toggle('is-locked',!on);if(on)tip.classList.add('hide')}
   c.addEventListener('change',sync);sync();
   document.getElementById('cancelForm').addEventListener('submit',function(e){if(c.checked)return;e.preventDefault();tipShake()});
-  b.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
+  wrap.addEventListener('click',function(e){if(c.checked)return;e.preventDefault();tipShake()});
 })();
 </script>
   <% } %>

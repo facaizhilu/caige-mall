@@ -6,7 +6,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/svg+xml" href="/static/img/mark-green.svg?v=1"><link rel="icon" type="image/png" href="/static/img/favicon-64.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/css/shop.css?v=19">
 <link rel="stylesheet" href="/static/css/chrome.css?v=7">
-<link rel="stylesheet" href="/static/css/green.css?v=10">
+<link rel="stylesheet" href="/static/css/green.css?v=11">
 </head><body class="g-theme <%= /^\/product\/\d+/.test(req.path) ? 'pg-pd' : req.path === '/service' ? 'pg-chat' : '' %> pg-<%= req.path.slice(1).replace(/\//g, '-').replace(/[^a-z-]/g, '') || 'home' %>">
 <div class="ztop <%= ['/', '/products', '/cart'].includes(req.path) ? 'ztop-arc' : 'ztop-w' %><%= req.path === '/me' ? ' ztop-none' : '' %>">
 <%- include('../partials/header') %>
@@ -24,5 +24,5 @@
 </div></footer>
 <%- include('../partials/tabbar') %>
 <script>window.REGIONS=<%- JSON.stringify(regions) %>;</script>
-<script src="/static/js/app.js?v=6"></script>
+<script src="/static/js/app.js?v=7"></script>
 </body></html>
