@@ -318,6 +318,8 @@ svc.cloud.ensureDefaults();
       mark('demo_plain_names_20261020');
     })();
   }
+  // 2026-11 邀请券说明与实际规则对齐(仅替换未改动过的种子文案;使用时只校验门槛/有效期,任何会员均可领取使用)
+  db.exec1("UPDATE coupons SET description=? WHERE description='通过邀请注册的新会员首单可用'", '满59元可用,立减8元;每人限领1张,领取后30天内有效。受邀注册的新会员注册时自动发放1张。');
   // 2026-10-29 走向正式环境:前台去掉「演示/测试」字样(仅替换种子默认文案,幂等;测试账号保留)
   db.transaction(() => {
     for (const [o, n] of require('./lib/seed-texts').PUBLIC_WORDING) {
