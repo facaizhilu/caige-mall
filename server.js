@@ -335,6 +335,8 @@ svc.cloud.ensureDefaults();
 })();
 
 const app = express();
+// Public commit hash only, so deployment verification never needs a customer login.
+app.use((req,res,next)=>{const rev=process.env.RENDER_GIT_COMMIT;if(/^[0-9a-f]{40}$/i.test(rev||''))res.set('X-App-Revision',rev);next();});
 const PORT = process.env.PORT || 3000;
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
