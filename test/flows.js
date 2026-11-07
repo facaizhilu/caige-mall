@@ -1,3 +1,4 @@
+const U = require('../lib/util'), now=U.now;
 // 进阶流程测试:拼团成团/到点自动成团、秒杀下单、优惠券+积分抵扣、客服创建售后+积分/现金按比例退款、前台禁止上传
 const base = process.argv[2] || 'http://localhost:' + (process.env.PORT || 3000);
 const db = require('../lib/db');
@@ -114,6 +115,15 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   r = await adm.post('/admin/service/2/aftersale', { order_id: poid, type: 'quality', reason: '质量问题', amount: String(half), note: '部分退款' }); const pasid = (r.loc || '').split('/').pop(); ok(/^\d+$/.test(pasid), '客服创建「质量问题退换货」售后单');
   ok(db.get('SELECT created_by FROM aftersales WHERE id=?', pasid).created_by, '记录创建客服');
   r = await adm.get('/admin/aftersales/' + pasid); ok(r.text.includes('预计 退积分 150') && r.text.includes('原路退回'), '后台售后详情预计拆分(退积分/退现金)');
+  // Owner-approved aftersale return info / true event history.
+  r = await adm.post('/admin/aftersales/' + pasid + '/return-info', {return_address:'测试退货仓 <script>alert(1)</script>',return_shipping_note:'质量问题由商家承担，联系客服核实报销'});
+  ok(r.status===302, '售后:后台保存退货地址和运费说明');
+  r=await a.get('/aftersale/'+pasid);
+  ok(r.text.includes('测试退货仓 &lt;script&gt;')&&!r.text.includes('<script>alert(1)</script>'),'售后:地址显示且防止脚本注入');
+  ok(r.text.includes('质量问题由商家承担')&&r.text.includes('处理记录')&&r.text.includes('复制地址'),'售后:用户看到运费和真实处理记录');
+  r=await b.get('/aftersale/'+pasid);ok(r.status===302&&!r.text.includes('测试退货仓'),'售后:他人不能读取退货地址');
+  r=await a.post('/admin/aftersales/'+pasid+'/return-info',{return_address:'非法改动'});ok(r.status!==200&&db.get('SELECT return_address FROM aftersales WHERE id=?',pasid).return_address.includes('测试退货仓'),'售后:普通会员不能改退货信息');
+  await adm.get('/admin/aftersales/'+pasid);
   await adm.post('/admin/aftersales/' + pasid + '/handle', { action: 'approve' }); ok(db.get('SELECT status FROM aftersales WHERE id=?', pasid).status === 'approved_return', '同意退货');
   ok(!!db.get("SELECT 1 FROM messages WHERE user_id=2 AND sender='staff' AND content LIKE '【售后通知】售后单 #" + pasid + "%同意退货%'"), '状态变更通过客服消息通知用户');
   await a.get('/aftersale/' + pasid); r = await a.post('/aftersale/' + pasid + '/return', { company: '顺丰速运', tracking: 'SF999888777' }); ok(db.get('SELECT status FROM aftersales WHERE id=?', pasid).status === 'returned', '买家填写退货物流');
@@ -127,6 +137,20 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   ok(!!db.get("SELECT 1 FROM points_log WHERE user_id=2 AND delta=150 AND reason LIKE '售后退回积分%'"), 'points_log 记录「售后退回积分」');
   ok(db.get('SELECT status FROM orders WHERE id=?', poid).status === 'completed', '部分退款后订单保持已完成');
   r = await a.get('/aftersale/' + pasid); ok(r.text.includes('退积分 150') && r.text.includes('退现金 ¥' + half.toFixed(2)), '用户售后页显示退积分/退现金拆分');
+  { const ev=db.all('SELECT * FROM aftersale_events WHERE aftersale_id=? ORDER BY id',pasid);
+    ok(ev.map(x=>x.status).filter((x,i,arr)=>!i||x!==arr[i-1]).join(',')==='pending,approved_return,returned,refunded','售后:创建、批准、寄回、退款记录完整有序');
+    const n=ev.length;db.exec1('UPDATE aftersales SET updated_at=? WHERE id=?',now(),pasid);ok(db.get('SELECT COUNT(*) n FROM aftersale_events WHERE aftersale_id=?',pasid).n===n,'售后:无状态变化的刷新不制造时间线节点');
+    const display=require('../lib/aftersale-display');
+    const sup={id:-1,created_at:now(),supplier_status:JSON.stringify({afsAddressList:[{afterServiceReceiver:'供应商仓库',afterServicePhone:'测试电话',afterServiceAddress:'接口地址'}]}),return_address:'人工地址'};
+    ok(display(sup).addresses[0].includes('接口地址')&&!display(sup).addresses.includes('人工地址'),'售后:优先展示供应商返回的地址');
+    ok(display({id:-2,created_at:now()}).addresses.length===0&&display({id:-2,created_at:now()}).shippingNote.includes('待客服'),'售后:未确认时不编造地址与运费责任');
+    ok(U.AFTERSALE_STATUS.approved_return==='待寄回'&&U.AFTERSALE_STATUS.cancelled==='已取消','售后:新显示名保留原状态代码');
+    const legacy=display({id:-3,created_at:now(),updated_at:now(),status:'refunded'});ok(legacy.events.length===1,'售后:旧单无记录不伪造中间节点');
+    const x=db.exec1("INSERT INTO aftersales(order_id,user_id,type,reason,amount,status,created_at,updated_at) VALUES(?,?,?,?,?,'pending',?,?)",poid,2,'quality','记录测试',0,now(),now()).lastInsertRowid;
+    for(const st of ['rejected','cancelled','exchanged'])db.exec1('UPDATE aftersales SET status=?,updated_at=? WHERE id=?',st,now(),x);
+    ok(db.get('SELECT COUNT(*) n FROM aftersale_events WHERE aftersale_id=?',x).n===4,'售后:拒绝、取消、换货状态均留痕');
+    db.exec1('DELETE FROM aftersales WHERE id=?',x);ok(db.get('SELECT COUNT(*) n FROM aftersale_events WHERE aftersale_id=?',x).n===0,'售后:删除演示单同步清理关联记录');
+  }
   r = await adm.post('/admin/service/2/aftersale', { order_id: poid, type: 'refund', reason: '再退', amount: String(po.pay_amount) }); ok((r.loc || '').includes('/admin/service'), '剩余可退金额校验(不可超额退款)');
   console.log('== 全额退款 / 七天无理由校验 ==');
   const u = new C(); await u.login('13800000001', '123456');

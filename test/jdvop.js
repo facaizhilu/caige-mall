@@ -305,6 +305,15 @@ const stripTags = h => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<sty
   r = await adm.get('/admin/aftersales/' + as.id); ok(r.text.includes('售后运单') && r.text.includes('售后物流'), '售后详情页显示售后物流');
   ok(db.get("SELECT request FROM supplier_call_logs WHERE interface_code='queryAfsLogisticsInfo' ORDER BY id DESC").request.includes('originalOrderId'), '售后物流入参 originalOrderId(京东子单号)');
   ok(db.get('SELECT status FROM orders WHERE id=?', oid).status === 'shipped' && !db.get("SELECT 1 FROM traces WHERE order_id=? AND text LIKE '%部分退款%'", oid), '供应商退款前不给顾客退款');
+  r=await a.get('/aftersale/'+as.id);ok(r.text.includes('供应商安排上门取件')&&!r.text.includes('name="tracking"'),'售后:上门取件不让用户自行寄回');
+  await a.post('/aftersale/'+as.id+'/return',{company:'测试快递',tracking:'TEST123'});ok(db.get('SELECT status FROM aftersales WHERE id=?',as.id).status==='approved_return','售后:上门取件拦截寄回提交');
+  // 本地mock切换寄回分支,核对顾客端不会只改本地状态而漏传供应商。
+  db.exec1('UPDATE aftersales SET supplier_pick_type=3 WHERE id=?',as.id);
+  const callsBefore=db.get("SELECT COUNT(*) n FROM supplier_call_logs WHERE interface_code='updateSendInfo'").n;
+  await a.post('/aftersale/'+as.id+'/return',{company:'测试快递',tracking:'TEST123'});
+  ok(db.get("SELECT COUNT(*) n FROM supplier_call_logs WHERE interface_code='updateSendInfo'").n===callsBefore+1 && db.get('SELECT status FROM aftersales WHERE id=?',as.id).status==='returned','售后:用户寄回信息提交供应商成功后才改状态');
+  await adm.post('/admin/jdvop/aftersales/'+as.id+'/sim-afs_receive');ok(!!db.get("SELECT 1 FROM aftersale_events WHERE aftersale_id=? AND detail LIKE '%已收货%'",as.id),'售后:本地状态未变仍记录供应商实际收货确认');
+  const events=db.all('SELECT status FROM aftersale_events WHERE aftersale_id=? ORDER BY id',as.id);ok(events.some(e=>e.status==='approved_return')&&events.some(e=>e.status==='returned'),'售后:供应商审核和用户寄回均进入时间线');
   await adm.post('/admin/jdvop/aftersales/' + as.id + '/sim-afs_refund');
   const as2 = db.get('SELECT * FROM aftersales WHERE id=?', as.id);
   ok(as2.status === 'refunded' && Math.abs(as2.refund_cash - 25.9) < 0.001 && as2.supplier_refunded_at && as2.supplier_refund_amount > 0, '收到 119 退款回调且查询确认 → 自动退款给顾客', JSON.stringify(as2));

@@ -359,7 +359,16 @@ module.exports = function (r, { filesOf }) {
     if (!a) return res.redirect('/admin/aftersales');
     a.estPoints = a.pay_amount > 0 ? Math.round((a.points_used || 0) * Math.min(1, a.amount / a.pay_amount)) : (a.points_used || 0);
     if (a.supplier) { try { a.sup = JSON.parse(a.supplier_status || 'null'); } catch (e) { a.sup = null; } a.mock = J_cfgMode() === 'mock'; }
-    res.page('admin/aftersale', { title: '售后详情', a, items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
+    res.page('admin/aftersale', { title: '售后详情', a, aftersaleDisplay: require('../lib/aftersale-display')(a), items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
+  });
+  r.post('/aftersales/:id/return-info', need('order'), (req,res)=>{
+    const a=db.get('SELECT * FROM aftersales WHERE id=?',int(req.params.id));
+    if(!a)return res.redirect('/admin/aftersales');
+    const address=String(req.body.return_address||'').trim().slice(0,1000), shipping=String(req.body.return_shipping_note||'').trim().slice(0,1000);
+    db.exec1('UPDATE aftersales SET return_address=?,return_shipping_note=?,updated_at=? WHERE id=?',address,shipping,now(),a.id);
+    log(req,'更新售后退货信息','#'+a.id);
+    if(address!==String(a.return_address||'')||shipping!==String(a.return_shipping_note||'')) svc.notifyService(a.user_id,'staff',`【售后通知】售后单 #${a.id} 的退货地址或运费说明已更新，请打开售后详情核对后再寄回。`);
+    flash(req,'success','退货地址和运费说明已保存');res.redirect('/admin/aftersales/'+a.id);
   });
   const asNotify = (a, text) => svc.notifyService(a.user_id, 'staff', `【售后通知】售后单 #${a.id}:${text} 进度可在「我的 - 退款/售后」查看。`);
   function doRefund(req, a, note, okMsg) {

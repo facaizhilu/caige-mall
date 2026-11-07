@@ -3,7 +3,7 @@
   <form method="post" action="/admin/invites/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="form-row"><label>邀请人奖励积分(一次性)</label><input type="number" name="invite_points" min="0" value="<%= s.invite_points %>" required><div class="help">被邀请人首个订单确认收货且满观察期未退款后发放;注册不奖励</div></div>
     <div class="form-row"><label>观察期(天)</label><input type="number" name="invite_window_days" min="7" max="90" value="<%= s.invite_window_days %>" required><div class="help">不得短于七天无理由退货期;观察期内退款则取消奖励</div></div>
-    <div class="form-row"><label>被邀请人首单优惠券</label><select name="invite_coupon_id"><option value="">不发放</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>" <%= String(s.invite_coupon_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select><div class="help">通过邀请码注册时自动发放给被邀请人</div></div>
+    <div class="form-row"><label>被邀请人专享优惠券</label><select name="invite_coupon_id"><option value="">不发放</option><% coupons.forEach(c=>{ %><option value="<%= c.id %>" <%= String(s.invite_coupon_id)===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select><div class="help">通过邀请码注册时自动发放给被邀请人</div></div>
     <button class="btn primary">保存规则</button>
   </form>
   <p class="muted mt" style="font-size:12px">仅一级邀请、每位好友一次性积分奖励,无现金奖励;不设置分享门槛或人数门槛。</p>

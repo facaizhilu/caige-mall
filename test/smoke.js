@@ -36,7 +36,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   { const pg = await shop.get('/products'); ok(pg.text.includes('href="/privacy"') && pg.text.includes('href="/terms"') && pg.text.includes('运营方：海南韵农科技有限公司') && !pg.text.includes('演示'), '其他页面页脚仍有隐私政策/用户协议链接与运营方,无演示说明'); }
   ok(r.text.includes('活动专区') && r.text.includes('云商会员') && !r.text.includes('七天无理由') && !r.text.includes('7天无理由') && !r.text.includes('class="svc"') && !r.text.includes('鲜活易腐除外') && r.text.indexOf('class="svc"') < r.text.indexOf('class="picks"') && (r.text.match(/class="pk"/g) || []).length >= 6 && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条(不含七天无理由承诺),无秒杀与倒计时');
   { const names = [...r.text.matchAll(/<span class="pk-n">([^<]*)<\/span>/g)].map(m => m[1]).slice(0, 6); const fresh = names.filter(n => /苹果|脐橙|芒果|鸡蛋|蔬菜/.test(n)).length; ok(names.length === 6 && fresh >= 4 && names.length - fresh <= 2 && !r.text.includes('智能手机') && !/今日推荐|为你推荐|猜你喜欢/.test(r.text), '好物精选演示 6 件以新鲜农产品为主(数码配件≤2),无整机手机与个性化文案', names.join('|')); }
-  ok(r.text.includes('韵农甄选') && r.text.includes('class="brand zh-brand gh-shop" href="/" aria-label="韵农甄选 首页">韵农甄选</a>') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品名称"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
+  ok(r.text.includes('韵农甄选') && r.text.includes('/static/img/logo-orig-mark.svg?v=1') && r.text.includes('class="orig-mark"') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品名称"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
   { ok(!/class="(hero )?bnr|bnr-s|bnr-d|aria-roledescription="carousel"/.test(r.text) && /home\.css\?v=22/.test(r.text) && !/home\.js\?v=/.test(r.text), '首页方案A:已移除横幅轮播');
     { const p2 = await shop.get('/product/2'); ok(p2.status === 200 && p2.text.includes('Type-C 七合一扩展坞') && !p2.text.includes('轻薄本'), '演示商品 ID 2 为电脑配件(扩展坞),无整机笔记本'); }
     ok(!/京东|财哥|倒计时|已售|销量|限时|仅剩/.test(r.text.replace(/<script[\s\S]*?<\/script>/g, '')) && r.text.includes('class="ann hm-ann hm-card"') && r.text.includes('class="hm-duo hm-card"'), '首页方案A:公告卡/精选好物|签到卡,无外部平台/倒计时/销量文案'); }
@@ -213,7 +213,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   const act = new Client(); const aphone = '136' + String(Date.now()).slice(-8);
   await act.get('/register'); r = await act.post('/register', { phone: aphone, password: 'abc12345', password2: 'abc12345', nickname: '邀测', agree: '1', ref: '100001' });
   ok(r.status === 302, '被邀请人注册');
-  ok((await act.get('/me/coupons')).text.includes('邀请好友首单券'), '被邀请人获得首单优惠券');
+  ok((await act.get('/me/coupons')).text.includes('邀请好友专享券'), '被邀请人获得邀请好友专享券');
   r = await adm.get('/admin/members?q=' + aphone); const auid = (r.text.match(/\/admin\/members\/(\d+)/) || [])[1]; ok(!!auid, '后台找到被邀请人');
   r = await adm.get('/admin/members/' + auid); ok(r.text.includes('开通云商卡') && r.text.includes('经办员工'), '会员详情有云商卡开通表单');
   const ctid = (r.text.match(/name="card_type_id"[\s\S]*?<option value="(\d+)"/) || [])[1];

@@ -1,0 +1,1 @@
+<h3 class="mt">处理记录</h3><ol class="as-history"><% aftersaleDisplay.events.forEach((e,index)=>{ %><li class="<%= index===aftersaleDisplay.events.length-1?'current':'done' %>"><b><%= e.status ? (AFTERSALE_STATUS[e.status]||e.status) : '申请已创建' %></b><div><%= e.detail||'处理状态已更新' %></div><time><%= e.created_at||'暂无记录' %></time></li><% }) %></ol>

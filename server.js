@@ -13,6 +13,7 @@ const banned = require('./lib/banned');
 const SqliteStore = require('./lib/session-store');
 
 if (db.get('SELECT COUNT(*) n FROM admins').n === 0) require('./lib/seed')(false);
+db.exec1("UPDATE coupons SET name='邀请好友专享券' WHERE name='邀请好友首单券'");
 try { require('./lib/seed').ensureDemoMembers(); } catch (e) { console.error('[demo] ensureDemoMembers', e.message); }
 // 前台已下线账户余额:旧库中的相关帮助文案同步更新(幂等)
 db.exec1("UPDATE articles SET title='支付方式说明', content='<p>本站为演示站点,支持微信支付(模拟)与支付宝(模拟),不产生真实扣款。</p>' WHERE category='help' AND title='余额充值说明'");

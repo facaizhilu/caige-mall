@@ -370,12 +370,18 @@ module.exports = function (app, { filesOf }) {
   app.get('/aftersale/:id', needLogin, (req, res) => {
     const a = db.get('SELECT a.*, o.order_no, o.points_used, o.pay_amount FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.id=? AND a.user_id=?', int(req.params.id), req.user.id);
     if (!a) return res.redirect('/aftersales');
-    res.page('shop/aftersale', { title: '售后详情', a, items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
+    res.page('shop/aftersale', { title: '售后详情', a, aftersaleDisplay: require('../lib/aftersale-display')(a), items: db.all('SELECT * FROM order_items WHERE order_id=?', a.order_id) });
   });
-  app.post('/aftersale/:id/return', needLogin, (req, res) => {
+  app.post('/aftersale/:id/return', needLogin, async (req, res) => {
     const co = String(req.body.company || '').slice(0, 30), tn = String(req.body.tracking || '').trim().slice(0, 40);
     if (!co || !tn) { flash(req, 'error', '请填写退货快递公司与运单号'); return res.redirect('/aftersale/' + int(req.params.id)); }
-    db.exec1("UPDATE aftersales SET status='returned', return_express=?, return_tracking=?, updated_at=? WHERE id=? AND user_id=? AND status='approved_return'", co, tn, now(), int(req.params.id), req.user.id);
+    const ownCase=db.get('SELECT * FROM aftersales WHERE id=? AND user_id=?',int(req.params.id),req.user.id);
+    if(!ownCase || ownCase.status!=='approved_return'){flash(req,'error','当前状态不能提交退货信息');return res.redirect('/aftersales');}
+    if(ownCase.supplier && ownCase.supplier_pick_type===1){flash(req,'error','本单由供应商安排上门取件，无需自行寄回');return res.redirect('/aftersale/'+ownCase.id);}
+    if(ownCase.supplier){
+      try{const result=await jdvop.afsAction(ownCase.id,'send',{express_company:co,express_code:tn});if(!result.ok){flash(req,'error',result.msg);return res.redirect('/aftersale/'+ownCase.id);}}
+      catch(e){flash(req,'error','退货信息暂未提交成功，请联系客服核实后重试');return res.redirect('/aftersale/'+ownCase.id);}
+    }else db.exec1("UPDATE aftersales SET status='returned', return_express=?, return_tracking=?, updated_at=? WHERE id=? AND user_id=? AND status='approved_return'",co,tn,now(),ownCase.id,req.user.id);
     const a = db.get('SELECT a.id, o.order_no FROM aftersales a JOIN orders o ON o.id=a.order_id WHERE a.id=? AND a.user_id=?', int(req.params.id), req.user.id);
     if (a) svc.notifyService(req.user.id, 'user', `售后单 #${a.id}(订单号 ${a.order_no})退货已寄出:${co} ${tn}`);
     flash(req, 'success', '退货信息已提交,等待商家收货确认'); res.redirect('/aftersale/' + int(req.params.id));

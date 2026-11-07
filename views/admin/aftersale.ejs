@@ -5,8 +5,12 @@
 <dt>申请退款</dt><dd class="price">¥<%= a.amount.toFixed(2) %></dd>
 <dt>退款拆分</dt><dd><% if (a.status==='refunded') { %><b>退积分 <%= a.refund_points||0 %> / 退现金 ¥<%= (a.refund_cash||0).toFixed(2) %></b> <span class="tag green"><%= a.refund_channel||'原路退回' %></span><br><span class="muted"><%= a.refunded_at %></span><% } else if (['exchanged','rejected','cancelled'].includes(a.status)) { %>-<% } else { %>预计 退积分 <%= a.estPoints %> / 退现金 ¥<%= a.amount.toFixed(2) %>(原路退回)<br><span class="muted">按退款金额占实付比例退回积分<%= a.points_awarded ? ',并按比例扣回该订单奖励的 ' + a.points_awarded + ' 积分及成长值' : '' %></span><% } %></dd>
 <dt>原因</dt><dd><%= a.reason %></dd><dt>说明/备注</dt><dd><%= a.description||'-' %></dd><dt>创建</dt><dd><%= a.created_at %><%= a.created_by ? ' · 客服 ' + a.created_by : ' · 用户申请' %></dd><% if(a.return_tracking){ %><dt>退货物流</dt><dd><%= a.return_express %> <%= a.return_tracking %></dd><% } %><dt>处理说明</dt><dd><%= a.admin_note||'-' %></dd></dl>
+<%- include('../partials/aftersale-history',{aftersaleDisplay}) %>
 <h3 class="mt">涉及商品</h3><% items.forEach(i=>{ %><div class="flex" style="margin:4px 0"><img class="thumb" src="<%= i.image %>"><%= i.name %> <span class="muted"><%= i.spec_text %> ×<%= i.qty %></span></div><% }) %></div>
-<div class="card"><h3>处理</h3>
+<div class="card"><h3>退货地址与运费说明</h3>
+<% if(a.supplier){ %><p class="help">供应商已返回的寄回地址优先展示。只有供应商尚未返回时才使用下方人工确认地址；请按该商品实际售后规则核实运费，不要填写公司注册地址代替仓库。</p><% } %>
+<form method="post" action="/admin/aftersales/<%= a.id %>/return-info"><input type="hidden" name="_csrf" value="<%= csrf %>"><div class="form-row"><label>已确认的退货地址（收件人、电话、完整地址）</label><textarea name="return_address" rows="3" maxlength="1000"><%= a.return_address||'' %></textarea></div><div class="form-row"><label>运费承担说明</label><textarea name="return_shipping_note" rows="3" maxlength="1000" placeholder="核实后写明由哪方承担、是否垫付及报销方式"><%= a.return_shipping_note||'' %></textarea></div><button class="btn primary">保存退货信息</button></form>
+<h3 class="mt">处理</h3>
 <% if(a.supplier){ const sp=a.sup||{}; %>
  <div id="supplier-afs"><p><span class="tag blue">供应商售后</span> 售后单号 <b><%= a.supplier_afs_sn %></b><br><span class="muted" style="font-size:12px">子单 <%= a.supplier_child_sn %> · SKU <%= a.supplier_sku %> × <%= a.supplier_qty %> · <%= a.supplier_afs_type===2?'换货':'退货退款' %></span></p>
  <dl class="kv" style="font-size:13px"><dt>审核</dt><dd><%= sp.applyStatusText||'-' %></dd><dt>售后</dt><dd><%= sp.afsStatusText||'-' %></dd><dt>退款</dt><dd><%= sp.refundStatusText||'-' %></dd><dt>供应商已退</dt><dd><%= a.supplier_refunded_at ? money(a.supplier_refund_amount||0)+' · '+a.supplier_refunded_at : '未退款' %></dd>

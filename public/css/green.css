@@ -466,3 +466,18 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 @keyframes g-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 .g-theme .agree.shake input[type=checkbox],.g-theme .no7-ack.shake input[type=checkbox]{animation:g-shake .35s ease}
 .g-theme .agree.shake{animation:g-shake .35s ease}
+
+/* Owner approved original brand, keep the emblem unchanged. */
+.gh .gh-original{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.gh .orig-mark{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:7px;padding:2px;flex-shrink:0}
+.gh .orig-mark img{display:block;width:auto;height:28px;max-width:42px}
+.original-full{text-align:center;margin:16px auto}.original-full img{width:212px;max-width:85%;height:auto}
+.as-history{list-style:none;margin:12px 0;padding:0 0 0 14px;border-left:2px solid #d5eadc}
+.as-history li{position:relative;margin:0 0 18px;padding-left:12px;overflow-wrap:anywhere}
+.as-history li:before{content:"";position:absolute;left:-19px;top:6px;width:8px;height:8px;background:#2E9E5B;border-radius:50%}
+.as-history time{display:block;font-size:12px;color:#66756b;margin-top:4px}
+.as-return{background:#EEF8F2;color:#225b37;padding:14px;border-radius:12px;margin:16px 0;overflow-wrap:anywhere}
+.as-return p{margin:6px 0}.as-rejected{background:#FFF6E8;color:#B26A00;padding:12px;border-radius:10px}
+
+.as-history li.done:before{background:#b8ddc6}.as-history li.current>b{color:#2E9E5B}
+.as-address{display:flex;align-items:flex-start;gap:8px}.as-address>span{flex:1;min-width:0;white-space:pre-wrap}.as-copy{flex-shrink:0;white-space:nowrap}
