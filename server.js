@@ -26,6 +26,7 @@ svc.cloud.ensureDefaults();
 (function oneTimeMigrations() {
   const done = k => !!db.get('SELECT 1 FROM settings WHERE key=?', 'migr_' + k);
   const mark = k => db.exec1('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)', 'migr_' + k, U.now());
+  if(!done('invite_288_20261107'))db.transaction(()=>{svc.setSetting('invite_points','288');db.exec1("UPDATE invite_rewards SET points=288 WHERE status='pending' AND points=100");mark('invite_288_20261107');})();
   // 门店优惠卡「适用门店」旧默认文案升级(仅未被后台改过时)
   db.exec1('UPDATE settings SET value=? WHERE key=? AND value=?', '全国韵农甄选线下门店均可使用，门店名单和地址见本页下方的门店列表', 'storecard_stores', '韵农甄选合作线下门店，门店名单和地址见本页下方的门店列表');
   if (!done('no7_fresh')) { // 鲜活易腐类分类默认不支持七天无理由

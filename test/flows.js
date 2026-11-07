@@ -294,11 +294,11 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   const o1 = await buyOne(inv1.c, 9);
   ok(db.get('SELECT status FROM orders WHERE id=?', o1).status === 'completed', '被邀请人首单已确认收货');
   let ir = db.get('SELECT * FROM invite_rewards WHERE invitee_id=?', inv1.uid);
-  ok(ir && ir.status === 'pending' && ir.points === 100 && ir.order_id === o1, '首单完成后进入观察期(待发放)');
+  ok(ir && ir.status === 'pending' && ir.points === 288 && ir.order_id === o1, '首单完成后进入观察期(待发放)');
   svc.settleInvites(); ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir.id).status === 'pending' && refPts() === rp0, '观察期内不发放');
   db.prepare("UPDATE invite_rewards SET due_at='2000-01-01 00:00:00' WHERE id=?").run(ir.id);
   svc.settleInvites();
-  ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir.id).status === 'granted' && refPts() === rp0 + 100, '观察期满后一次性发放 100 积分');
+  ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir.id).status === 'granted' && refPts() === rp0 + 288, '观察期满后一次性发放 288 积分');
   const o1b = await buyOne(inv1.c, 9);
   ok(db.all('SELECT * FROM invite_rewards WHERE invitee_id=?', inv1.uid).length === 1, '第二单不再奖励(仅首单)');
   // 观察期内退款 → 取消
@@ -308,6 +308,25 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
   svc.refundOrder(o2, '测试全额退款', false, { aftersale: true });
   ok(db.get('SELECT status FROM invite_rewards WHERE id=?', ir2.id).status === 'cancelled', '观察期内退款,奖励取消');
   const rp1 = refPts(); db.prepare("UPDATE invite_rewards SET due_at='2000-01-01 00:00:00' WHERE id=?").run(ir2.id); svc.settleInvites(); ok(refPts() === rp1, '已取消的奖励不会发放');
+
+  console.log('== 一级邀请接口边界 ==');
+  const configuredCoupon=svc.S('invite_coupon_id');
+  await adm.post('/admin/invites/settings',{invite_points:'377',invite_window_days:'7',invite_coupon_id:configuredCoupon});
+  const configuredPage=await inv1.c.get('/me/invite');ok(configuredPage.text.includes('一次性获得 <b>377</b>'),'邀请页面奖励随后台配置变化');
+  await adm.post('/admin/invites/settings',{invite_points:'288',invite_window_days:'7',invite_coupon_id:configuredCoupon});
+  ok(svc.S('invite_points')==='288','老板指定邀请奖励恢复为288');
+  const oldRef=db.get('SELECT referrer_id FROM users WHERE id=?',inv1.uid).referrer_id;
+  await inv1.c.post('/me/profile',{nickname:'邀一',gender:'保密',referrer_id:inv2.uid,ref:'other'});
+  ok(db.get('SELECT referrer_id FROM users WHERE id=?',inv1.uid).referrer_id===oldRef,'资料接口不能修改邀请人');
+  const child=new C(),childPhone='131'+String(Date.now()).slice(-8);
+  await child.get('/register');await child.post('/register',{phone:childPhone,password:'abc12345',password2:'abc12345',nickname:'下一级不可见',agree:'1',ref:db.get('SELECT invite_code FROM users WHERE id=?',inv1.uid).invite_code});
+  const childUid=db.get('SELECT id FROM users WHERE phone=?',childPhone).id;
+  ok(db.get('SELECT referrer_id FROM users WHERE id=?',childUid).referrer_id===inv1.uid,'好友可邀请自己的直接好友');
+  const parentView=await inv1.c.get('/me/invite');ok(parentView.text.includes('下一级不可见'),'直接邀请人可见好友');
+  const ancestorView=await u.get('/me/invite');ok(!ancestorView.text.includes('下一级不可见'),'上一级页面不显示下下级');
+  const invalid=new C(),invalidPhone='132'+String(Date.now()).slice(-8);await invalid.get('/register');
+  const invalidResp=await invalid.post('/register',{phone:invalidPhone,password:'abc12345',password2:'abc12345',agree:'1',ref:'INVALID-CODE'});
+  ok(invalidResp.text.includes('邀请码无效')&&!db.get('SELECT id FROM users WHERE phone=?',invalidPhone),'无效邀请码明确提示且不创建账号');
 
   console.log('== 限期积分到期作废(通用机制;签到积分已不再限期) ==');
   const cloud = require('../lib/cloud');
@@ -503,6 +522,14 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const app = require('../server');
     const srv = await new Promise(res => { const s2 = app.listen(0, () => res(s2)); });
     const pbase = 'http://127.0.0.1:' + srv.address().port;
+    const prodGuest=new C(pbase);await prodGuest.get('/register');
+    const fakePhone='13911112222';
+    const smsBlocked=await prodGuest.post('/sms/send',{phone:fakePhone});
+    ok(smsBlocked.status===503&&!JSON.parse(smsBlocked.text).demoCode,'正式环境不返回演示短信验证码');
+    const smsLoginBlocked=await prodGuest.post('/login/sms',{phone:fakePhone,code:'123456'});
+    ok(smsLoginBlocked.status===503,'正式环境不接受模拟验证码登录');
+    const signupBlocked=await prodGuest.post('/register',{phone:fakePhone,password:'abc12345',password2:'abc12345',agree:'1',ref:'100001'});
+    ok(signupBlocked.text.includes('真实手机号验证尚未接入')&&!db.get('SELECT id FROM users WHERE phone=?',fakePhone),'正式短信未接入前阻止未验证手机号注册刷邀请');
     const p1 = new C(pbase); await p1.get('/admin/login');
     r = await p1.post('/admin/login', { username: 'admin', password: 'admin123' }); ok(r.loc === '/admin/password', '正式环境:默认密码登录强制改密');
     r = await p1.get('/admin/password'); ok(!r.text.includes('暂不修改'), '正式环境:改密页不提供跳过');

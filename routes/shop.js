@@ -420,6 +420,7 @@ module.exports = function (app, { filesOf }) {
     fails.delete(k); doLogin(req, res, u.id, req.body.next);
   });
   app.post('/sms/send', (req, res) => {
+    if(process.env.DEMO_MODE!=='1')return res.status(503).json({ok:false,msg:'真实短信服务尚未接入，验证码登录暂不可用'});
     const phone = String(req.body.phone || '').trim();
     if (!U.isPhone(phone)) return res.json({ ok: false, msg: '请输入正确的 11 位手机号' });
     const last = db.get('SELECT created_at FROM sms_codes WHERE phone=? ORDER BY id DESC LIMIT 1', phone);
@@ -429,6 +430,7 @@ module.exports = function (app, { filesOf }) {
     res.json({ ok: true, msg: '验证码已发送(演示环境:不会真实发送短信)', demoCode: code });
   });
   app.post('/login/sms', (req, res) => {
+    if(process.env.DEMO_MODE!=='1')return res.status(503).send('真实短信验证尚未接入，验证码登录暂不可用');
     const phone = String(req.body.phone || '').trim(), code = String(req.body.code || '').trim(), k = 'sms' + req.ip + phone;
     const err = m => { res.locals.flash = { type: 'error', msg: m }; res.page('shop/login', { title: '登录', next: req.body.next, tab: 'sms', phone }); };
     if (tooMany(k)) return err('尝试次数过多,请稍后再试');
@@ -445,13 +447,16 @@ module.exports = function (app, { filesOf }) {
   app.post('/register', (req, res) => {
     const f = { phone: String(req.body.phone || '').trim(), nickname: String(req.body.nickname || '').trim().slice(0, 20), ref: String(req.body.ref || '').trim() };
     const err = m => { res.locals.flash = { type: 'error', msg: m }; res.page('shop/register', { title: '注册', ref: f.ref, form: f }); };
+    if(process.env.DEMO_MODE!=='1')return err('真实手机号验证尚未接入，暂不能注册，请联系客服');
     if (!U.isPhone(f.phone)) return err('请输入正确的 11 位手机号');
     const pw = String(req.body.password || '');
     if (pw.length < 6 || pw.length > 32) return err('密码长度需为 6-32 位');
     if (pw !== req.body.password2) return err('两次输入的密码不一致');
     if (req.body.agree !== '1') return err('请先阅读并勾选同意《用户协议》《隐私政策》');
     if (db.get('SELECT 1 FROM users WHERE phone=?', f.phone)) return err('该手机号已注册,请直接登录');
-    const id = svc.createUser({ phone: f.phone, password_hash: bcrypt.hashSync(pw, 10), nickname: f.nickname, referrerCode: f.ref, consent: true });
+    if(f.ref&&!db.get('SELECT 1 FROM users WHERE invite_code=? AND status=1 AND cancelled_at IS NULL AND phone<>?',f.ref,f.phone))return err('邀请码无效或邀请人账号不可用，请核对后再注册');
+    let id;try{id=svc.createUser({phone:f.phone,password_hash:bcrypt.hashSync(pw,10),nickname:f.nickname,referrerCode:f.ref,consent:true});}
+    catch(e){return err('注册未完成，手机号可能已注册或邀请码已失效，请核对后重试');}
     // 提示按实际发放结果生成:有注册积分才提积分,确有发放新人券才提优惠券
     const gotPts = db.get("SELECT COALESCE(SUM(delta),0) n FROM points_log WHERE user_id=? AND reason='注册奖励'", id).n, gotCp = db.get('SELECT COUNT(*) n FROM user_coupons WHERE user_id=?', id).n;
     const gifts = [gotPts > 0 ? ' ' + gotPts + ' 积分' : '', gotCp > 0 ? ' ' + gotCp + ' 张新人优惠券' : ''].filter(Boolean);
@@ -633,12 +638,13 @@ module.exports = function (app, { filesOf }) {
   app.post('/me/recharge', needLogin, (req, res) => res.redirect('/me'));
   // 我的邀请(单级):邀请人仅在好友首单确认收货且满观察期后获得一次性积分;注册不奖励
   app.get('/me/invite', needLogin, (req, res) => {
-    const invitees = db.all(`SELECT u.id, u.nickname, u.phone, u.created_at, r.status rstatus, r.points rpoints, r.due_at, r.granted_at
+    const invitees = db.all(`SELECT u.id, u.nickname, u.phone, u.created_at, r.status rstatus, r.points rpoints, r.due_at, r.granted_at, r.note reward_note,
+      EXISTS(SELECT 1 FROM aftersales af WHERE af.order_id=r.order_id AND af.status IN ('pending','approved_return','returned')) open_aftersale
       FROM users u LEFT JOIN invite_rewards r ON r.id=(SELECT id FROM invite_rewards x WHERE x.invitee_id=u.id AND x.referrer_id=? ORDER BY id DESC LIMIT 1)
       WHERE u.referrer_id=? ORDER BY u.id DESC`, req.user.id, req.user.id);
     const earned = db.get("SELECT COALESCE(SUM(points),0) n FROM invite_rewards WHERE referrer_id=? AND status='granted'", req.user.id).n;
     const coupon = int(svc.S('invite_coupon_id')) ? db.get('SELECT * FROM coupons WHERE id=? AND status=1', int(svc.S('invite_coupon_id'))) : null;
-    res.page('shop/me-invite', { title: '我的邀请', invitees, earned, coupon, invitePts: int(svc.S('invite_points'), 100), windowDays: int(svc.S('invite_window_days'), 7), link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
+    res.page('shop/me-invite', { title: '我的邀请', invitees, earned, coupon, invitePts: int(svc.S('invite_points'), 288), windowDays: int(svc.S('invite_window_days'), 7), link: `${req.protocol}://${req.get('host')}/register?ref=${req.user.invite_code}` });
   });
   // 旧入口(分销/云粉)统一跳转到「我的邀请」
   for (const pth of ['/me/referral', '/me/cloud-fans']) app.get(pth, needLogin, (req, res) => res.redirect('/me/invite'));

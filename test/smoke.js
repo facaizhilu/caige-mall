@@ -199,7 +199,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.get('/me/cloud'); ok(r.status === 200 && r.text.includes('会员权益') && !/投资|收益|理财/.test(r.text), '会员云商卡页文案合规');
   ok(!r.text.includes('/me/cloud/daily') && !r.text.includes('/me/cloud/redeem') && !/返积分|直推|推三|云粉/.test(r.text), '云商卡页:无每日返积分/兑换/推荐奖励');
   ok((await cg.get('/me/cloud-fans')).loc === '/me/invite' && (await cg.get('/me/referral')).loc === '/me/invite', '旧云粉/分销入口跳转到我的邀请');
-  r = await cg.get('/me/invite'); ok(r.status === 200 && r.text.includes('我的邀请') && r.text.includes('首个订单确认收货') && r.text.includes('注册本身不产生任何奖励') && !/佣金|分销|云粉|分享后|邀请满/.test(r.text), '我的邀请页:单级、首单后奖励、无分销文案');
+  r = await cg.get('/me/invite'); ok(r.status === 200 && r.text.includes('我的邀请') && r.text.includes('首个实际支付商品订单确认收货') && r.text.includes('好友注册不会给邀请人发放奖励') && !/佣金|分销|云粉|分享后|邀请满/.test(r.text), '我的邀请页:单级、首单后奖励、无分销文案');
   r = await cg.get('/me'); ok(r.text.includes('我的推广') && r.text.includes('href="/me/invite"') && !r.text.includes('我的云粉') && !r.text.includes('积分兑换申请'), '会员中心菜单:我的推广(→ /me/invite)');
   ok((await cg.post('/me/cloud/daily')).status === 404 && (await cg.post('/me/referral/settle')).status === 404, '每日返积分/佣金结算接口已移除');
   r = await cg.get('/points-rules'); ok(r.status === 200 && !r.text.includes('积分 = ¥1') && r.text.includes('不可购买') && !r.text.includes('{{'), '积分规则页(获取/使用/有效期,数值来自配置;无折现比例)');
@@ -209,7 +209,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await cg.post('/checkout', { sku_id: (await cg.get('/product/9')).text.match(/\{"id":(\d+),"attrs"/)[1], qty: 1 }); ok(r.text.includes('云商卡会员包邮'), '云商卡会员结算包邮');
   // 后台:邀请管理 / 云商卡开通(线下销售登记)
   r = await adm.get('/admin/invites'); ok(r.status === 200 && r.text.includes('邀请人奖励积分') && r.text.includes('观察期'), '后台邀请管理');
-  r = await adm.post('/admin/invites/settings', { invite_points: '100', invite_window_days: '3', invite_coupon_id: '' }); r = await adm.get('/admin/invites'); ok(r.text.includes('观察期需为'), '观察期不得短于 7 天');
+  r = await adm.post('/admin/invites/settings', { invite_points: '288', invite_window_days: '3', invite_coupon_id: '' }); r = await adm.get('/admin/invites'); ok(r.text.includes('观察期需为'), '观察期不得短于 7 天');
   const act = new Client(); const aphone = '136' + String(Date.now()).slice(-8);
   await act.get('/register'); r = await act.post('/register', { phone: aphone, password: 'abc12345', password2: 'abc12345', nickname: '邀测', agree: '1', ref: '100001' });
   ok(r.status === 302, '被邀请人注册');
