@@ -1,0 +1,13 @@
+<div class="card"><h3><%= p.id?'编辑':'添加' %>云商专区商品</h3><p class="muted">专区独立售价，不叠加普通商城的折扣、优惠券或积分抵扣；运费按模板计算。普通商城不会展示本商品。商品内容还须人工核实合规。</p>
+<form method="post" action="/admin/cloud-zone-products/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id||'' %>">
+<div class="form-row"><label>商品名称</label><input name="name" maxlength="120" value="<%= p.name||'' %>" required></div>
+<div class="form-row"><label>商品分类</label><select name="category_id" required><option value="">请选择</option><% cats.forEach(c=>{ %><option value="<%= c.id %>" <%= +p.category_id===c.id?'selected':'' %>><%= c.parent_name %> / <%= c.name %></option><% }) %></select></div>
+<div class="form-row"><label>专区售价（元）</label><input name="price" type="number" min="0.01" max="20000" step="0.01" value="<%= p.price %>" required></div>
+<div class="form-row"><label>库存</label><input name="stock" type="number" min="0" max="1000000" step="1" value="<%= p.stock %>" required></div>
+<div class="form-row"><label>运费模板</label><select name="template_id" required><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= +p.template_id===t.id?'selected':'' %>><%= t.name %></option><% }) %></select></div>
+<div class="form-row"><label>商品图片</label><input type="file" name="image_files" accept="image/*"><input name="image_url" value="<%= U.firstImg(p.images)==U.PLACEHOLDER?'':(U.jsonArr(p.images)[0]||'') %>" placeholder="或填写HTTPS图片地址"></div>
+<div class="form-row"><label>商品详情（纯文字）</label><textarea name="description" rows="8" maxlength="10000"><%= p.description||'' %></textarea></div>
+<div class="form-row"><label>七天无理由</label><select name="no_reason_return"><option value="1" <%= p.no_reason_return!==0?'selected':'' %>>支持</option><option value="0" <%= p.no_reason_return===0?'selected':'' %>>依法适用不支持（请核实商品类别）</option></select></div>
+<div class="form-row"><label>排序</label><input name="sort" type="number" value="<%= p.sort||0 %>"></div>
+<div class="form-row"><label>状态</label><select name="status"><option value="0" <%= !p.status?'selected':'' %>>下架</option><option value="1" <%= p.status?'selected':'' %>>上架</option></select></div>
+<button class="btn primary">保存专区商品</button> <a class="btn" href="/admin/cloud-zone-products">返回专区商品</a></form></div>

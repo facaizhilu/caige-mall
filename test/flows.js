@@ -382,7 +382,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
     r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && !r.text.includes('加赠') && !r.text.includes('{{'), '积分规则:评价积分与签到新规则');
-    r = await c1.get('/me/cloud'); ok2(r.text.includes('37、39、41') && r.text.includes('最高每天 55 积分') && !r.text.includes('每月最多') && !r.text.includes('加赠'), '云商卡页:签到积分说明');
+    r = await c1.get('/me/cloud'); ok2(r.text.includes('体验云商专区') && r.text.includes('cz-sheet') && !r.text.includes('最高每天') && !r.text.includes('加赠'), '新版云商卡页仅展示卡面和安全入口;签到规则服务测试单独保留');
     r = await c1.get('/me/points'); ok2(r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && r.text.includes('12、13、14'), '签到页:封顶说明');
     r = await c1.get('/privacy'); ok2(r.text.includes('我的 - 设置 - 账号与安全 - 注销账号'), '隐私政策:注销路径');
     // A1:性别不再保存

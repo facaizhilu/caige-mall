@@ -15,18 +15,42 @@ module.exports = function (app, { filesOf }) {
   };
   const wantsJson = req => req.headers.accept && req.headers.accept.includes('application/json');
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').startsWith(req.protocol + '://' + req.get('host')) ? req.get('referer') : fb);
-  const prodCard = 'SELECT p.*, b.name brand_name FROM products p LEFT JOIN brands b ON b.id=p.brand_id';
+  const prodCard = 'SELECT p.*, b.name brand_name FROM catalog_products p LEFT JOIN brands b ON b.id=p.brand_id';
   const withImg = rows => rows.map(r => ({ ...r, img: U.firstImg(r.images) }));
   const catIds = cid => { const subs = db.all('SELECT id FROM categories WHERE parent_id=?', cid).map(r => r.id); return [cid, ...subs]; };
+  const Z=require('../lib/cloud-zone');
+  const requireZone=(req,res,next)=>{
+    if(Z.allowed(req.user.id,req.session.cloudZoneGate))return next();
+    delete req.session.cloudZoneGate;
+    req.session.zoneEntryError=Z.eligible(Z.member(req.user.id))?'请从此处输入本人手机号验证进入云商专区':Z.DENIED;
+    if(wantsJson(req))return res.status(403).json({ok:false,msg:req.session.zoneEntryError});
+    res.redirect('/me/cloud#cloud-zone-entry');
+  };
+  app.post('/cloud-zone/enter',needLogin,(req,res)=>{
+    delete req.session.cloudZoneGate;
+    const r=Z.enter(req.user.id,String(req.body.phone||'').trim());
+    if(!r.ok){req.session.zoneEntryError=r.msg;return req.session.save(()=>res.redirect('/me/cloud#cloud-zone-entry'));}
+    req.session.cloudZoneGate=r.gate;req.session.save(()=>res.redirect('/cloud-zone'));
+  });
+  app.get('/cloud-zone',needLogin,requireZone,(req,res)=>{
+    const pg=U.paginate('SELECT * FROM products WHERE cloud_zone=1 AND status=1 ORDER BY sort DESC,id DESC',[],req.query.page,12);
+    res.page('shop/cloud-zone',{title:'云商专区',pg});
+  });
+  app.get('/cloud-zone/product/:id',needLogin,requireZone,(req,res)=>{
+    const p=db.get('SELECT * FROM products WHERE id=? AND cloud_zone=1 AND status=1',int(req.params.id));
+    if(!p)return res.status(404).page('shop/error',{title:'商品不存在',code:404,message:'该商品不存在或已下架'});
+    const skus=db.all('SELECT * FROM skus WHERE product_id=? ORDER BY id',p.id);
+    res.page('shop/cloud-zone-product',{title:p.name,p,skus,noReason:svc.noReasonOf(p.id)});
+  });
 
   // ---------------- 首页 ----------------
   app.get('/', (req, res) => {
     // 首页「朱漆金韵」:仅入口与专区;横幅只写真实存在的权益(注册积分 / 新人券)
     const regPts = int(svc.settings().register_points);
     const newbieCoupon = !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
-    const gbOn = !!db.get('SELECT 1 FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1 LIMIT 1'); // 仅用于显示:无进行中拼团时首页隐藏「拼团」入口
+    const gbOn = !!db.get('SELECT 1 FROM groupbuys g JOIN catalog_products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1 LIMIT 1'); // 仅用于显示:无进行中拼团时首页隐藏「拼团」入口
     // 好物精选:仅在售商品(下架/待审/禁售/供应商自动下架不显示);按后台推荐排序(置顶、权重)再按上架时间;不做个性化,不显示销量
-    const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
+    const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
     // 轮播横幅:后台「Banner 管理」中启用的条目,按排序;链接仅允许站内相对路径(旧数据中的外链不输出 href),颜色不合法时回退默认
     const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
     const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 8')
@@ -55,7 +79,7 @@ module.exports = function (app, { filesOf }) {
     pg.rows = withImg(pg.rows);
     let subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
     // 供应商 live 演示:不显示没有在售商品的子分类(如下架演示占位商品后为空的分类)
-    if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM products WHERE category_id=? AND status=1 LIMIT 1', c.id));
+    if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM catalog_products WHERE category_id=? AND status=1 LIMIT 1', c.id));
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');
     res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
   });
@@ -109,19 +133,19 @@ module.exports = function (app, { filesOf }) {
     const pid = int(req.params.id);
     const has = db.get('SELECT 1 FROM favorites WHERE user_id=? AND product_id=?', req.user.id, pid);
     if (has) db.exec1('DELETE FROM favorites WHERE user_id=? AND product_id=?', req.user.id, pid);
-    else if (db.get('SELECT 1 FROM products WHERE id=?', pid)) db.exec1('INSERT INTO favorites VALUES(?,?,?)', req.user.id, pid, now());
+    else if (db.get('SELECT 1 FROM catalog_products WHERE id=?', pid)) db.exec1('INSERT INTO favorites VALUES(?,?,?)', req.user.id, pid, now());
     if (wantsJson(req)) return res.json({ ok: true, faved: !has });
     back(req, res, '/me/favorites');
   });
 
   // ---------------- 购物车 ----------------
   app.get('/cart', needLogin, (req, res) => {
-    const items = db.all(`SELECT c.id, c.qty, s.id sku_id, s.spec_text, s.price, s.stock, p.id pid, p.name, p.images, p.status FROM cart c JOIN skus s ON s.id=c.sku_id JOIN products p ON p.id=s.product_id WHERE c.user_id=? ORDER BY c.id DESC`, req.user.id).map(i => ({ ...i, img: U.firstImg(i.images), ok: i.status && i.stock > 0 }));
+    const items = db.all(`SELECT c.id, c.qty, s.id sku_id, s.spec_text, s.price, s.stock, p.id pid, p.name, p.images, p.status FROM cart c JOIN skus s ON s.id=c.sku_id JOIN catalog_products p ON p.id=s.product_id WHERE c.user_id=? ORDER BY c.id DESC`, req.user.id).map(i => ({ ...i, img: U.firstImg(i.images), ok: i.status && i.stock > 0 }));
     res.page('shop/cart', { title: '购物车', items });
   });
   app.post('/cart/add', needLogin, (req, res) => {
     const skuId = int(req.body.sku_id), qty = Math.max(1, int(req.body.qty, 1));
-    const sku = db.get('SELECT s.*, p.status FROM skus s JOIN products p ON p.id=s.product_id WHERE s.id=?', skuId);
+    const sku = db.get('SELECT s.*, p.status FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.id=?', skuId);
     const fail = m => wantsJson(req) ? res.json({ ok: false, msg: m }) : (flash(req, 'error', m), back(req, res, '/cart'));
     if (!sku || !sku.status) return fail('商品不存在或已下架');
     if (!svc.noReasonOf(sku.product_id) && req.body.no7_ok !== '1') return wantsJson(req) ? res.json({ ok: false, no7: true, msg: '本商品不支持7天无理由退货,请确认知晓后再加入购物车' }) : fail('本商品不支持7天无理由退货,请勾选「我已知晓」后再加入购物车');
@@ -129,7 +153,7 @@ module.exports = function (app, { filesOf }) {
     const nq = (cur ? cur.qty : 0) + qty;
     if (nq > sku.stock) return fail(`库存不足,当前库存 ${sku.stock} 件`);
     db.exec1('INSERT INTO cart(user_id,sku_id,qty,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id,sku_id) DO UPDATE SET qty=?', req.user.id, skuId, qty, now(), nq);
-    const count = db.get('SELECT COALESCE(SUM(c.qty),0) n FROM cart c JOIN skus s ON s.id=c.sku_id JOIN products p ON p.id=s.product_id WHERE c.user_id=?', req.user.id).n;
+    const count = db.get('SELECT COALESCE(SUM(c.qty),0) n FROM cart c JOIN skus s ON s.id=c.sku_id JOIN catalog_products p ON p.id=s.product_id WHERE c.user_id=?', req.user.id).n;
     if (wantsJson(req)) return res.json({ ok: true, count, msg: '已加入购物车' });
     flash(req, 'success', '已加入购物车'); back(req, res, '/cart');
   });
@@ -175,11 +199,11 @@ module.exports = function (app, { filesOf }) {
     if (!items.length) { flash(req, 'error', '请先选择要结算的商品'); return res.redirect('/cart'); }
     const addrs = myAddrs(req.user.id);
     const a0 = addrs[0];
-    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a0 });
+    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a0,cloudZoneGate:req.session.cloudZoneGate });
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
     // 立即购买/参团:不支持7天无理由的商品须在商品页勾选「我已知晓」(服务端校验,购物车加购时已校验)
-    if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, '/cart'); }
-    const coupons = promo ? [] : svc.userCoupons(req.user.id, 'unused').map(c => {
+    if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, q.isCloudZone?'/cloud-zone/product/'+q.lines[0].product_id:'/cart'); }
+    const coupons = promo || q.isCloudZone ? [] : svc.userCoupons(req.user.id, 'unused').map(c => {
       const fit = svc.couponFit(c, q.lines, q.goods);
       return { ...c, ineligible: !fit.ok, why: fit.why };
     }).filter(c => !c.ineligible || (c.category_id && c.ineligible)); // 可用券 + 分类不符的券(禁用并注明原因);纯门槛不足的不展示
@@ -190,7 +214,7 @@ module.exports = function (app, { filesOf }) {
     const { items, promo } = parseCheckout(req);
     const b = req.body;
     const a = db.get('SELECT * FROM addresses WHERE id=? AND user_id=?', int(b.address_id), req.user.id) || (b.province ? { province: b.province, city: b.city, district: b.district, detail: String(b.detail || '').slice(0, 100) } : null);
-    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a, couponId: int(b.coupon_id), usePoints: int(b.use_points) });
+    const { q, sup } = await supplierQuote(req.user.id, { items, promo, address: a,cloudZoneGate:req.session.cloudZoneGate, couponId: int(b.coupon_id), usePoints: int(b.use_points) });
     if (q.error) return res.json({ ok: false, msg: q.error });
     res.json({ ok: true, goods: q.goods, freight: q.freight, levelDiscount: q.levelDiscount, couponDiscount: q.couponDiscount, couponNote: q.couponNote || '', pointsDiscount: q.pointsDiscount, pointsUsed: q.pointsUsed, pay: q.pay, maxPoints: q.maxPoints, supplierErrors: sup ? (sup.errors || []) : [] });
   }));
@@ -213,7 +237,7 @@ module.exports = function (app, { filesOf }) {
       const has = db.get('SELECT COUNT(*) n FROM addresses WHERE user_id=?', req.user.id).n;
       db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,?)', req.user.id, addr.name, addr.phone, addr.province, addr.city, addr.district, addr.detail, has ? 0 : 1);
     }
-    const base = { items, promo, address: addr, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' };
+    const base = { items, promo, address: addr,cloudZoneGate:req.session.cloudZoneGate, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' };
     const pre = svc.quote(req.user.id, base);
     if (!pre.error && pre.hasSupplier) {
       const sup = await jdvop.checkout(pre.lines, addr);
@@ -274,12 +298,13 @@ module.exports = function (app, { filesOf }) {
     const o = myOrder(req, req.params.id);
     if (!o) return res.redirect('/orders');
     if (o.status !== 'unpaid') return res.redirect('/order/' + o.id);
+    if(o.cloud_zone&&!Z.allowed(req.user.id,req.session.cloudZoneGate))return requireZone(req,res,()=>{});
     res.page('shop/pay', { title: '收银台(模拟)', o });
   });
   app.post('/order/:id/pay', needLogin, (req, res) => {
     // 前台仅支持模拟微信/支付宝支付,余额支付已下线
     if (!['wechat', 'alipay'].includes(req.body.method)) { flash(req, 'error', '请选择微信支付或支付宝(模拟)'); return res.redirect('/order/' + int(req.params.id) + '/pay'); }
-    const r = svc.payOrder(int(req.params.id), req.user.id, req.body.method);
+    const r = svc.payOrder(int(req.params.id), req.user.id, req.body.method,{cloudZoneGate:req.session.cloudZoneGate});
     if (!r.ok) { flash(req, 'error', r.msg); return res.redirect('/order/' + int(req.params.id) + '/pay'); }
     flash(req, 'success', '支付成功(模拟支付,未产生真实扣款)'); res.redirect('/order/' + int(req.params.id) + '?paid=1');
   });
@@ -293,8 +318,9 @@ module.exports = function (app, { filesOf }) {
   });
   app.post('/order/:id/rebuy', needLogin, (req, res) => {
     const o = myOrder(req, req.params.id); if (!o) return res.redirect('/orders');
+    if(o.cloud_zone){delete req.session.cloudZoneGate;req.session.zoneEntryError='请从此处输入本人手机号验证进入云商专区';return res.redirect('/me/cloud#cloud-zone-entry');}
     for (const it of db.all('SELECT * FROM order_items WHERE order_id=? AND sku_id IS NOT NULL', o.id)) {
-      const s = db.get('SELECT s.stock FROM skus s JOIN products p ON p.id=s.product_id WHERE s.id=? AND p.status=1', it.sku_id);
+      const s = db.get('SELECT s.stock FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.id=? AND p.status=1', it.sku_id);
       if (s && s.stock > 0) db.exec1('INSERT INTO cart(user_id,sku_id,qty,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id,sku_id) DO UPDATE SET qty=MIN(qty+?,?)', req.user.id, it.sku_id, 1, now(), 1, s.stock);
     }
     res.redirect('/cart');
@@ -341,7 +367,7 @@ module.exports = function (app, { filesOf }) {
     res.redirect('/me/reviews');
   });
   app.get('/me/reviews', needLogin, (req, res) => {
-    const rows = db.all('SELECT r.*, p.name pname, p.images pimages FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.user_id=? ORDER BY r.id DESC', req.user.id).map(r => ({ ...r, pimg: U.firstImg(r.pimages) }));
+    const rows = db.all('SELECT r.*, p.name pname, p.images pimages,p.cloud_zone FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.user_id=? ORDER BY r.id DESC', req.user.id).map(r => ({ ...r, pimg: U.firstImg(r.pimages) }));
     res.page('shop/me-reviews', { title: '我的评价', rows });
   });
 
@@ -467,7 +493,7 @@ module.exports = function (app, { filesOf }) {
   // ---------------- 会员中心 ----------------
   app.get('/me', (req, res) => {
     // 「我的」底部推荐商品:与首页好物精选同一口径(仅在售、按后台推荐排序,不做个性化)
-    const recs = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 6"));
+    const recs = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 6"));
     if (!req.user) return res.page('shop/me', { title: '我的', guest: true, recs }); // 未登录:顶部卡片显示登录/注册
     const u = req.user;
     const cnt = {}; for (const r of db.all('SELECT status, COUNT(*) n FROM orders WHERE user_id=? GROUP BY status', u.id)) cnt[r.status] = r.n;
@@ -527,7 +553,7 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/me-favorites', { title: '我的收藏', rows });
   });
   app.get('/me/history', needLogin, (req, res) => {
-    const rows = withImg(db.all(`SELECT p.*, h.viewed_at FROM history h JOIN products p ON p.id=h.product_id WHERE h.user_id=? ORDER BY h.viewed_at DESC LIMIT 60`, req.user.id));
+    const rows = withImg(db.all(`SELECT p.*, h.viewed_at FROM history h JOIN catalog_products p ON p.id=h.product_id WHERE h.user_id=? ORDER BY h.viewed_at DESC LIMIT 60`, req.user.id));
     res.page('shop/me-history', { title: '浏览记录', rows });
   });
   app.post('/me/history/clear', needLogin, (req, res) => { db.exec1('DELETE FROM history WHERE user_id=?', req.user.id); flash(req, 'success', '浏览记录已清空'); res.redirect('/me/history'); });
@@ -583,7 +609,7 @@ module.exports = function (app, { filesOf }) {
       const ptsNow = db.get('SELECT points FROM users WHERE id=?', uid).points;
       // 账号本身:去标识化,保留 id 以便订单等法定留存记录匿名关联
       db.exec1(`UPDATE users SET phone=?, password_hash=?, nickname='已注销用户', gender='保密', invite_code=NULL, referrer_id=NULL, points=0, growth=0, level_id=1, admin_remark=NULL, remark=NULL,
-        signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
+        cloud_zone_enabled=0,cloud_zone_version=cloud_zone_version+1,signin_streak=0, last_signin=NULL, cloud_tier='', cloud_start=NULL, cloud_end=NULL, cloud_card_type_id=0, status=0, cancelled_at=? WHERE id=?`, 'del_' + uid + '_' + Date.now(), bcrypt.hashSync(require('crypto').randomBytes(16).toString('hex'), 4), t, uid);
       db.exec1('UPDATE users SET referrer_id=NULL WHERE referrer_id=?', uid); // 解除邀请关系
       db.exec1("UPDATE invite_rewards SET status='cancelled', note='账号注销' WHERE (referrer_id=? OR invitee_id=?) AND status='pending'", uid, uid);
       for (const tb of ['addresses', 'favorites', 'history', 'cart', 'messages', 'signins', 'point_lots']) db.exec1(`DELETE FROM ${tb} WHERE user_id=?`, uid);
@@ -661,7 +687,8 @@ module.exports = function (app, { filesOf }) {
     const status = cloud.cardStatus(req.user);
     const types = db.all('SELECT * FROM cloud_card_types WHERE status=1 ORDER BY sort, id')
       .map(t => ({ ...t, tierLabel: cloud.TIER_LABEL[t.tier] || t.tier, durationLabel: cloud.DURATION_LABEL[t.duration] || t.duration }));
-    res.page('shop/me-cloud', { title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), range: cloud.rangeText(), sg: svc.signinCfg(), sgCloudSeries: svc.signinSeries(true), card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
+    const zoneEntryError=req.session.zoneEntryError||'';delete req.session.zoneEntryError;
+    res.page('shop/me-cloud', { zoneEntryError, title: '云商卡 · 会员权益', status, types, c: cloud.cfg(), range: cloud.rangeText(), sg: svc.signinCfg(), sgCloudSeries: svc.signinSeries(true), card: req.user.cloud_card_type_id ? db.get('SELECT * FROM cloud_card_types WHERE id=?', req.user.cloud_card_type_id) : null });
   });
 
   // ---------------- 积分商城 ----------------
@@ -687,19 +714,20 @@ module.exports = function (app, { filesOf }) {
   app.get(['/seckill', '/seckill/'], (req, res) => res.redirect(301, '/activity' + (req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '')));
   app.get('/activity', (req, res) => {
     const t = now();
-    const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
+    const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN catalog_products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
     res.page('shop/activity', { title: '活动专区', rows });
   });
   app.get('/groupbuy', (req, res) => {
-    const rows = withImg(db.all('SELECT g.*, p.name, p.images, p.market_price, p.subtitle FROM groupbuys g JOIN products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1'));
-    const open = db.all(`SELECT g.*, u.nickname, p.name pname, gb.price FROM groups g JOIN users u ON u.id=g.leader_id JOIN groupbuys gb ON gb.id=g.groupbuy_id JOIN products p ON p.id=gb.product_id WHERE g.status='open' AND g.expire_at>? ORDER BY g.expire_at LIMIT 8`, now());
+    const rows = withImg(db.all('SELECT g.*, p.name, p.images, p.market_price, p.subtitle FROM groupbuys g JOIN catalog_products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1'));
+    const open = db.all(`SELECT g.*, u.nickname, p.name pname, gb.price FROM groups g JOIN users u ON u.id=g.leader_id JOIN groupbuys gb ON gb.id=g.groupbuy_id JOIN catalog_products p ON p.id=gb.product_id WHERE g.status='open' AND g.expire_at>? ORDER BY g.expire_at LIMIT 8`, now());
     res.page('shop/groupbuy', { title: '拼团专区', rows, open });
   });
   app.get('/group/:id', (req, res) => {
     const g = db.get('SELECT g.*, u.nickname FROM groups g JOIN users u ON u.id=g.leader_id WHERE g.id=?', int(req.params.id));
     if (!g) return res.status(404).page('shop/error', { title: '拼团不存在', code: 404, message: '该团不存在' });
     const gb = db.get('SELECT * FROM groupbuys WHERE id=?', g.groupbuy_id);
-    const p = db.get('SELECT * FROM products WHERE id=?', gb.product_id);
+    const p = gb&&db.get('SELECT * FROM catalog_products WHERE id=?', gb.product_id);
+    if(!p||!p.status)return res.status(404).page('shop/error',{title:'拼团不存在',code:404,message:'该团不存在或商品已下架'});
     const members = db.all('SELECT u.nickname FROM group_members m JOIN users u ON u.id=m.user_id WHERE m.group_id=?', g.id);
     res.page('shop/group', { title: '参与拼团', g, gb, p, img: U.firstImg(p.images), members, isMember: !!(req.user && db.get('SELECT 1 FROM group_members WHERE group_id=? AND user_id=?', g.id, req.user.id)), expired: g.expire_at < now(), noReason: svc.noReasonOf(p.id) });
   });

@@ -479,7 +479,7 @@ app.use((req, res, next) => {
     const u = db.get('SELECT u.*, l.name level_name, l.color level_color, l.discount level_discount FROM users u LEFT JOIN member_levels l ON l.id=u.level_id WHERE u.id=?', req.session.uid);
     if (!u || !u.status) { req.session.uid = null; } else {
       res.locals.user = u; req.user = u;
-      res.locals.cartCount = db.get('SELECT COALESCE(SUM(c.qty),0) n FROM cart c JOIN skus s ON s.id=c.sku_id JOIN products p ON p.id=s.product_id WHERE c.user_id=?', u.id).n; // 与购物车页同一口径(忽略已失效 SKU 的孤儿行),全站唯一来源
+      res.locals.cartCount = db.get('SELECT COALESCE(SUM(c.qty),0) n FROM cart c JOIN skus s ON s.id=c.sku_id JOIN catalog_products p ON p.id=s.product_id WHERE c.user_id=?', u.id).n; // 与购物车页同一口径(忽略已失效 SKU 的孤儿行),全站唯一来源
       // 未同意当前版本《用户协议》《隐私政策》的老用户:先完成一次性确认
       if (u.consent_version !== (svc.S('policy_version') || '1.1') && !/^\/(consent|privacy|terms|logout)(\/|$|\?)/.test(req.path)) {
         if (req.method === 'GET') return res.redirect('/consent?next=' + encodeURIComponent(req.originalUrl));

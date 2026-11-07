@@ -33,7 +33,7 @@ module.exports = function (r, { filesOf }) {
   };
   const ctx = { need, flash, log, filesOf };
   // 页面内跨模块链接(如会员详情→订单、客服→会员):当前角色无该模块权限时去掉 href,避免点进 403 页面(菜单已按权限过滤)
-  const PERM_OF = [[/^\/admin\/(orders|members|points-log)\/export|^\/admin\/export\//, 'stats'], [/^\/admin\/jdvop\/settings/, 'system'], [/^\/admin\/jdvop\/(logs|reconcile)/, 'stats'], [/^\/admin\/(products|categories|brands|shipping|banned-words|inventory|jdvop)(\/|$|\?)/, 'product'], [/^\/admin\/(orders|aftersales|invoices)(\/|$|\?|#)/, 'order'], [/^\/admin\/reviews/, 'review'], [/^\/admin\/(members|points-log|levels|invites|cloud-)/, 'member'], [/^\/admin\/service/, 'service'], [/^\/admin\/(coupons|seckills|groupbuys|groups|points-goods|banners|keywords)/, 'marketing'], [/^\/admin\/(notices|help-articles|pages|policies)/, 'content'], [/^\/admin\/stats/, 'stats'], [/^\/admin\/(settings|admins|roles|logs)(\/|$|\?)/, 'system']];
+  const PERM_OF = [[/^\/admin\/cloud-zone-products/,'product'],[/^\/admin\/(orders|members|points-log)\/export|^\/admin\/export\//, 'stats'], [/^\/admin\/jdvop\/settings/, 'system'], [/^\/admin\/jdvop\/(logs|reconcile)/, 'stats'], [/^\/admin\/(products|categories|brands|shipping|banned-words|inventory|jdvop)(\/|$|\?)/, 'product'], [/^\/admin\/(orders|aftersales|invoices)(\/|$|\?|#)/, 'order'], [/^\/admin\/reviews/, 'review'], [/^\/admin\/(members|points-log|levels|invites|cloud-)/, 'member'], [/^\/admin\/service/, 'service'], [/^\/admin\/(coupons|seckills|groupbuys|groups|points-goods|banners|keywords)/, 'marketing'], [/^\/admin\/(notices|help-articles|pages|policies)/, 'content'], [/^\/admin\/stats/, 'stats'], [/^\/admin\/(settings|admins|roles|logs)(\/|$|\?)/, 'system']];
   r.use((req, res, next) => {
     const a = req.session.admin; if (!a || a.perms === 'all') return next();
     const send = res.send.bind(res);
@@ -45,8 +45,9 @@ module.exports = function (r, { filesOf }) {
   });
   const back = (req, res, fb) => res.redirect(req.get('referer') && req.get('referer').includes('/admin') ? req.get('referer') : fb);
   const sendCSV = (res, name, header, rows) => { res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}-${U.today()}.csv`); res.send(U.toCSV(header, rows)); };
-  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n, supAlerts: db.get('SELECT COUNT(*) n FROM supplier_alerts WHERE resolved=0').n }; } next(); });
+  r.use((req, res, next) => { res.locals.can = p => can(req.session.admin, p); res.locals.warnCount = 0; res.locals.COMPANIES = COMPANIES; res.locals.cur = req.path; if (req.session.admin) { res.locals.warnCount = db.get('SELECT COUNT(*) n FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1', int(svc.S('stock_warn'), 10)).n; res.locals.pending = { orders: db.get("SELECT COUNT(*) n FROM orders WHERE status='paid' AND type!='group' OR (status='paid' AND type='group' AND group_id IN (SELECT id FROM groups WHERE status='success'))").n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE status IN ('pending','returned')").n, reviews: db.get("SELECT COUNT(*) n FROM reviews WHERE status='pending'").n, msgs: db.get("SELECT COUNT(DISTINCT user_id) n FROM messages WHERE sender='user' AND user_id NOT IN (SELECT user_id FROM messages m2 WHERE m2.sender='staff' AND m2.id > (SELECT MAX(id) FROM messages m3 WHERE m3.sender='user' AND m3.user_id=messages.user_id))").n, invoices: db.get("SELECT COUNT(*) n FROM invoices WHERE status='pending'").n, supAlerts: db.get('SELECT COUNT(*) n FROM supplier_alerts WHERE resolved=0').n }; } next(); });
 
+  require('./admin-cloud-zone')(r,ctx);
   // ================= 登录 =================
   const fails = new Map();
   r.get('/login', (req, res) => req.session.admin ? res.redirect('/admin') : res.page('admin/login', { title: '管理员登录', layoutless: true }));
@@ -92,7 +93,7 @@ module.exports = function (r, { filesOf }) {
     const status = Object.keys(U.ORDER_STATUS).map(k => ({ label: U.ORDER_STATUS[k], value: db.get('SELECT COUNT(*) n FROM orders WHERE status=?', k).n }));
     const top = db.all("SELECT oi.name label, SUM(oi.qty) value FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.status NOT IN ('cancelled','unpaid','refunded') GROUP BY oi.name ORDER BY value DESC LIMIT 5");
     const recent = db.all('SELECT o.*, u.nickname FROM orders o JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT 8');
-    const warns = db.all('SELECT p.name, s.spec_text, s.stock, p.id pid FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1 ORDER BY s.stock LIMIT 5', int(svc.S('stock_warn'), 10));
+    const warns = db.all('SELECT p.name, s.spec_text, s.stock, p.id pid FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.stock<=? AND p.status=1 ORDER BY s.stock LIMIT 5', int(svc.S('stock_warn'), 10));
     res.page('admin/dashboard', { title: '数据概览', stats, trend, statusChart: chart.donut(status), topChart: chart.hbar(top, { unit: '件' }), recent, warns });
   });
 
@@ -100,6 +101,14 @@ module.exports = function (r, { filesOf }) {
   // 经营范围提示(自营商品不自动处理,只在新增/编辑时提示;复用供应商类目允许/禁售清单)
   const scopeWarnOf = (name, pname) => { const w = jdvop.compliance.scopeWarning([pname, name].filter(Boolean)); return w ? w.msg : ''; };
   const scopeWarnCat = id => { const c = db.get('SELECT c.name, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.id=?', int(id)); return c ? scopeWarnOf(c.name, c.pname) : ''; };
+  r.use('/products',need('product'),(req,res,next)=>{
+    const id=U.int(req.params.id||req.body.id||((req.path.match(/^\/(\d+)/)||[])[1]));
+    const batchIds=String(req.body.ids||'').split(',').map(U.int).filter(Boolean);
+    const sid=U.int(req.body.sku_id);if(sid&&db.get('SELECT 1 FROM skus s JOIN products p ON p.id=s.product_id WHERE s.id=? AND p.cloud_zone=1',sid))return res.status(403).send('请在云商专区商品管理中操作');
+    if(batchIds.some(x=>db.get('SELECT 1 FROM products WHERE id=? AND cloud_zone=1',x)))return res.status(403).send('请在云商专区商品管理中操作');
+    if(id&&db.get('SELECT 1 FROM products WHERE id=? AND cloud_zone=1',id))return res.status(403).send('请在云商专区商品管理中操作');
+    next();
+  });
   const catOptions = () => db.all('SELECT c.*, p.name pname FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.status>=0 ORDER BY COALESCE(p.sort,c.sort), c.parent_id, c.sort').map(c => ({ v: c.id, t: (c.parent_id ? '　└ ' : '') + c.name, parent: c.parent_id, scope: c.parent_id ? scopeWarnOf(c.name, c.pname) : '' }));
   r.get('/products', need('product'), (req, res) => {
     const { q = '', cat = '', status = '', stock = '' } = req.query;
@@ -108,7 +117,7 @@ module.exports = function (r, { filesOf }) {
     if (cat) { const ids = [int(cat), ...db.all('SELECT id FROM categories WHERE parent_id=?', int(cat)).map(x => x.id)]; where.push(`p.category_id IN (${ids.join(',')})`); }
     if (status !== '') { where.push('p.status=?'); params.push(int(status)); }
     if (stock === 'low') { where.push(`p.id IN (SELECT product_id FROM skus WHERE stock<=${int(svc.S('stock_warn'), 10)})`); }
-    const pg = U.paginate(`SELECT p.*, c.name cname, b.name bname FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id WHERE ${where.join(' AND ')} ORDER BY p.id DESC`, params, req.query.page, 15);
+    const pg = U.paginate(`SELECT p.*, c.name cname, b.name bname FROM catalog_products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id WHERE ${where.join(' AND ')} ORDER BY p.id DESC`, params, req.query.page, 15);
     pg.rows.forEach(p => { p.img = U.firstImg(p.images); p.skuCount = db.get('SELECT COUNT(*) n FROM skus WHERE product_id=?', p.id).n; p.minStock = db.get('SELECT MIN(stock) n FROM skus WHERE product_id=?', p.id).n; });
     res.page('admin/products', { title: '商品管理', pg, q, cat, status, stock, cats: catOptions() });
   });
@@ -256,7 +265,7 @@ module.exports = function (r, { filesOf }) {
   });
   r.get('/inventory', need('product'), (req, res) => {
     const th = int(svc.S('stock_warn'), 10);
-    const rows = db.all('SELECT s.*, p.name, p.id pid, p.status FROM skus s JOIN products p ON p.id=s.product_id WHERE s.stock<=? ORDER BY s.stock, p.id', th);
+    const rows = db.all('SELECT s.*, p.name, p.id pid, p.status FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.stock<=? ORDER BY s.stock, p.id', th);
     res.page('admin/inventory', { title: '库存预警', rows, th });
   });
   r.get('/export/products', need('stats'), (req, res) => void log(req, '导出商品库存CSV', '') || sendCSV(res, '商品库存', ['商品ID', '商品名称', '分类', '品牌', '规格', '编码', '价格', '库存', '销量', '状态'], db.all('SELECT p.id,p.name,c.name cn,b.name bn,s.spec_text,s.code,s.price,s.stock,p.sales,p.status FROM skus s JOIN products p ON p.id=s.product_id LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id ORDER BY p.id,s.id').map(x => [x.id, x.name, x.cn, x.bn, x.spec_text, x.code, x.price, x.stock, x.sales, x.status ? '上架' : '下架'])));
@@ -588,7 +597,7 @@ module.exports = function (r, { filesOf }) {
   });
 
   // ================= 营销 =================
-  const skuOptions = () => db.all('SELECT s.id v, p.name || \' · \' || s.spec_text || \' (¥\' || s.price || \')\' t FROM skus s JOIN products p ON p.id=s.product_id WHERE p.status>=0 ORDER BY p.id, s.id');
+  const skuOptions = () => db.all('SELECT s.id v, p.name || \' · \' || s.spec_text || \' (¥\' || s.price || \')\' t FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE p.status>=0 ORDER BY p.id, s.id');
   const stBadge = x => x.status ? '<span class="tag green">启用</span>' : '<span class="tag gray">停用</span>';
   crud(r, { path: 'coupons', table: 'coupons', perm: 'marketing', title: '优惠券管理', singular: '优惠券', toggle: 'status', search: ['name'],
     cols: [{ label: 'ID', f: x => x.id }, { label: '名称', f: x => '<b>' + esc(x.name) + '</b>' }, { label: '面额', f: x => '<span class="price">' + x.amount + '</span>' }, { label: '门槛', f: x => x.threshold ? '满' + x.threshold : '无门槛' }, { label: '范围', f: x => x.category_id ? esc((db.get('SELECT name FROM categories WHERE id=?', x.category_id) || {}).name || '分类') : '全场' }, { label: '领取/总量', f: x => `${x.claimed}/${x.total}` }, { label: '有效期', f: x => x.valid_days + '天' }, { label: '状态', f: stBadge }],
@@ -630,7 +639,7 @@ module.exports = function (r, { filesOf }) {
     warn: pgScope }, ctx);
   // 商城商品(含供应商/VOP 商品)导入积分专区:参考价=商品售价,积分=参考价×全局比例(所需积分留 0 自动跟随比例)
   r.post('/points-goods/import', need('marketing'), (req, res) => {
-    const p = db.get('SELECT * FROM products WHERE id=?', int(req.body.product_id));
+    const p = db.get('SELECT * FROM catalog_products WHERE id=?', int(req.body.product_id));
     if (!p) { flash(req, 'error', '商品不存在'); return res.redirect('/admin/points-goods'); }
     const img = U.jsonArr(p.images)[0] || U.genImg('🎁', 'f59e0b', 'fde68a', 0, String(p.name).slice(0, 6));
     const nid = db.prepare("INSERT INTO points_goods(name,image,points,type,stock,status,description,sort,category_id,pay_mode,cash_price,ref_price,source_product_id) VALUES(?,?,0,'goods',?,0,?,0,?,'points',0,?,?)").run(p.name, img, Math.max(0, p.stock || 0), p.subtitle || '', p.category_id || 0, p.price || 0, p.id).lastInsertRowid;
