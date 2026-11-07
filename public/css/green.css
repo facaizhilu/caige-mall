@@ -481,3 +481,6 @@ body.g-theme.pg-pd{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 
 .as-history li.done:before{background:#b8ddc6}.as-history li.current>b{color:#2E9E5B}
 .as-address{display:flex;align-items:flex-start;gap:8px}.as-address>span{flex:1;min-width:0;white-space:pre-wrap}.as-copy{flex-shrink:0;white-space:nowrap}
+
+/* Cream original wordmark needs a dark backing; the logo itself is unchanged. */
+.original-full{background:#225b37;border-radius:12px;padding:12px;width:max-content;max-width:100%;box-sizing:border-box}.original-full img{display:block}
