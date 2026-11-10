@@ -81,8 +81,7 @@ module.exports = function (app, { filesOf }) {
     // 供应商 live 演示:不显示没有在售商品的子分类(如下架演示占位商品后为空的分类)
     if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM catalog_products WHERE category_id=? AND status=1 LIMIT 1', c.id));
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');
-    // 门店优惠卡不是商品:只在全部商品/搜索置顶,不进具体分类或品牌
-    res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 && !cat && !brand ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
+    res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
   });
 
   // ---------------- 商品详情 ----------------
