@@ -20,7 +20,7 @@ module.exports=(r,{need,flash,log,filesOf})=>{
   const p={id:old?old.id:'',name:T('name').slice(0,120),description:T('description').slice(0,10000),category_id:U.int(b.category_id),template_id:U.int(b.template_id),market_price:T('market_price'),price:T('price'),stock:T('stock'),limit_per_user:T('limit_per_user')||'1',start_at:T('start_at'),end_at:T('end_at'),on:b.on==='1'?1:0,ship_from:T('ship_from').slice(0,60),aftersale_text:T('aftersale_text').slice(0,300),image:old?old.image:''};
   const up=filesOf(req,'image_files');const iu=T('image_url');if(up.length)p.image=up[0];else if(iu)p.image=iu;
   const e={};
-  if(!p.name)e.name='请填写商品名称';else if(J.compliance.titleScope(p.name))e.name='商品名称含经营范围外商品，请核实';
+  if(!p.name)e.name='请填写商品名称';else{const ts=J.compliance.titleScope(p.name),sw=J.compliance.scopeWarning([p.name]);if(ts)e.name='商品名称含经营范围外商品「'+ts.kw+'」，不能添加';else if(sw&&sw.kw)e.name='商品名称属于经营范围外品类（'+sw.group+'：「'+sw.kw+'」），不能添加';}
   const c=cats().find(c=>c.id===p.category_id);if(!c)e.category_id='请选择商品分类';else{const sc=J.compliance.scopeWarning([c.parent_name,c.name]);if(sc)e.category_id='经营范围不符，不能添加：'+sc.msg;else if(p.name&&!e.name){const pf=J.compliance.processedFarm([c.parent_name,c.name],p.name);if(pf)e.name='加工食品（'+pf.kw.replace('加工食品:','')+'）需先办食品经营许可，不能上架';}}
   const price=U.round2(Number(p.price));if(p.price===''||!Number.isFinite(price)||price<=0||price>20000)e.price='请填写活动价（大于0且不超过20000元）';
   let mp=null;if(p.market_price!==''){mp=U.round2(Number(p.market_price));if(!Number.isFinite(mp)||mp<=0||mp>20000)e.market_price='划线价格式不正确';else if(!e.price&&mp<=price)e.market_price='划线价须高于活动价，不填则不显示';}

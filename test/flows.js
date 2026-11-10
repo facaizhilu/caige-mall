@@ -370,7 +370,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/product/' + noRv.id); ok2(r.text.includes('暂无评价') && !r.text.includes('好评率'), 'G3:无评价时显示「暂无评价」');
     // G4:秒杀未开始不把原价标为秒杀价
     const skPre = db.get("SELECT * FROM seckills WHERE start_at>? AND status=1 LIMIT 1", U2.now());
-    if (skPre) { r = await c1.get('/product/' + skPre.product_id); ok2(r.text.includes('活动价 <b style="color:var(--red)">¥' + skPre.price + '</b>') && r.text.includes('开始,每人限购') && !r.text.includes(' 活动价,每人限购') && !/秒杀|限时|倒计时|data-countdown|抢/.test(r.text), 'G4:活动未开始时显示「活动价 ¥x,开始时间」'); }
+    if (skPre) { r = await c1.get('/product/' + skPre.product_id); ok2(r.text.includes('活动价 <b style="color:var(--red)">¥' + (+skPre.price).toFixed(2) + '</b>') && r.text.includes('开始,每人限购') && !r.text.includes(' 活动价,每人限购') && !/秒杀|限时|倒计时|data-countdown|抢/.test(r.text), 'G4:活动未开始时显示「活动价 ¥x,开始时间」', (r.text.match(/sk-pre.{0,160}/)||[''])[0] + ' P=' + skPre.price); }
     // G1 / D1
     r = await c1.get('/'); ok2(r.text.includes('普通商品满99元包邮(大件、偏远地区除外') && !r.text.includes('全场满99'), 'G1:包邮口径更新');
     r = await c1.get('/notices'); ok2(!r.text.includes('积分翻倍'), 'D1:积分翻倍公告已下线');
@@ -965,7 +965,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
               const oos = db.get("SELECT c.id FROM categories c WHERE c.parent_id>0 AND c.status=1 AND c.name LIKE '%酒%'"); if (oos) { await adm.post('/admin/activity-goods/save', { ...body, category_id: oos.id }); ok(cnt() === 0, '经营范围外分类保存不了'); }
               y = await adm.post('/admin/activity-goods/save', { ...body, name: nm + '最低价' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm + '最低价'), '违禁词拦截');
               y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试插线板' }); ok(!db.get("SELECT 1 FROM products WHERE name='活动测试插线板'"), '经营范围外商品名拦截');
-              y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试芒果干' }); ok(!db.get("SELECT 1 FROM products WHERE name='活动测试芒果干'") && y.text.includes('食品经营许可'), '生鲜分类下加工食品拦截');
+              y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试芒果干' }); ok(!db.get("SELECT 1 FROM products WHERE name='活动测试芒果干'") && (y.text.includes('食品经营许可') || y.text.includes('经营范围外品类')), '生鲜分类下加工食品拦截');
+              for (const bad of ['白酒礼盒', '感冒药品', '保健品礼盒']) { y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试' + bad }); ok(!db.get('SELECT 1 FROM products WHERE name=?', '活动测试' + bad) && y.text.includes('经营范围外品类'), '水果分类下商品名「' + bad + '」也会按名称拦截'); }
               await adm.post('/admin/activity-goods/save', body); const pr = db.get('SELECT * FROM products WHERE name=?', nm); const sk = pr && db.get('SELECT * FROM seckills WHERE product_id=?', pr.id);
               ok(pr && pr.activity_only === 1 && pr.status === 1 && pr.market_price == null && pr.ship_from === body.ship_from && sk && sk.price === 29.9 && sk.stock === 50 && sk.limit_per_user === 2 && sk.status === 1, '保存后建为活动专区商品(活动价29.9,无划线价)');
               y = await adm.get('/admin/activity-goods'); ok(y.text.includes(nm) && y.text.includes('class="ag-tag"') && y.text.includes('展示中'), '后台列表每条带绿色「活动专区」标签');
