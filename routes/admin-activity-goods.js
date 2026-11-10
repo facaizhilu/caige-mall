@@ -1,5 +1,9 @@
 // 活动专区商品:后台直接上传自定义商品和活动价,只在前台「活动专区」显示(不进首页/分类/搜索/普通购物车)
 const db=require('../lib/db'),U=require('../lib/util'),J=require('../lib/suppliers/jdvop'),B=require('../lib/banned');
+// 活动专区自定义商品名称补充拦截：药品的各种说法（…药/药片/胶囊/口服液/颗粒剂等），先去掉山药、芍药等正常商品名再判断
+const SAFE_YAO_RE=/山药|芍药|淮药/g;
+const DANGER_RE=/火药|炸药|雷管|鞭炮|烟花|爆竹/;
+const DRUG_RE=/药|胶囊|口服液|冲剂|颗粒剂|[感冒清热止咳板蓝根退烧]{2,}颗粒|片剂|丸剂|含片|膏药|针剂|注射液|处方|OTC|酊剂|滴眼液|眼药水/i;
 module.exports=(r,{need,flash,log,filesOf})=>{
  const cats=()=>db.all('SELECT c.*,p.name parent_name FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.parent_id>0 AND c.status=1 ORDER BY c.sort,c.id');
  const tpls=()=>db.all('SELECT * FROM shipping_templates ORDER BY id');
@@ -20,7 +24,7 @@ module.exports=(r,{need,flash,log,filesOf})=>{
   const p={id:old?old.id:'',name:T('name').slice(0,120),description:T('description').slice(0,10000),category_id:U.int(b.category_id),template_id:U.int(b.template_id),market_price:T('market_price'),price:T('price'),stock:T('stock'),limit_per_user:T('limit_per_user')||'1',start_at:T('start_at'),end_at:T('end_at'),on:b.on==='1'?1:0,ship_from:T('ship_from').slice(0,60),aftersale_text:T('aftersale_text').slice(0,300),image:old?old.image:''};
   const up=filesOf(req,'image_files');const iu=T('image_url');if(up.length)p.image=up[0];else if(iu)p.image=iu;
   const e={};
-  if(!p.name)e.name='请填写商品名称';else{const ts=J.compliance.titleScope(p.name),sw=J.compliance.scopeWarning([p.name]);if(ts)e.name='商品名称含经营范围外商品「'+ts.kw+'」，不能添加';else if(sw&&sw.kw)e.name='商品名称属于经营范围外品类（'+sw.group+'：「'+sw.kw+'」），不能添加';}
+  if(!p.name)e.name='请填写商品名称';else{const ts=J.compliance.titleScope(p.name),sw=J.compliance.scopeWarning([p.name]);if(ts)e.name='商品名称含经营范围外商品「'+ts.kw+'」，不能添加';else if(sw&&sw.kw)e.name='商品名称属于经营范围外品类（'+sw.group+'：「'+sw.kw+'」），不能添加';else{const dg=DANGER_RE.exec(p.name),dr=DRUG_RE.exec(p.name.replace(SAFE_YAO_RE,''));if(dg)e.name='商品名称属于经营范围外品类（危险品：「'+dg[0]+'」），不能添加';else if(dr)e.name='商品名称属于经营范围外品类（药品：「'+dr[0]+'」），不能添加';}}
   const c=cats().find(c=>c.id===p.category_id);if(!c)e.category_id='请选择商品分类';else{const sc=J.compliance.scopeWarning([c.parent_name,c.name]);if(sc)e.category_id='经营范围不符，不能添加：'+sc.msg;else if(p.name&&!e.name){const pf=J.compliance.processedFarm([c.parent_name,c.name],p.name);if(pf)e.name='加工食品（'+pf.kw.replace('加工食品:','')+'）需先办食品经营许可，不能上架';}}
   const price=U.round2(Number(p.price));if(p.price===''||!Number.isFinite(price)||price<=0||price>20000)e.price='请填写活动价（大于0且不超过20000元）';
   let mp=null;if(p.market_price!==''){mp=U.round2(Number(p.market_price));if(!Number.isFinite(mp)||mp<=0||mp>20000)e.market_price='划线价格式不正确';else if(!e.price&&mp<=price)e.market_price='划线价须高于活动价，不填则不显示';}
