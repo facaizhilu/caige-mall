@@ -8,12 +8,28 @@
    ents.push(['/activity', 'flag', '活动专区', ''], ['/me/invite', 'userplus', '邀请好友', '']);
    if (user) ents.push(['/coupons', 'ticket', '领券中心', '']);
    ents.push(['/service?from=coop', 'store', '合作专区', ''], ['/service', 'headset', '客服售后', '']);
+   const bns = (banners || []).filter(b => b.image ? /^(\/(?![\/\\])|https:\/\/)/.test(b.image) : b.title); // 轮播:后台「Banner 管理」中启用的项(最多 5 张)
    const cols = ents.length <= 5 ? ents.length : Math.ceil(ents.length / 2); %>
 <div class="top">
   <%- include('../partials/header') %>
 </div>
-<div class="hm">
+<div class="hm<%= bns.length ? ' hm-hasbnr' : '' %>">
   <% if (flash && flash.type === 'toast') { %><div class="hm-toast" role="status" aria-live="polite"><%= flash.msg %></div><% } else if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
+  <% if (bns.length) { %><section class="hb" aria-label="首页推荐" data-n="<%= bns.length %>"><div class="hb-track">
+    <% bns.forEach(function (b, i) { const tag = b.link ? 'a' : 'div'; %><<%= tag %> class="hb-s<%= i ? '' : ' on' %>"<% if (b.link) { %> href="<%= b.link %>"<% } %><% if (i) { %> aria-hidden="true" tabindex="-1"<% } %>><% if (b.image) { %><img src="<%= b.image %>" alt="<%= b.title %>" width="1500" height="600" decoding="async"<%- i ? ' loading="lazy"' : ' fetchpriority="high"' %>><% } else { %><span class="hb-g" style="background:linear-gradient(120deg,<%= b.bg1 %>,<%= b.bg2 %>)"><b><%= b.title %></b><% if (b.subtitle) { %><small><%= b.subtitle %></small><% } %></span><% } %></<%= tag %>><% }) %>
+  </div><% if (bns.length > 1) { %><div class="hb-dots" aria-hidden="true"><% bns.forEach(function (b, i) { %><i<%- i ? '' : ' class="on"' %>></i><% }) %></div><% } %></section>
+  <% if (bns.length > 1) { %><script>(function(){var r=document.currentScript.previousElementSibling,t=r.querySelector('.hb-track'),s=t.children,d=r.querySelectorAll('.hb-dots i'),n=s.length,i=0,tm=null,hold=false,x0=0,y0=0,dx=0,drag=false,moved=false,ts=0,W=function(){return r.clientWidth||1};
+  function go(k,anim){i=(k+n)%n;t.style.transition=anim===false?'none':'';t.style.transform='translate3d('+(-i*100)+'%,0,0)';for(var j=0;j<n;j++){s[j].classList.toggle('on',j===i);if(j===i){s[j].removeAttribute('aria-hidden');s[j].removeAttribute('tabindex')}else{s[j].setAttribute('aria-hidden','true');s[j].setAttribute('tabindex','-1')}if(d[j])d[j].classList.toggle('on',j===i)}}
+  function stop(){clearInterval(tm);tm=null}function start(){stop();if(!hold&&!document.hidden)tm=setInterval(function(){go(i+1)},3500)}
+  r.addEventListener('touchstart',function(e){hold=true;stop();x0=e.touches[0].clientX;y0=e.touches[0].clientY;dx=0;drag=false;moved=false;ts=Date.now()},{passive:true});
+  r.addEventListener('touchmove',function(e){var mx=e.touches[0].clientX-x0,my=e.touches[0].clientY-y0;if(!drag&&Math.abs(mx)>8&&Math.abs(mx)>Math.abs(my))drag=true;if(drag){dx=mx;moved=true;t.style.transition='none';t.style.transform='translate3d(calc('+(-i*100)+'% + '+dx+'px),0,0)'}},{passive:true});
+  function end(){hold=false;if(Date.now()-ts>600)moved=true;if(drag){var w=W();go(dx<-w*.15?i+1:dx>w*.15?i-1:i)}drag=false;start()}
+  r.addEventListener('touchend',end);r.addEventListener('touchcancel',end);
+  r.addEventListener('pointerenter',function(e){if(e.pointerType==='mouse'){hold=true;stop()}});r.addEventListener('pointerleave',function(e){if(e.pointerType==='mouse'){hold=false;start()}});
+  r.addEventListener('click',function(e){if(moved){e.preventDefault();moved=false}},true);
+  document.addEventListener('visibilitychange',function(){document.hidden?stop():start()});
+  go(0,false);start()})();</script><% } %>
+  <% } %>
   <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag"><%- ic('megaphone', 16) %>公告</b><i class="hm-nsep"></i><span class="hm-mq"><em><%= String(shop.announcement || '暂无公告').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\s]+/u,'') %></em></span><%- ic('chev', 14) %></a>
   <nav class="hm-duo hm-card" aria-label="精选入口">
     <a class="hc" href="/products"><span class="hc-t"><b>精选好物</b><%- go('acc') %></span><span class="hc-s">平台优选好物</span><img class="hc-img" src="/static/img/home/ill-basket.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>

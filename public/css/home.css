@@ -63,3 +63,16 @@
 /* 轻提示:顶部浅色,约2秒后自动淡出,不遮挡操作 */
 .hm-toast{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:999;max-width:80vw;padding:8px 18px;border-radius:20px;background:#EAF6EF;color:#23894C;border:1px solid #CDE8D7;font-size:14px;box-shadow:0 4px 14px rgba(35,137,76,.15);pointer-events:none;white-space:nowrap;animation:hmToast 2.3s ease forwards}
 @keyframes hmToast{0%{opacity:0;transform:translate(-50%,-8px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px);visibility:hidden}}
+
+/* 首页轮播(2026-11-10):放在搜索栏下方、公告条上方,压在弧形绿头上;左右各留 16px、圆角 10px、固定 2.5:1 不拉伸不裁切;
+   当前指示点为主色胶囊,其余为白色半透明圆点;3.5 秒切换,手指按住暂停 */
+.hm.hm-hasbnr{margin-top:-98px}
+.hb{position:relative;margin:0 4px 12px;border-radius:10px;overflow:hidden;aspect-ratio:2.5/1;background:#2E9E5B;box-shadow:0 6px 16px rgba(23,114,61,.16);touch-action:pan-y;-webkit-tap-highlight-color:transparent;isolation:isolate}
+.hb-track{display:flex;height:100%;transition:transform .45s ease;will-change:transform}
+.hb-s{flex:0 0 100%;width:100%;height:100%;display:block;position:relative}
+.hb-s img{width:100%;height:100%;display:block;object-fit:cover;-webkit-user-drag:none;user-select:none}
+.hb-g{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 8%;color:#fff}.hb-g b{font-size:20px;line-height:1.3}.hb-g small{font-size:13px;opacity:.9;margin-top:4px}
+.hb-dots{position:absolute;left:0;right:0;bottom:7px;display:flex;justify-content:center;align-items:center;gap:5px;pointer-events:none;z-index:2}
+.hb-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55);display:block;transition:width .3s}
+.hb-dots i.on{width:14px;border-radius:3px;background:#2E9E5B;box-shadow:0 0 0 1.2px rgba(255,255,255,.85)}
+@media (prefers-reduced-motion:reduce){.hb-track{transition:none}}

@@ -53,7 +53,7 @@ module.exports = function (app, { filesOf }) {
     const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
     // 轮播横幅:后台「Banner 管理」中启用的条目,按排序;链接仅允许站内相对路径(旧数据中的外链不输出 href),颜色不合法时回退默认
     const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
-    const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 8')
+    const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 5')
       .map(b => ({ ...b, link: U.isInternalLink(b.link) ? b.link : '', bg1: hex(b.bg1, '#d4202a'), bg2: hex(b.bg2, '#f2a93b') }));
     res.page('shop/home', { title: '首页', layout: 'shop/layout-home', regPts, newbieCoupon, gbOn, picks, storecard: require('../lib/storecard').get(), banners, PH: U.PLACEHOLDER_PNG, IMG_FALLBACK: U.IMG_FALLBACK });
   });
@@ -746,6 +746,8 @@ module.exports = function (app, { filesOf }) {
     a = { ...a, content: svc.fillOperator(a.content || '') };
     res.page('shop/article', { title: a.title, a });
   };
+  // 「关于我们」固定入口(首页 Banner 等站内链接使用):跳到后台「关于我们」类文章,没有时去帮助中心
+  app.get('/about', (req, res) => { const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); res.redirect(ab ? '/article/' + ab.id : '/help'); });
   app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));
   // 积分规则(公开页面,数值随后台配置自动更新)
   app.get('/points-rules', (req, res) => showArticle(db.get("SELECT * FROM articles WHERE topic='points_rules' AND status=1 ORDER BY id LIMIT 1"), res));

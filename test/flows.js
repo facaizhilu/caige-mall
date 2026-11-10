@@ -680,13 +680,24 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     const bn = db.get('SELECT id FROM banners LIMIT 1'); r = await adm.req('POST', `/admin/banners/${bn.id}/toggle`, { _csrf: adm.t }, {}); await adm.get('/admin/banners');
     const rr = await fetch(base + `/admin/banners/${bn.id}/toggle`, { method: 'POST', redirect: 'manual', headers: { Cookie: Object.entries(adm.k).map(([x, y]) => x + '=' + y).join('; '), 'Content-Type': 'application/x-www-form-urlencoded', Referer: 'https://evil.example/admin/x' }, body: '_csrf=' + adm.t });
     ok(rr.headers.get('location') === '/admin/banners', '开关切换忽略站外 Referer', rr.headers.get('location'));
-    // 10) 首页横幅轮播:读取后台启用的 Banner(按排序);仅一张时无圆点;全部停用时回退固定横幅;链接只允许站内相对路径
+    // 10) 首页轮播(2026-11-10 恢复):读取后台启用的 Banner(按排序,最多 5 张);仅一张时无圆点/不自动切换;全部停用时不显示;链接只允许站内相对路径
     r = await adm.get('/admin/banners'); ok(r.status === 200 && !r.text.includes('不读取此处的 Banner') && !r.text.includes('暂不在前台展示'), 'Banner 列表不再提示「首页未使用 Banner」');
+    r = await adm.get('/admin/banners/new'); ok(r.status === 200 && r.text.includes('1500×600'), 'Banner 编辑页提示 1500×600 尺寸');
     { const anon = new C(); const home = async () => (await anon.get('/')).text;
-      const titles = t => [...t.matchAll(/class="bnr-s[^"]*"[\s\S]*?<h2>([^<]*)<\/h2>/g)].map(m => m[1]);
-      const en = db.all('SELECT title FROM banners WHERE status=1 ORDER BY sort, id').map(x => x.title);
-      let t = await home(); ok(en.length >= 2 && !t.includes('bnr') && titles(t).length === 0, '首页方案A:后台 Banner 照常启用,但首页不再展示轮播');
-      ok(!/\/static\/js\/home\.js/.test(t) && !t.includes('home.css?v=9'), '首页不再引入轮播脚本,样式版本号已更新');
+      const slides = t => [...t.matchAll(/<(a|div) class="hb-s[^"]*"(?: href="([^"]*)")?/g)].map(m => m[2] || '');
+      const en = db.all('SELECT title, link FROM banners WHERE status=1 ORDER BY sort, id');
+      let t = await home(); const sl = slides(t);
+      ok(en.length === 3 && sl.length === 3 && t.includes('class="hm hm-hasbnr"') && (t.match(/<div class="hb-dots"[^>]*>(.*?)<\/div>/) || ['', ''])[1].split('<i').length - 1 === 3, '首页轮播显示后台启用的 3 张 Banner 与 3 个指示点', sl);
+      ok(t.indexOf('class="hb"') > t.indexOf('zh-search') && t.indexOf('class="hb"') < t.indexOf('hm-ann'), '轮播位于搜索栏下方、公告条上方');
+      const fruit = db.get("SELECT id FROM categories WHERE name='新鲜水果'");
+      ok(sl[0] === '/about' && sl[1] === '/products?cat=' + fruit.id && sl[2] === '/me/cloud', '三张跳转:关于我们 / 新鲜水果分类 / 云商卡页', sl);
+      ok(/home-1\.jpg/.test(t) && /home-2\.jpg/.test(t) && /home-3\.jpg/.test(t) && /width="1500" height="600"/.test(t), '图片来自后台 Banner 记录(1500×600)');
+      ok(!sl.some(x => x.startsWith('/cloud-zone')), '云商图不直接进云商专区');
+      ok(!/联系客服办理|七天无理由|最低价|产地直发|立即购买/.test(t), '首页无「联系客服办理」等不合规文案');
+      { const ra = await anon.get('/about'); const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); ok(ra.status === 302 && ra.loc === (ab ? '/article/' + ab.id : '/help'), '「关于我们」固定入口跳转正确', ra.loc);
+        const ar = await anon.get(ra.loc); ok(ar.status === 200, '关于我们页面可打开'); }
+      { const fr = await anon.get(sl[1]); const n = db.get(`SELECT COUNT(*) n FROM catalog_products WHERE status=1 AND category_id=?`, fruit.id).n; ok(fr.status === 200 && n > 0 && !fr.text.includes('暂无商品'), '鲜果图跳转的分类有在售商品(' + n + ')'); }
+      { const cr = await anon.get('/me/cloud'); ok(cr.status === 302 && /\/login/.test(cr.loc || ''), '未登录点云商图先去登录(与首页云商卡一致)'); }
       await adm.get('/admin/banners/new');
       for (const bad of ['https://evil.example/x', 'http://evil.example', '//evil.example/x', '/\\evil.example', 'javascript:alert(1)', 'products']) {
         r = await adm.post('/admin/banners/save', { title: '外链测试', subtitle: '', image: '', link: bad, bg1: '#d4202a', bg2: '#f2a93b', sort: '9', status: '1' });
@@ -695,16 +706,17 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       r = await adm.post('/admin/banners/save', { title: '站内链接测试', subtitle: '副标题', image: '', link: '/product/1?from=banner', bg1: '#d4202a', bg2: '#f2a93b', sort: '98', status: '1' }); ok(r.status === 302 && db.get("SELECT 1 FROM banners WHERE title='站内链接测试'"), 'Banner 保存接受站内相对链接');
       r = await adm.post('/admin/banners/save', { title: '无链接测试', subtitle: '', image: '', link: '', bg1: '#d4202a', bg2: '#f2a93b', sort: '99', status: '1' }); ok(r.status === 302 && db.get("SELECT link FROM banners WHERE title='无链接测试'").link === '', 'Banner 链接可留空');
       db.prepare("INSERT INTO banners(title,subtitle,link,bg1,bg2,sort,status) VALUES('旧外链测试','','https://evil.example','#d4202a','#f2a93b',100,1)").run();
-      t = await home(); ok(!t.includes('evil.example') && !t.includes('无链接测试') && !t.includes('旧外链测试'), '首页不输出任何 Banner(含旧数据外链)');
+      t = await home(); ok(!t.includes('evil.example') && slides(t).length === 5 && !t.includes('旧外链测试'), '首页最多 5 张,旧数据外链不输出');
+      db.prepare('UPDATE banners SET sort=-1 WHERE title=?').run('旧外链测试'); t = await home(); ok(t.includes('旧外链测试') && !t.includes('evil.example') && /<div class="hb-s[^"]*">/.test(t), '旧外链 Banner 只显示不可点击');
       db.prepare("DELETE FROM banners WHERE title IN ('站内链接测试','无链接测试','旧外链测试')").run();
       const keep = db.get('SELECT id FROM banners WHERE status=1 ORDER BY sort, id LIMIT 1').id, saved = db.all('SELECT id, status FROM banners');
       db.prepare('UPDATE banners SET status=CASE WHEN id=? THEN 1 ELSE 0 END').run(keep);
-      t = await home(); ok(!t.includes('bnr') && !t.includes('data-n='), '仅一个启用 Banner:首页仍无轮播');
+      t = await home(); ok(slides(t).length === 1 && !t.includes('hb-dots') && !t.includes('setInterval'), '仅一个启用 Banner:只显示一张,无指示点不自动切换');
       db.prepare('UPDATE banners SET status=0').run();
       { const S = require('../lib/svc').settings(); const real = +S.register_points > 0 || !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
-        t = await home(); ok(!t.includes('bnr') && (real ? t.includes('<a class="ent hero" href="/register">') && t.includes('新人有礼') : !t.includes('新人有礼')), '「新人有礼」入口仅在后台存在真实新人权益时显示(' + (real ? '有' : '无') + ')'); }
+        t = await home(); ok(!t.includes('class="hb"') && !t.includes('hm-hasbnr') && (real ? t.includes('<a class="ent hero" href="/register">') && t.includes('新人有礼') : !t.includes('新人有礼')), '全部停用:首页不显示轮播;「新人有礼」入口仅在后台存在真实新人权益时显示(' + (real ? '有' : '无') + ')'); }
       const st = db.prepare('UPDATE banners SET status=? WHERE id=?'); saved.forEach(x => st.run(x.status, x.id));
-      t = await home(); ok(db.all('SELECT title FROM banners WHERE status=1').length === en.length && !t.includes('bnr'), 'Banner 状态已恢复'); }
+      t = await home(); ok(db.all('SELECT title FROM banners WHERE status=1').length === en.length && slides(t).length === en.length, 'Banner 状态已恢复'); }
   }
 
   console.log('== 积分专区 v1.3:限兑/库存/并发/包邮/退回积分/周期过期/无折现比例 ==');

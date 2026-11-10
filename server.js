@@ -217,6 +217,17 @@ svc.cloud.ensureDefaults();
       mark('home_carousel_banners');
     })();
   }
+  if (!done('home_banner_green_20261110')) { // 首页轮播换成老板选定的绿紫点缀版:仅当 Banner 全部仍为未改动的旧默认项(旧红色 SVG / 旧渐变标题)时替换;后台改过的不动
+    const T = require('./lib/seed-texts');
+    db.transaction(() => {
+      const rows = db.all('SELECT title, image FROM banners');
+      if (rows.length && rows.every(b => T.OLD_DEMO_BANNER_IMAGES.includes(b.image) || (!b.image && T.OLD_SEED_BANNER_TITLES.includes(b.title)))) {
+        db.exec1('DELETE FROM banners');
+        T.bannerRows(db).forEach((b, i) => db.prepare('INSERT INTO banners(title,subtitle,image,link,bg1,bg2,sort,status) VALUES(?,?,?,?,?,?,?,1)').run(b.title, b.subtitle, b.image, b.link, b.bg1, b.bg2, i));
+      }
+      mark('home_banner_green_20261110');
+    })();
+  }
   if (!done('brand_nanshanju_20261020')) { // 演示品牌「南山居」(近似真实品牌)→「韵农甄选」:仅改原种子品牌与以「南山居 」开头的演示商品名
     db.transaction(() => {
       const has = db.get("SELECT id FROM brands WHERE name='韵农甄选'"), old = db.get("SELECT id FROM brands WHERE name='南山居' AND description='南山居品牌官方旗舰'");
