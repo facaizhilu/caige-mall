@@ -62,12 +62,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const ck = (await m.post('/checkout', { sku_id: prod.sku, qty: '2', no7_ok: '1' })).text;
     ok(ck.includes(`云商会员价 ${zhe}折`) && ck.includes(money(q.goods - q.levelDiscount)) && ck.includes('-¥' + money(q.levelDiscount)), `${tier} 结算页显示 云商会员价 ${zhe}折 及优惠额`);
     const mc = (await m.get('/me/cloud')).text;
-    ok(mc.includes('云商会员价 · 专属权益') && mc.includes('体验云商专区') && mc.includes('cz-sheet'), `${tier} /me/cloud 绿色卡面及体验弹层`);
+    ok(mc.includes('云商会员价 · 专属权益') && mc.includes('体验RWA数商生态') && mc.includes('cz-sheet'), `${tier} /me/cloud 绿色卡面及体验弹层`);
   }
   console.log('== 档位关闭 ==');
   await adm.post('/admin/cloud-settings', { ...base, cloud_on_diamond: '' });
   { const q = await quote(); ok(q.levelDiscount === 0, '钻石档关闭 → 钻石卡会员无卡折扣'); const t = (await m.get('/product/' + prod.id)).text; ok(!t.includes('云商会员价'), '关闭后商品页不显示会员价'); }
-  { const mc = (await m.get('/me/cloud')).text; ok(mc.includes('体验云商专区') && !mc.includes('钻石 7.5 折'), '关闭钻石后云商卡简版入口不暴露旧折扣说明'); const g = new C(); ok((await g.get('/product/' + prod.id)).text.includes('云商卡会员享8.5～9.5折'), '游客区间重算'); }
+  { const mc = (await m.get('/me/cloud')).text; ok(mc.includes('体验RWA数商生态') && !mc.includes('钻石 7.5 折'), '关闭钻石后云商卡简版入口不暴露旧折扣说明'); const g = new C(); ok((await g.get('/product/' + prod.id)).text.includes('云商卡会员享8.5～9.5折'), '游客区间重算'); }
   await adm.post('/admin/cloud-settings', { ...base, cloud_on_diamond: '', cloud_on_gold: '', cloud_on_silver: '' });
   { const mc = (await m.get('/me/cloud')).text; ok(!mc.includes('云商卡会员购物享') && !mc.includes('会员折扣</b>'), '全部关闭隐藏折扣说明'); const g = new C(); ok(!(await g.get('/product/' + prod.id)).text.includes('云商卡会员享'), '全部关闭游客无区间小字'); }
   await adm.post('/admin/cloud-settings', base);

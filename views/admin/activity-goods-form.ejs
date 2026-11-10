@@ -1,0 +1,15 @@
+<div class="card"><h3>上传自定义活动商品</h3><p class="muted">在这里直接上传商品图片、名称和价格，保存后自动出现在前台「活动专区」，普通商城同时按原价展示。活动价不叠加会员折扣、优惠券和积分抵扣；运费按模板计算。之后可在本页列表里修改活动价、库存和时间，在「商品管理」里修改图片和详情。</p>
+<form method="post" action="/admin/activity-goods/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="form-row"><label>商品名称</label><input name="name" maxlength="120" value="<%= p.name %>" required></div>
+<div class="form-row"><label>商品图片</label><input type="file" name="image_files" accept="image/*"><input name="image_url" value="" placeholder="或填写HTTPS图片地址"><span class="muted" style="font-size:12px">建议正方形 800×800，单张 3MB 以内</span></div>
+<div class="form-row"><label>商品分类</label><select name="category_id" required><option value="">请选择</option><% cats.forEach(c=>{ %><option value="<%= c.id %>" <%= +p.category_id===c.id?'selected':'' %>><%= c.parent_name %> / <%= c.name %></option><% }) %></select></div>
+<div class="form-row"><label>原价（元）</label><input name="orig" type="number" min="0.01" max="20000" step="0.01" value="<%= p.orig %>" required></div>
+<div class="form-row"><label>活动价（元）</label><input name="price" type="number" min="0.01" max="20000" step="0.01" value="<%= p.price %>" required></div>
+<div class="form-row"><label>活动库存</label><input name="stock" type="number" min="1" max="1000000" step="1" value="<%= p.stock %>" required></div>
+<div class="form-row"><label>每人限购</label><input name="limit_per_user" type="number" min="1" max="999" step="1" value="<%= p.limit_per_user %>" required></div>
+<div class="form-row"><label>开始时间</label><input name="start_at" type="datetime-local" value="<%= String(p.start_at).slice(0,16).replace(' ','T') %>" required></div>
+<div class="form-row"><label>结束时间</label><input name="end_at" type="datetime-local" value="<%= String(p.end_at).slice(0,16).replace(' ','T') %>" required></div>
+<div class="form-row"><label>运费模板</label><select name="template_id" required><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= +p.template_id===t.id?'selected':'' %>><%= t.name %></option><% }) %></select></div>
+<div class="form-row"><label>商品详情（纯文字）</label><textarea name="description" rows="6" maxlength="10000"><%= p.description %></textarea></div>
+<div class="form-row"><label>活动状态</label><select name="status"><option value="1" <%= p.status?'selected':'' %>>启用</option><option value="0" <%= !p.status?'selected':'' %>>停用</option></select></div>
+<button class="btn primary">保存并加入活动专区</button> <a class="btn" href="/admin/seckills">返回活动列表</a></form></div>

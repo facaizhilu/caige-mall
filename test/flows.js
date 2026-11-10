@@ -382,7 +382,7 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
     r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && !r.text.includes('加赠') && !r.text.includes('{{'), '积分规则:评价积分与签到新规则');
-    r = await c1.get('/me/cloud'); ok2(r.text.includes('体验云商专区') && r.text.includes('cz-sheet') && !r.text.includes('最高每天') && !r.text.includes('加赠'), '新版云商卡页仅展示卡面和安全入口;签到规则服务测试单独保留');
+    r = await c1.get('/me/cloud'); ok2(r.text.includes('体验RWA数商生态') && r.text.includes('cz-sheet') && !r.text.includes('最高每天') && !r.text.includes('加赠'), '新版云商卡页仅展示卡面和安全入口;签到规则服务测试单独保留');
     r = await c1.get('/me/points'); ok2(r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && r.text.includes('12、13、14'), '签到页:封顶说明');
     r = await c1.get('/privacy'); ok2(r.text.includes('我的 - 设置 - 账号与安全 - 注销账号'), '隐私政策:注销路径');
     // A1:性别不再保存
@@ -951,6 +951,19 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             x = await b.get('/'); const hi = x.text.indexOf('class="pk-g"'); ok(x.text.indexOf('sc-pk', hi) > hi && x.text.indexOf('sc-pk', hi) < x.text.indexOf('class="pk"', hi) + (x.text.indexOf('class="pk"', hi) < 0 ? 1e9 : 0) && x.text.includes('href="/service?from=storecard"'), '首页好物精选第一位为门店优惠卡(含「购买」)');
             const cat = db.get('SELECT id FROM categories WHERE status=1 AND parent_id IS NOT NULL LIMIT 1') || db.get('SELECT id FROM categories WHERE status=1 LIMIT 1');
             for (const u of ['/products', '/products?sort=price_asc', '/products?sort=sales', '/products?cat=' + cat.id, '/products?q=' + encodeURIComponent('苹果'), '/products?q=zzzz不存在']) { x = await b.get(u); ok(u.includes('zzzz') ? x.text.includes('data-storecard') : first(x.text), '门店优惠卡排第一位 ' + u); }
+            { // 活动专区:后台上传自定义商品和价格
+              const f = x => new Date(Date.now() + x).toISOString().slice(0, 16); const fr = db.get("SELECT id FROM categories WHERE name='新鲜水果'") || cat; const tpl = db.get('SELECT id FROM shipping_templates ORDER BY id LIMIT 1');
+              let y = await adm.get('/admin/seckills'); ok(y.text.includes('/admin/activity-goods/new') && y.text.includes('上传自定义活动商品'), '活动专区后台有「上传自定义活动商品」入口');
+              y = await adm.get('/admin/activity-goods/new'); ok(y.status === 200 && y.text.includes('活动价') && y.text.includes('name="image_files"') && y.text.includes('原价'), '自定义活动商品表单含图片/原价/活动价');
+              const nm = '自定义活动测试红心火龙果'; const body = { name: nm, category_id: fr.id, template_id: tpl.id, orig: '39.9', price: '29.9', stock: '50', limit_per_user: '2', start_at: f(-864e5), end_at: f(5 * 864e5), status: '1', image_url: 'https://example.com/a.jpg', description: '新鲜采摘' };
+              await adm.post('/admin/activity-goods/save', { ...body, price: '45' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm), '活动价不低于原价被拒绝');
+              await adm.post('/admin/activity-goods/save', { ...body, image_url: '' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm), '未传图片被拒绝');
+              await adm.post('/admin/activity-goods/save', body); const pr = db.get('SELECT * FROM products WHERE name=?', nm); const sk = pr && db.get('SELECT * FROM seckills WHERE product_id=?', pr.id);
+              ok(pr && pr.price === 39.9 && pr.status === 1 && pr.category_id === fr.id && sk && sk.price === 29.9 && sk.stock === 50 && sk.limit_per_user === 2 && sk.status === 1, '保存后自动建商品、规格和活动(活动价29.9)');
+              y = await b.get('/activity'); ok(y.text.includes(nm) && y.text.includes('29.9'), '前台活动专区显示自定义商品和活动价');
+              y = await b.get('/product/' + pr.id); ok(y.status === 200 && y.text.includes('活动专区'), '自定义活动商品详情页显示活动标识');
+              y = await adm.get('/admin/seckills'); ok(y.text.includes(nm), '后台活动列表可见自定义商品');
+              db.exec1('UPDATE seckills SET status=0 WHERE product_id=?', pr.id); db.exec1('UPDATE products SET status=0 WHERE id=?', pr.id); }
             x = await b.get('/products?page=2'); ok(!x.text.includes('data-storecard'), '第 2 页不重复显示门店优惠卡');
             x = await b.get('/storecard'); const sct = x.text.replace(/<script[\s\S]*?<\/script>/g, '');
             ok(x.status === 200 && sct.includes('全国韵农甄选线下门店均可使用，到店消费享七五折（不参与折扣的商品除外，门店列表见下方）') && sct.includes('使用须知') && sct.includes('自开卡之日起 1 年') && sct.includes('由海南韵农科技有限公司及合作门店提供') && sct.includes('门店名单整理中，可咨询客服') && sct.includes('到店或联系客服办理'), '详情页:标题文案、使用须知、门店列表占位、到店或联系客服办理');
