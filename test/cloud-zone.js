@@ -10,8 +10,17 @@ class C{constructor(){this.k={};this.t='';}async req(m,p,b,extra={}){const heade
 (async()=>{
  const a=new C(),b=new C(),guest=new C(),adm=new C();
  ok(db.get('SELECT COUNT(*) n FROM products WHERE cloud_zone=1').n===0,'zone starts empty; no demo zone goods');
+ const testerPhone=require('../lib/seed').DEMO_ZONE_TESTER_PHONE;
+ ok(testerPhone==='13800000001','dedicated demo tester is the official 0001 account');
+ ok(db.get('SELECT cloud_zone_enabled FROM users WHERE phone=?',testerPhone).cloud_zone_enabled===1,'DEMO_MODE auto-enables only the 0001 demo tester');
+ ok(db.get("SELECT cloud_zone_enabled FROM users WHERE phone='13800000002'").cloud_zone_enabled===0,'other seeded demo members stay closed');
  const u=svc.createUser({phone:'13081110001',password_hash:bcrypt.hashSync('zone-test-only',4),nickname:'专区甲'}),v=svc.createUser({phone:'13081110002',password_hash:bcrypt.hashSync('zone-test-only',4),nickname:'专区乙'});
- ok(Z.member(u).cloud_zone_enabled===0,'new user switch defaults off');await a.login('13081110001');await b.login('13081110002');
+ ok(Z.member(u).cloud_zone_enabled===0,'new user ending in 0001 still defaults off');await a.login('13081110001');await b.login('13081110002');
+ const prevDemo=process.env.DEMO_MODE,testerId=db.get('SELECT id FROM users WHERE phone=?',testerPhone).id;
+ Z.setMember(testerId,false);process.env.DEMO_MODE='0';require('../lib/seed').ensureDemoCloudZoneTester();
+ ok(Z.member(testerId).cloud_zone_enabled===0,'auto-enable is inert without DEMO_MODE');
+ process.env.DEMO_MODE=prevDemo;require('../lib/seed').ensureDemoCloudZoneTester();
+ ok(Z.member(testerId).cloud_zone_enabled===1,'DEMO_MODE startup re-opens the dedicated tester');
  let r=await guest.get('/cloud-zone');ok(r.status===302&&r.loc.startsWith('/login'),'guest zone page requires login');r=await guest.post('/cloud-zone/enter',{phone:'13081110001'},{Accept:'application/json'});ok([401,403].includes(r.status),'unauthenticated entry cannot grant access');
  r=await a.get('/me/cloud');capture('default',r.text);ok(r.status===200&&r.text.includes('cz-sheet')&&r.text.includes('placeholder="请输入手机号"'),'new green card and phone sheet render');
  r=await a.post('/cloud-zone/enter',{phone:'13081110001'});ok(r.status===302&&r.loc.includes('/me/cloud'),'nonmember entry denied');r=await a.get(r.loc);capture('nonmember',r.text);ok(r.text.includes(Z.DENIED),'nonmember gets exact neutral message');
