@@ -1,15 +1,17 @@
-<div class="card"><h3>上传自定义活动商品</h3><p class="muted">在这里直接上传商品图片、名称和价格，保存后自动出现在前台「活动专区」，普通商城同时按原价展示。活动价不叠加会员折扣、优惠券和积分抵扣；运费按模板计算。之后可在本页列表里修改活动价、库存和时间，在「商品管理」里修改图片和详情。</p>
-<form method="post" action="/admin/activity-goods/save" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrf %>">
-<div class="form-row"><label>商品名称</label><input name="name" maxlength="120" value="<%= p.name %>" required></div>
-<div class="form-row"><label>商品图片</label><input type="file" name="image_files" accept="image/*"><input name="image_url" value="" placeholder="或填写HTTPS图片地址"><span class="muted" style="font-size:12px">建议正方形 800×800，单张 3MB 以内</span></div>
-<div class="form-row"><label>商品分类</label><select name="category_id" required><option value="">请选择</option><% cats.forEach(c=>{ %><option value="<%= c.id %>" <%= +p.category_id===c.id?'selected':'' %>><%= c.parent_name %> / <%= c.name %></option><% }) %></select></div>
-<div class="form-row"><label>原价（元）</label><input name="orig" type="number" min="0.01" max="20000" step="0.01" value="<%= p.orig %>" required></div>
-<div class="form-row"><label>活动价（元）</label><input name="price" type="number" min="0.01" max="20000" step="0.01" value="<%= p.price %>" required></div>
-<div class="form-row"><label>活动库存</label><input name="stock" type="number" min="1" max="1000000" step="1" value="<%= p.stock %>" required></div>
-<div class="form-row"><label>每人限购</label><input name="limit_per_user" type="number" min="1" max="999" step="1" value="<%= p.limit_per_user %>" required></div>
-<div class="form-row"><label>开始时间</label><input name="start_at" type="datetime-local" value="<%= String(p.start_at).slice(0,16).replace(' ','T') %>" required></div>
-<div class="form-row"><label>结束时间</label><input name="end_at" type="datetime-local" value="<%= String(p.end_at).slice(0,16).replace(' ','T') %>" required></div>
-<div class="form-row"><label>运费模板</label><select name="template_id" required><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= +p.template_id===t.id?'selected':'' %>><%= t.name %></option><% }) %></select></div>
-<div class="form-row"><label>商品详情（纯文字）</label><textarea name="description" rows="6" maxlength="10000"><%= p.description %></textarea></div>
-<div class="form-row"><label>活动状态</label><select name="status"><option value="1" <%= p.status?'selected':'' %>>启用</option><option value="0" <%= !p.status?'selected':'' %>>停用</option></select></div>
-<button class="btn primary">保存并加入活动专区</button> <a class="btn" href="/admin/seckills">返回活动列表</a></form></div>
+<% const E=k=>errs[k]?'<div class="ag-err" style="color:#d93025;font-size:12px;margin-top:4px">'+errs[k].replace(/[<>&"]/g,'')+'</div>':''; const req='<b style="color:#d93025">*</b> '; %>
+<div class="card"><h3><%= p.id?'编辑活动专区商品':'添加活动专区商品' %></h3><div style="background:#E8F6EE;border:1px solid #BFE5CD;color:#1F6B3F;border-radius:8px;padding:10px 12px;margin-bottom:12px">此处上传的商品只在活动专区显示，不会出现在商城首页和分类里。商品须在营业执照经营范围内，价格须真实。</div>
+<form method="post" action="/admin/activity-goods/save" enctype="multipart/form-data" novalidate><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= p.id||'' %>">
+<div class="form-row"><label><%- req %>商品名称</label><div><input name="name" maxlength="120" value="<%= p.name %>"><%- E('name') %></div></div>
+<div class="form-row"><label><%- req %>商品图片</label><div><% if(p.image){ %><img src="<%= p.image %>" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:6px;display:block;margin-bottom:6px"><input type="hidden" name="image_url" value="<%= p.image %>"><% } %><input type="file" name="image_files" accept="image/*"><div class="muted" style="font-size:12px">建议正方形 800×800，单张 3MB 以内<%= p.image?'；不选新图则保留当前图片':'' %></div><%- E('image') %></div></div>
+<div class="form-row"><label><%- req %>商品分类</label><div><select name="category_id"><option value="">请选择</option><% cats.forEach(c=>{ %><option value="<%= c.id %>" <%= +p.category_id===c.id?'selected':'' %>><%= c.parent_name %> / <%= c.name %></option><% }) %></select><%- E('category_id') %></div></div>
+<div class="form-row"><label><%- req %>活动价（元）</label><div><input name="price" type="number" min="0.01" max="20000" step="0.01" value="<%= p.price %>"><%- E('price') %></div></div>
+<div class="form-row"><label>划线价（元，选填）</label><div><input name="market_price" type="number" min="0.01" max="20000" step="0.01" value="<%= p.market_price==null?'':p.market_price %>"><div class="muted" style="font-size:12px">只填该商品真实卖过的价格；不填则不显示划线价</div><%- E('market_price') %></div></div>
+<div class="form-row"><label><%- req %>库存</label><div><input name="stock" type="number" min="0" max="1000000" step="1" value="<%= p.stock %>"><%- E('stock') %></div></div>
+<div class="form-row"><label><%- req %>每人限购</label><div><input name="limit_per_user" type="number" min="1" max="999" step="1" value="<%= p.limit_per_user %>"><%- E('limit_per_user') %></div></div>
+<div class="form-row"><label><%- req %>活动时间</label><div><input name="start_at" type="datetime-local" value="<%= p.start_at %>"> 至 <input name="end_at" type="datetime-local" value="<%= p.end_at %>"><%- E('end_at') %></div></div>
+<div class="form-row"><label><%- req %>发货方</label><div><input name="ship_from" maxlength="60" value="<%= p.ship_from %>" placeholder="如：海南韵农科技有限公司 海口发货"><%- E('ship_from') %></div></div>
+<div class="form-row"><label><%- req %>售后规则</label><div><textarea name="aftersale_text" rows="3" maxlength="300" placeholder="如：生鲜商品签收后不支持七天无理由退货，坏果请于签收后48小时内拍照联系客服处理"><%= p.aftersale_text %></textarea><div class="muted" style="font-size:12px">会显示在商品详情页</div><%- E('aftersale_text') %></div></div>
+<div class="form-row"><label><%- req %>运费模板</label><div><select name="template_id"><% tpls.forEach(t=>{ %><option value="<%= t.id %>" <%= +p.template_id===t.id?'selected':'' %>><%= t.name %></option><% }) %></select><%- E('template_id') %></div></div>
+<div class="form-row"><label>商品详情（选填）</label><textarea name="description" rows="5" maxlength="10000"><%= p.description %></textarea><%- E('description') %></div>
+<div class="form-row"><label>状态</label><select name="on"><option value="1" <%= p.on?'selected':'' %>>上架（在活动专区显示）</option><option value="0" <%= !p.on?'selected':'' %>>下架</option></select></div>
+<button class="btn primary">保存活动专区商品</button> <a class="btn" href="/admin/activity-goods">返回活动专区商品</a></form></div>

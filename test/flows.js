@@ -951,19 +951,40 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
             x = await b.get('/'); const hi = x.text.indexOf('class="pk-g"'); ok(x.text.indexOf('sc-pk', hi) > hi && x.text.indexOf('sc-pk', hi) < x.text.indexOf('class="pk"', hi) + (x.text.indexOf('class="pk"', hi) < 0 ? 1e9 : 0) && x.text.includes('href="/service?from=storecard"'), '首页好物精选第一位为门店优惠卡(含「购买」)');
             const cat = db.get('SELECT id FROM categories WHERE status=1 AND parent_id IS NOT NULL LIMIT 1') || db.get('SELECT id FROM categories WHERE status=1 LIMIT 1');
             for (const u of ['/products', '/products?sort=price_asc', '/products?sort=sales', '/products?cat=' + cat.id, '/products?q=' + encodeURIComponent('苹果'), '/products?q=zzzz不存在']) { x = await b.get(u); ok(u.includes('zzzz') ? x.text.includes('data-storecard') : first(x.text), '门店优惠卡排第一位 ' + u); }
-            { // 活动专区:后台上传自定义商品和价格
-              const f = x => new Date(Date.now() + x).toISOString().slice(0, 16); const fr = db.get("SELECT id FROM categories WHERE name='新鲜水果'") || cat; const tpl = db.get('SELECT id FROM shipping_templates ORDER BY id LIMIT 1');
-              let y = await adm.get('/admin/seckills'); ok(y.text.includes('/admin/activity-goods/new') && y.text.includes('上传自定义活动商品'), '活动专区后台有「上传自定义活动商品」入口');
-              y = await adm.get('/admin/activity-goods/new'); ok(y.status === 200 && y.text.includes('活动价') && y.text.includes('name="image_files"') && y.text.includes('原价'), '自定义活动商品表单含图片/原价/活动价');
-              const nm = '自定义活动测试红心火龙果'; const body = { name: nm, category_id: fr.id, template_id: tpl.id, orig: '39.9', price: '29.9', stock: '50', limit_per_user: '2', start_at: f(-864e5), end_at: f(5 * 864e5), status: '1', image_url: 'https://example.com/a.jpg', description: '新鲜采摘' };
-              await adm.post('/admin/activity-goods/save', { ...body, price: '45' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm), '活动价不低于原价被拒绝');
-              await adm.post('/admin/activity-goods/save', { ...body, image_url: '' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm), '未传图片被拒绝');
+            { // 活动专区商品:后台独立上传,只在活动专区显示
+              const f = x => { const d = new Date(Date.now() + x), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + 'T' + z(d.getHours()) + ':' + z(d.getMinutes()); };
+              const fr = db.get("SELECT id FROM categories WHERE name='新鲜水果'") || cat; const tpl = db.get('SELECT id FROM shipping_templates ORDER BY id LIMIT 1');
+              let y = await adm.get('/admin'); ok(y.text.includes('href="/admin/activity-goods"') && y.text.includes('活动专区商品'), '后台左侧菜单单独有「活动专区商品」');
+              y = await adm.get('/admin/activity-goods'); ok(y.status === 200 && y.text.includes('此处上传的商品只在活动专区显示，不会出现在商城首页和分类里') && y.text.includes('添加活动专区商品'), '列表页顶部浅绿提示和添加按钮');
+              y = await adm.get('/admin/activity-goods/new'); ok(y.text.includes('<h3>添加活动专区商品</h3>') && y.text.includes('name="image_files"') && y.text.includes('划线价（元，选填）') && y.text.includes('发货方') && y.text.includes('售后规则'), '表单标题、图片、选填划线价、发货方、售后规则');
+              const nm = '活动专区测试红心火龙果'; const body = { name: nm, category_id: fr.id, template_id: tpl.id, market_price: '', price: '29.9', stock: '50', limit_per_user: '2', start_at: f(-864e5), end_at: f(5 * 864e5), on: '1', image_url: 'https://example.com/a.jpg', ship_from: '海南韵农科技有限公司 海口发货', aftersale_text: '坏果请于签收后48小时内拍照联系客服处理', description: '新鲜采摘' };
+              const cnt = () => db.get('SELECT COUNT(*) n FROM products WHERE name=?', nm).n;
+              y = await adm.post('/admin/activity-goods/save', { ...body, name: '', price: '', stock: '', image_url: '' }); ok(cnt() === 0 && (y.text.match(/class="ag-err"/g) || []).length >= 4 && y.text.includes('请填写商品名称') && y.text.includes('请上传商品图片') && y.text.includes('请填写活动价') && y.text.includes('请填写库存'), '名称/价格/图片/库存未填:输入框下方提示且不能保存');
+              y = await adm.post('/admin/activity-goods/save', { ...body, ship_from: '', aftersale_text: '' }); ok(cnt() === 0 && y.text.includes('请填写发货方') && y.text.includes('请填写售后规则'), '发货方和售后规则必填');
+              y = await adm.post('/admin/activity-goods/save', { ...body, market_price: '20' }); ok(cnt() === 0 && y.text.includes('划线价须高于活动价'), '划线价不高于活动价被拒');
+              const oos = db.get("SELECT c.id FROM categories c WHERE c.parent_id>0 AND c.status=1 AND c.name LIKE '%酒%'"); if (oos) { await adm.post('/admin/activity-goods/save', { ...body, category_id: oos.id }); ok(cnt() === 0, '经营范围外分类保存不了'); }
+              y = await adm.post('/admin/activity-goods/save', { ...body, name: nm + '最低价' }); ok(!db.get('SELECT 1 FROM products WHERE name=?', nm + '最低价'), '违禁词拦截');
+              y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试插线板' }); ok(!db.get("SELECT 1 FROM products WHERE name='活动测试插线板'"), '经营范围外商品名拦截');
+              y = await adm.post('/admin/activity-goods/save', { ...body, name: '活动测试芒果干' }); ok(!db.get("SELECT 1 FROM products WHERE name='活动测试芒果干'") && y.text.includes('食品经营许可'), '生鲜分类下加工食品拦截');
               await adm.post('/admin/activity-goods/save', body); const pr = db.get('SELECT * FROM products WHERE name=?', nm); const sk = pr && db.get('SELECT * FROM seckills WHERE product_id=?', pr.id);
-              ok(pr && pr.price === 39.9 && pr.status === 1 && pr.category_id === fr.id && sk && sk.price === 29.9 && sk.stock === 50 && sk.limit_per_user === 2 && sk.status === 1, '保存后自动建商品、规格和活动(活动价29.9)');
-              y = await b.get('/activity'); ok(y.text.includes(nm) && y.text.includes('29.9'), '前台活动专区显示自定义商品和活动价');
-              y = await b.get('/product/' + pr.id); ok(y.status === 200 && y.text.includes('活动专区'), '自定义活动商品详情页显示活动标识');
-              y = await adm.get('/admin/seckills'); ok(y.text.includes(nm), '后台活动列表可见自定义商品');
-              db.exec1('UPDATE seckills SET status=0 WHERE product_id=?', pr.id); db.exec1('UPDATE products SET status=0 WHERE id=?', pr.id); }
+              ok(pr && pr.activity_only === 1 && pr.status === 1 && pr.market_price == null && pr.ship_from === body.ship_from && sk && sk.price === 29.9 && sk.stock === 50 && sk.limit_per_user === 2 && sk.status === 1, '保存后建为活动专区商品(活动价29.9,无划线价)');
+              y = await adm.get('/admin/activity-goods'); ok(y.text.includes(nm) && y.text.includes('class="ag-tag"') && y.text.includes('展示中'), '后台列表每条带绿色「活动专区」标签');
+              y = await adm.get('/admin/products?q=' + encodeURIComponent(nm)); ok(y.status === 200 && !y.text.includes('/admin/products/' + pr.id + '/') && !y.text.includes('>' + nm + '<'), '普通商品管理里不出现活动专区商品');
+              y = await adm.get('/admin/seckills'); ok(!y.text.includes(nm), '限时活动(已有商品)列表不混入活动专区商品');
+              y = await b.get('/activity'); ok(y.text.includes(nm) && y.text.includes('29.9'), '前台活动专区显示商品和活动价');
+              y = await b.get('/product/' + pr.id); ok(y.status === 200 && y.text.includes('海南韵农科技有限公司 海口发货') && y.text.includes('售后规则：坏果请于签收后48小时内拍照联系客服处理') && y.text.includes('活动价购买') && !y.text.includes('onclick="addCart()"'), '详情页显示发货方、售后规则,只有活动价购买');
+              const leak = []; for (const u of ['/', '/products', '/products?cat=' + fr.id, '/products?q=' + encodeURIComponent('火龙果'), '/me']) { y = await b.get(u); if (y.text.includes(nm)) leak.push(u); } ok(!leak.length, '首页/全部商品/分类/搜索/我的推荐都不出现活动专区商品', leak);
+              const skuId = db.get('SELECT id FROM skus WHERE product_id=?', pr.id).id; y = await b.req('POST', '/cart/add', { sku_id: skuId, qty: 1 }, { json: true, h: { 'X-Requested-With': 'fetch', 'x-csrf-token': b.t } }); ok(/活动专区商品请在活动专区/.test(y.text) && !db.get('SELECT 1 FROM cart WHERE sku_id=?', skuId), '活动专区商品不能加入普通购物车');
+              y = await b.post('/checkout', { sku_id: skuId, qty: 1 }); ok(y.text.includes('活动专区商品请在活动专区') || (y.status === 302 && !String(y.loc || '').includes('/pay')), '不走活动价不能结算', y.status + ' ' + y.loc);
+              y = await b.post('/checkout', { sku_id: skuId, qty: 1, promo_type: 'activity', promo_id: sk.id }); ok(y.status === 200 && y.text.includes('确认订单') && y.text.includes('29.9'), '按活动价可以进入结算', y.status + ' ' + y.loc);
+              y = await adm.post('/admin/activity-goods/save', { ...body, id: pr.id, aftersale_text: '坏果包赔' }); ok(y.text.includes('包赔') && y.text.includes('售后规则') && db.get('SELECT aftersale_text FROM products WHERE id=?', pr.id).aftersale_text !== '坏果包赔', '售后规则里的违禁表述也会拦截');
+              y = await adm.post('/admin/activity-goods/save', { ...body, id: pr.id, price: '25.8', market_price: '35.8', stock: '40', aftersale_text: '坏果拍照联系客服补发' }); const p2 = db.get('SELECT * FROM products WHERE id=?', pr.id), s2 = db.get('SELECT * FROM seckills WHERE product_id=?', pr.id);
+              ok(p2.market_price === 35.8 && s2.price === 25.8 && s2.stock === 40 && p2.aftersale_text === '坏果拍照联系客服补发' && db.get('SELECT COUNT(*) n FROM seckills WHERE product_id=?', pr.id).n === 1, '编辑:改价、划线价、库存、售后规则,不重复建活动', JSON.stringify([p2.market_price,s2.price,s2.stock,p2.aftersale_text]) + y.status + (y.text.match(/ag-err[^<]*<|flash[^<]*</g)||[]).join('|'));
+              y = await adm.get('/admin/activity-goods/' + pr.id + '/edit'); ok(y.text.includes('<h3>编辑活动专区商品</h3>') && y.text.includes('value="25.8"') && y.text.includes('https://example.com/a.jpg'), '编辑页回显已有内容和图片');
+              await adm.post('/admin/activity-goods/' + pr.id + '/toggle', {}); y = await b.get('/activity'); ok(!y.text.includes(nm) && db.get('SELECT status FROM products WHERE id=?', pr.id).status === 0, '下架后前台活动专区不再显示');
+              y = await adm.get('/admin/activity-goods'); ok(y.text.includes('已下架') && y.text.includes('>上架<'), '后台显示已下架并可重新上架');
+              await adm.post('/admin/activity-goods/' + pr.id + '/toggle', {}); y = await b.get('/activity'); ok(y.text.includes(nm), '重新上架后恢复显示');
+              await adm.post('/admin/activity-goods/' + pr.id + '/delete', {}); ok(!db.get('SELECT 1 FROM products WHERE id=?', pr.id) && !db.get('SELECT 1 FROM seckills WHERE product_id=?', pr.id), '无订单时可删除'); }
             x = await b.get('/products?page=2'); ok(!x.text.includes('data-storecard'), '第 2 页不重复显示门店优惠卡');
             x = await b.get('/storecard'); const sct = x.text.replace(/<script[\s\S]*?<\/script>/g, '');
             ok(x.status === 200 && sct.includes('全国韵农甄选线下门店均可使用，到店消费享七五折（不参与折扣的商品除外，门店列表见下方）') && sct.includes('使用须知') && sct.includes('自开卡之日起 1 年') && sct.includes('由海南韵农科技有限公司及合作门店提供') && sct.includes('门店名单整理中，可咨询客服') && sct.includes('到店或联系客服办理'), '详情页:标题文案、使用须知、门店列表占位、到店或联系客服办理');

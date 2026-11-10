@@ -50,7 +50,7 @@ module.exports = function (app, { filesOf }) {
     const newbieCoupon = !!db.get("SELECT 1 FROM coupons WHERE status=1 AND name LIKE '新人%' AND claimed<total");
     const gbOn = !!db.get('SELECT 1 FROM groupbuys g JOIN catalog_products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1 LIMIT 1'); // 仅用于显示:无进行中拼团时首页隐藏「拼团」入口
     // 好物精选:仅在售商品(下架/待审/禁售/供应商自动下架不显示);按后台推荐排序(置顶、权重)再按上架时间;不做个性化,不显示销量
-    const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
+    const picks = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND p.activity_only=0 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 8"));
     // 轮播横幅:后台「Banner 管理」中启用的条目,按排序;链接仅允许站内相对路径(旧数据中的外链不输出 href),颜色不合法时回退默认
     const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
     const banners = db.all('SELECT id, title, subtitle, image, link, bg1, bg2 FROM banners WHERE status=1 ORDER BY sort, id LIMIT 5')
@@ -61,7 +61,7 @@ module.exports = function (app, { filesOf }) {
   // ---------------- 商品列表 ----------------
   app.get('/products', (req, res) => {
     const { q = '', cat = '', brand = '', sort = '', min = '', max = '' } = req.query;
-    const where = ['p.status=1'], params = [];
+    const where = ['p.status=1', 'p.activity_only=0'], params = [];
     if (q.trim()) {
       where.push('(p.name LIKE ? OR p.subtitle LIKE ? OR b.name LIKE ?)'); const k = '%' + q.trim().replace(/[%_]/g, '') + '%'; params.push(k, k, k);
       if (req.query.partial === '1') { /* 无限滚动加载下一页,不重复计入搜索热度 */ } else if (db.get('SELECT 1 FROM keywords WHERE word=?', q.trim())) db.exec1('UPDATE keywords SET hits=hits+1 WHERE word=?', q.trim());
@@ -79,7 +79,7 @@ module.exports = function (app, { filesOf }) {
     pg.rows = withImg(pg.rows);
     let subCats = curCat ? db.all('SELECT * FROM categories WHERE parent_id=? AND status=1 ORDER BY sort', curCat.parent_id || curCat.id) : [];
     // 供应商 live 演示:不显示没有在售商品的子分类(如下架演示占位商品后为空的分类)
-    if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM catalog_products WHERE category_id=? AND status=1 LIMIT 1', c.id));
+    if (require('../lib/suppliers/jdvop/config').cfg().mode === 'live') subCats = subCats.filter(c => c.id === curCat.id || db.get('SELECT 1 FROM catalog_products WHERE category_id=? AND status=1 AND activity_only=0 LIMIT 1', c.id));
     const brands = db.all('SELECT * FROM brands WHERE status=1 ORDER BY sort');
     res.page('shop/products', { title: q ? `搜索「${q}」` : (curCat ? curCat.name : '全部商品'), pg, storecard: pg.page === 1 ? require('../lib/storecard').get() : null, q, cat, brand, sort, min, max, curCat, subCats, brands });
   });
@@ -102,7 +102,7 @@ module.exports = function (app, { filesOf }) {
     if (rv === 'good') rvWhere += ' AND r.rating>=4'; else if (rv === 'bad') rvWhere += ' AND r.rating<=3';
     const reviews = db.all(`SELECT r.*, u.nickname, u.phone FROM reviews r JOIN users u ON u.id=r.user_id WHERE ${rvWhere} ORDER BY r.id DESC LIMIT 30`, p.id).map(r => ({ ...r, nick: r.nickname.slice(0, 1) + '***' + r.nickname.slice(-1) }));
     const rs = db.get("SELECT COUNT(*) n, COALESCE(AVG(rating),5) avg, SUM(rating>=4) good FROM reviews WHERE product_id=? AND status='approved'", p.id);
-    const related = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.category_id=? AND p.id!=? LIMIT 4`, p.category_id, p.id));
+    const related = withImg(db.all(`${prodCard} WHERE p.status=1 AND p.activity_only=0 AND p.category_id=? AND p.id!=? LIMIT 4`, p.category_id, p.id));
     const brand = db.get('SELECT * FROM brands WHERE id=?', p.brand_id);
     const category = db.get('SELECT c.*, pc.name parent_name, pc.id parent_cid FROM categories c LEFT JOIN categories pc ON pc.id=c.parent_id WHERE c.id=?', p.category_id);
     const tpl = db.get('SELECT * FROM shipping_templates WHERE id=?', p.template_id) || db.get('SELECT * FROM shipping_templates ORDER BY id LIMIT 1');
@@ -145,9 +145,10 @@ module.exports = function (app, { filesOf }) {
   });
   app.post('/cart/add', needLogin, (req, res) => {
     const skuId = int(req.body.sku_id), qty = Math.max(1, int(req.body.qty, 1));
-    const sku = db.get('SELECT s.*, p.status FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.id=?', skuId);
+    const sku = db.get('SELECT s.*, p.status, p.activity_only FROM skus s JOIN catalog_products p ON p.id=s.product_id WHERE s.id=?', skuId);
     const fail = m => wantsJson(req) ? res.json({ ok: false, msg: m }) : (flash(req, 'error', m), back(req, res, '/cart'));
     if (!sku || !sku.status) return fail('商品不存在或已下架');
+    if (sku.activity_only) return fail('活动专区商品请在活动专区按活动价购买');
     if (!svc.noReasonOf(sku.product_id) && req.body.no7_ok !== '1') return wantsJson(req) ? res.json({ ok: false, no7: true, msg: '本商品不支持7天无理由退货,请确认知晓后再加入购物车' }) : fail('本商品不支持7天无理由退货,请勾选「我已知晓」后再加入购物车');
     const cur = db.get('SELECT qty FROM cart WHERE user_id=? AND sku_id=?', req.user.id, skuId);
     const nq = (cur ? cur.qty : 0) + qty;
@@ -493,7 +494,7 @@ module.exports = function (app, { filesOf }) {
   // ---------------- 会员中心 ----------------
   app.get('/me', (req, res) => {
     // 「我的」底部推荐商品:与首页好物精选同一口径(仅在售、按后台推荐排序,不做个性化)
-    const recs = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 6"));
+    const recs = withImg(db.all("SELECT p.id, p.name, p.price, p.images FROM catalog_products p WHERE p.status=1 AND p.activity_only=0 AND COALESCE(p.supplier_state,'ok')='ok' ORDER BY p.is_top DESC, p.sort DESC, p.created_at DESC, p.id DESC LIMIT 6"));
     if (!req.user) return res.page('shop/me', { title: '我的', guest: true, recs }); // 未登录:顶部卡片显示登录/注册
     const u = req.user;
     const cnt = {}; for (const r of db.all('SELECT status, COUNT(*) n FROM orders WHERE user_id=? GROUP BY status', u.id)) cnt[r.status] = r.n;
