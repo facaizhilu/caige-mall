@@ -488,7 +488,7 @@ module.exports = function (app, { filesOf }) {
     const gifts = [gotPts > 0 ? ' ' + gotPts + ' 积分' : '', gotCp > 0 ? ' ' + gotCp + ' 张新人优惠券' : ''].filter(Boolean);
     req.session.regenerate(() => { req.session.uid = id; req.session.flash = { type: 'success', msg: '注册成功!' + (gifts.length ? '已赠送' + gifts.join(' 与') : '') }; req.session.save(() => res.redirect('/me')); });
   });
-  app.post('/logout', (req, res) => { req.session.regenerate(() => res.redirect('/')); });
+  app.post('/logout', (req, res) => { req.session.regenerate(() => { req.session.flash = { type: 'toast', msg: '已退出登录' }; req.session.save(() => res.redirect('/')); }); });
 
   // ---------------- 会员中心 ----------------
   app.get('/me', (req, res) => {

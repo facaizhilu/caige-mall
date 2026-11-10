@@ -13,7 +13,7 @@
   <%- include('../partials/header') %>
 </div>
 <div class="hm">
-  <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
+  <% if (flash && flash.type === 'toast') { %><div class="hm-toast" role="status" aria-live="polite"><%= flash.msg %></div><% } else if (flash) { %><div class="flash <%= flash.type %>"><%= flash.msg %></div><% } %>
   <a class="ann hm-ann hm-card" href="/notices"<% if (shop.announcement) { %> title="<%= shop.announcement %>"<% } %>><b class="hm-ntag"><%- ic('megaphone', 16) %>公告</b><i class="hm-nsep"></i><span class="hm-mq"><em><%= String(shop.announcement || '暂无公告').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\s]+/u,'') %></em></span><%- ic('chev', 14) %></a>
   <nav class="hm-duo hm-card" aria-label="精选入口">
     <a class="hc" href="/products"><span class="hc-t"><b>精选好物</b><%- go('acc') %></span><span class="hc-s">平台优选好物</span><img class="hc-img" src="/static/img/home/ill-basket.jpg" alt="" width="46" height="46" decoding="async"></a><i class="hc-vs"></i>

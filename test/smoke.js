@@ -37,7 +37,7 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   ok(r.text.includes('活动专区') && r.text.includes('云商会员') && !r.text.includes('七天无理由') && !r.text.includes('7天无理由') && !r.text.includes('class="svc"') && !r.text.includes('鲜活易腐除外') && r.text.indexOf('class="svc"') < r.text.indexOf('class="picks"') && (r.text.match(/class="pk"/g) || []).length >= 6 && !/秒杀|限时|倒计时|仅剩|data-countdown|为你推荐|寄售|转盘/.test(r.text) && !/方正|汉仪/.test(r.text), '首页朱漆金韵:活动专区/云商会员/服务条(不含七天无理由承诺),无秒杀与倒计时');
   { const names = [...r.text.matchAll(/<span class="pk-n">([^<]*)<\/span>/g)].map(m => m[1]).slice(0, 6); const fresh = names.filter(n => /苹果|脐橙|芒果|鸡蛋|蔬菜/.test(n)).length; ok(names.length === 6 && fresh >= 4 && names.length - fresh <= 2 && !r.text.includes('智能手机') && !/今日推荐|为你推荐|猜你喜欢/.test(r.text), '好物精选演示 6 件以新鲜农产品为主(数码配件≤2),无整机手机与个性化文案', names.join('|')); }
   ok(r.text.includes('韵农甄选') && r.text.includes('/static/img/logo-orig-mark.svg?v=1') && r.text.includes('class="orig-mark"') && !r.text.includes('财哥商城') && r.text.includes('placeholder="搜索商品名称"'), '品牌「韵农甄选」:首页横版标志/公告/页脚,无旧品牌名');
-  { ok(!/class="(hero )?bnr|bnr-s|bnr-d|aria-roledescription="carousel"/.test(r.text) && /home\.css\?v=22/.test(r.text) && !/home\.js\?v=/.test(r.text), '首页方案A:已移除横幅轮播');
+  { ok(!/class="(hero )?bnr|bnr-s|bnr-d|aria-roledescription="carousel"/.test(r.text) && /home\.css\?v=23/.test(r.text) && !/home\.js\?v=/.test(r.text), '首页方案A:已移除横幅轮播');
     { const p2 = await shop.get('/product/2'); ok(p2.status === 200 && p2.text.includes('Type-C 七合一扩展坞') && !p2.text.includes('轻薄本'), '演示商品 ID 2 为电脑配件(扩展坞),无整机笔记本'); }
     ok(!/京东|财哥|倒计时|已售|销量|限时|仅剩/.test(r.text.replace(/<script[\s\S]*?<\/script>/g, '')) && r.text.includes('class="ann hm-ann hm-card"') && r.text.includes('class="hm-duo hm-card"'), '首页方案A:公告卡/精选好物|签到卡,无外部平台/倒计时/销量文案'); }
   { const ids = [...r.text.matchAll(/class="pk" href="\/product\/(\d+)"/g)].map(m => m[1]);
@@ -71,7 +71,11 @@ const ok = (c, name, extra) => { if (c) { pass++; console.log('  ✔', name); } 
   r = await shop.post('/me/addresses', { name: '坏', phone: '123', province: '广东省', city: '深圳市', district: '南山区', detail: 'x' }); ok((await shop.get('/me/addresses')).text.includes('张三'), '地址列表');
   r = await shop.post('/me/signin'); r = await shop.get('/me/points'); ok(r.text.includes('已签到'), '每日签到');
   // 登出再用密码/短信登录
-  await shop.get('/'); await shop.post('/logout'); await shop.get('/login'); r = await shop.post('/login', { phone, password: 'wrong' }); ok(r.text.includes('手机号或密码错误'), '错误密码被拒');
+  await shop.get('/'); r = await shop.post('/logout'); ok(r.status === 302 && r.loc === '/', '退出登录回首页');
+  r = await shop.get('/'); ok(r.text.includes('class="hm-toast"') && r.text.includes('已退出登录') && !/class="flash toast"/.test(r.text), '首页顶部轻提示「已退出登录」');
+  r = await shop.get('/'); ok(!r.text.includes('hm-toast'), '轻提示只出现一次');
+  r = await shop.get('/orders'); ok(r.status === 302 && /\/login/.test(r.loc || ''), '退出后为未登录状态');
+  await shop.get('/login'); r = await shop.post('/login', { phone, password: 'wrong' }); ok(r.text.includes('手机号或密码错误'), '错误密码被拒');
   r = await shop.post('/login', { phone, password: 'abc12345' }); ok(r.status === 302, '密码登录'); await shop.get('/');
   await shop.get('/'); await shop.post('/logout'); await shop.get('/login');
   r = await shop.post('/sms/send', { phone }, { accept: 'application/json' }); const sms = JSON.parse(r.text); ok(sms.ok && sms.demoCode, '短信验证码(模拟)发送');

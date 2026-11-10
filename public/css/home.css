@@ -59,3 +59,7 @@
 @keyframes hmq{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}
 @media(prefers-reduced-motion:reduce){.hm-ann .hm-mq{text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}.hm-ann .hm-mq em{display:inline;padding-left:0;animation:none}}
 @media(max-width:360px){.hc-s{font-size:11.5px;white-space:nowrap;padding-right:42px}.hc-img{width:38px;height:38px;right:4px}}
+
+/* 轻提示:顶部浅色,约2秒后自动淡出,不遮挡操作 */
+.hm-toast{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:999;max-width:80vw;padding:8px 18px;border-radius:20px;background:#EAF6EF;color:#23894C;border:1px solid #CDE8D7;font-size:14px;box-shadow:0 4px 14px rgba(35,137,76,.15);pointer-events:none;white-space:nowrap;animation:hmToast 2.3s ease forwards}
+@keyframes hmToast{0%{opacity:0;transform:translate(-50%,-8px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-8px);visibility:hidden}}
