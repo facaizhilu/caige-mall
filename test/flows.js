@@ -1062,5 +1062,18 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     ok(db.get("SELECT 1 FROM admin_logs WHERE action='编辑关于韵农甄选'"), '保存写入操作日志');
     const anon = new C(); y = await anon.get('/admin/about'); ok(y.status !== 200 || !y.text.includes('保存并发布'), '未登录不能进入编辑页');
   }
+  { // 关于页复测问题:医疗用语、非图片文件、1MB、底部留白
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const before = db.get("SELECT value FROM settings WHERE key='about_page'").value;
+    const send = async (obj, files = []) => { const fd = new FormData(); Object.entries(obj).forEach(([k, v]) => fd.append(k, v)); files.forEach(([k, n, type, buf]) => fd.append(k, new Blob([buf || png], { type }), n)); await adm.get('/admin/about'); return adm.req('POST', '/admin/about', fd, { form: true }); };
+    for (const [k, w] of [['title', '治疗'], ['intro', '降血压'], ['text_0', '消炎'], ['text_0', '防癌'], ['text_0', '疗效']]) { const o = { title: '关于韵农甄选', text_0: '平台介绍文字' }; o[k] = (o[k] || '') + w; const y = await send(o); ok(y.text.includes('含医疗用语「' + w + '」') && db.get("SELECT value FROM settings WHERE key='about_page'").value === before, '医疗用语「' + w + '」被拦下不发布'); }
+    const n0 = require('fs').readdirSync(require('path').join(__dirname, '..', 'public', 'uploads')).length;
+    let y = await send({ title: '关于韵农甄选', text_0: '平台介绍文字改' }, [['img_file_0', 'a.txt', 'text/plain', Buffer.from('hello')]]); ok(y.text.includes('只支持 JPG/PNG 图片') && db.get("SELECT value FROM settings WHERE key='about_page'").value === before, '上传 txt 提示只支持 JPG/PNG 且不保存');
+    y = await send({ title: '关于韵农甄选', text_0: '平台介绍文字改' }, [['cover_file', 'x.svg', 'image/svg+xml', Buffer.from('<svg/>')]]); ok(y.text.includes('只支持 JPG/PNG 图片') && db.get("SELECT value FROM settings WHERE key='about_page'").value === before, '上传 svg 提示只支持 JPG/PNG 且不保存');
+    y = await send({ title: '关于韵农甄选', text_0: '平台介绍文字改' }, [['img_file_0', 'big.png', 'image/png', Buffer.concat([png, Buffer.alloc(1024 * 1024 + 10)])]]); ok(y.text.includes('图片不能超过 1MB') && db.get("SELECT value FROM settings WHERE key='about_page'").value === before, '超过 1MB 的图片被拒且不保存');
+    ok(require('fs').readdirSync(require('path').join(__dirname, '..', 'public', 'uploads')).length === n0, '被拒的上传文件不留在服务器');
+    y = await adm.get('/admin/about'); ok((y.text.match(/accept="image\/png,image\/jpeg"/g) || []).length >= 9 && y.text.includes('仅支持 JPG/PNG') && y.text.includes('单张不超过 1MB'), '表单只接受 JPG/PNG,提示 1MB 与服务器一致');
+    y = await b.get('/about'); ok(y.text.includes('margin-bottom:calc(84px + env(safe-area-inset-bottom))'), '页面底部留出导航栏高度');
+  }
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

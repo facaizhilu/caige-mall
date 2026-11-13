@@ -395,7 +395,7 @@ const upload = multer({
     filename: (req, file, cb) => cb(null, Date.now() + '-' + crypto.randomBytes(5).toString('hex') + path.extname(file.originalname).toLowerCase())
   }),
   limits: { fileSize: 3 * 1024 * 1024, files: 9 },
-  fileFilter: (req, file, cb) => cb(null, /^image\/(png|jpe?g|gif|webp)$/.test(file.mimetype) && /\.(png|jpe?g|gif|webp)$/i.test(file.originalname))
+  fileFilter: (req, file, cb) => { const ok = /^image\/(png|jpe?g|gif|webp)$/.test(file.mimetype) && /\.(png|jpe?g|gif|webp)$/i.test(file.originalname); if (!ok && file.originalname) (req.rejectedFiles = req.rejectedFiles || []).push(file.fieldname); cb(null, ok); }
 });
 fs.mkdirSync(path.join(__dirname, 'public', 'uploads'), { recursive: true });
 function multipart(isAuthed) {
