@@ -748,7 +748,7 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/article', { title: a.title, a });
   };
   // 「关于我们」固定入口(首页 Banner 等站内链接使用):跳到后台「关于我们」类文章,没有时去帮助中心
-  const aboutPage = res => { const d = require('./admin-about').load(); if (!d.blocks.length && !d.intro) return false; res.page('shop/about', { title: d.title, d }); return true; };
+  const aboutPage = res => { const d = require('./admin-about').load(); if (!d.blocks.length && !d.intro) return false; res.page('shop/about', { title: d.title, d, info: svc.publicInfo() }); return true; };
   app.get('/about', (req, res) => { if (aboutPage(res)) return; const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); res.redirect(ab ? '/article/' + ab.id : '/help'); });
   app.get('/article/:id', (req, res) => { const a = db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)); if (a && a.category === 'about' && a.id === (db.get("SELECT id FROM articles WHERE category='about' ORDER BY status DESC, sort, id LIMIT 1") || {}).id && aboutPage(res)) return db.exec1('UPDATE articles SET views=views+1 WHERE id=?', a.id); showArticle(a, res); });
   // 积分规则(公开页面,数值随后台配置自动更新)
