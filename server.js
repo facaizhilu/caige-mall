@@ -402,7 +402,13 @@ function multipart(isAuthed) {
   return (req, res, next) => {
     if (!(req.headers['content-type'] || '').startsWith('multipart/form-data')) return next();
     if (!isAuthed(req)) return res.status(403).send('请先登录');
-    upload.any()(req, res, err => { if (err) return res.status(400).send('上传失败:' + U.esc(err.message)); next(); });
+    upload.any()(req, res, err => {
+      if (!err) return next();
+      const msg = err.code === 'LIMIT_FILE_SIZE' ? '图片太大(单张不超过 3MB)，请压缩后再传' : err.code === 'LIMIT_FILE_COUNT' ? '一次最多上传 9 张图片' : '上传失败，请重试';
+      const back = String(req.get('referer') || '');
+      if (req.session && req.session.admin && /^https?:\/\/[^/]+\/admin\//.test(back) && new URL(back).host === req.get('host')) { req.session.flash = { type: 'error', msg }; return res.redirect(back); }
+      res.status(400).type('html').send('<meta charset="utf-8"><p>' + U.esc(msg) + '</p><p><a href="javascript:history.back()">返回</a></p>');
+    });
   };
 }
 const filesOf = (req, field) => (req.files || []).filter(f => f.fieldname === field).map(f => '/uploads/' + f.filename);
