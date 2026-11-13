@@ -19,9 +19,10 @@ module.exports=(r,{need,flash,log,filesOf})=>{
  r.get('/about',need('content'),(req,res)=>res.page('admin/about',{title:'关于韵农甄选',d:load(),errs:{},max:MAX}));
  r.post('/about',need('content'),(req,res)=>{
   const b=req.body,errs={},old=load();
-  const bad=new Set(req.rejectedFiles||[]);for(const f of req.files||[])if(!/\.(png|jpe?g)$/i.test(f.originalname)||f.size>MAXB)bad.add(f.fieldname);
+  const bad=new Set(req.rejectedFiles||[]);const magic=f=>{try{const h=Buffer.alloc(4),fd=fs.openSync(f.path,'r');fs.readSync(fd,h,0,4,0);fs.closeSync(fd);return h.toString('hex');}catch{return'';}};
+  for(const f of req.files||[]){const m=magic(f);const real=m==='89504e47'||m.startsWith('ffd8ff');if(!real)f.fake=true;if(!/\.(png|jpe?g)$/i.test(f.originalname)||!real||f.size>MAXB)bad.add(f.fieldname);}
   const cleanup=()=>{for(const f of req.files||[])try{fs.unlinkSync(f.path);}catch{}};
-  const imgErr=k=>{const f=(req.files||[]).find(x=>x.fieldname===k);return f&&f.size>MAXB&&/\.(png|jpe?g)$/i.test(f.originalname)?'图片不能超过 1MB，请压缩后再传':'只支持 JPG/PNG 图片';};
+  const imgErr=k=>{const f=(req.files||[]).find(x=>x.fieldname===k);return f&&!f.fake&&f.size>MAXB&&/\.(png|jpe?g)$/i.test(f.originalname)?'图片不能超过 1MB，请压缩后再传':'只支持 JPG/PNG 图片';};
   if(bad.size){for(const k of bad){if(k==='cover_file')errs.cover=imgErr(k);else{const m=/^img_file_(\d+)$/.exec(k);if(m)errs['text_'+m[1]]=imgErr(k);}}}
   const img=(file,url,del)=>{const up=filesOf(req,file)[0];if(up)return up;if(b[del])return'';return String(b[url]||'').trim();};
   const d={title:String(b.title||'').trim(),cover:img('cover_file','cover_url','cover_del'),intro:String(b.intro||'').trim(),blocks:[]};
