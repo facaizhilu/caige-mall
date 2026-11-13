@@ -33,7 +33,7 @@ module.exports = function (r, { filesOf }) {
   };
   const ctx = { need, flash, log, filesOf };
   // 页面内跨模块链接(如会员详情→订单、客服→会员):当前角色无该模块权限时去掉 href,避免点进 403 页面(菜单已按权限过滤)
-  const PERM_OF = [[/^\/admin\/cloud-zone-products/,'product'],[/^\/admin\/(orders|members|points-log)\/export|^\/admin\/export\//, 'stats'], [/^\/admin\/jdvop\/settings/, 'system'], [/^\/admin\/jdvop\/(logs|reconcile)/, 'stats'], [/^\/admin\/(products|categories|brands|shipping|banned-words|inventory|jdvop)(\/|$|\?)/, 'product'], [/^\/admin\/(orders|aftersales|invoices)(\/|$|\?|#)/, 'order'], [/^\/admin\/reviews/, 'review'], [/^\/admin\/(members|points-log|levels|invites|cloud-)/, 'member'], [/^\/admin\/service/, 'service'], [/^\/admin\/(coupons|seckills|activity-goods|groupbuys|groups|points-goods|banners|keywords)/, 'marketing'], [/^\/admin\/(notices|help-articles|pages|policies)/, 'content'], [/^\/admin\/stats/, 'stats'], [/^\/admin\/(settings|admins|roles|logs)(\/|$|\?)/, 'system']];
+  const PERM_OF = [[/^\/admin\/cloud-zone-products/,'product'],[/^\/admin\/(orders|members|points-log)\/export|^\/admin\/export\//, 'stats'], [/^\/admin\/jdvop\/settings/, 'system'], [/^\/admin\/jdvop\/(logs|reconcile)/, 'stats'], [/^\/admin\/(products|categories|brands|shipping|banned-words|inventory|jdvop)(\/|$|\?)/, 'product'], [/^\/admin\/(orders|aftersales|invoices)(\/|$|\?|#)/, 'order'], [/^\/admin\/reviews/, 'review'], [/^\/admin\/(members|points-log|levels|invites|cloud-)/, 'member'], [/^\/admin\/service/, 'service'], [/^\/admin\/(coupons|seckills|activity-goods|groupbuys|groups|points-goods|banners|keywords)/, 'marketing'], [/^\/admin\/(notices|help-articles|pages|policies|about)(\/|$|\?)/, 'content'], [/^\/admin\/stats/, 'stats'], [/^\/admin\/(settings|admins|roles|logs)(\/|$|\?)/, 'system']];
   r.use((req, res, next) => {
     const a = req.session.admin; if (!a || a.perms === 'all') return next();
     const send = res.send.bind(res);
@@ -49,6 +49,7 @@ module.exports = function (r, { filesOf }) {
 
   require('./admin-cloud-zone')(r,ctx);
   require('./admin-activity-goods')(r,ctx);
+  require('./admin-about')(r,ctx);
   // ================= 登录 =================
   const fails = new Map();
   r.get('/login', (req, res) => req.session.admin ? res.redirect('/admin') : res.page('admin/login', { title: '管理员登录', layoutless: true }));

@@ -748,8 +748,9 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/article', { title: a.title, a });
   };
   // 「关于我们」固定入口(首页 Banner 等站内链接使用):跳到后台「关于我们」类文章,没有时去帮助中心
-  app.get('/about', (req, res) => { const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); res.redirect(ab ? '/article/' + ab.id : '/help'); });
-  app.get('/article/:id', (req, res) => showArticle(db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)), res));
+  const aboutPage = res => { const d = require('./admin-about').load(); if (!d.blocks.length && !d.intro) return false; res.page('shop/about', { title: d.title, d }); return true; };
+  app.get('/about', (req, res) => { if (aboutPage(res)) return; const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); res.redirect(ab ? '/article/' + ab.id : '/help'); });
+  app.get('/article/:id', (req, res) => { const a = db.get('SELECT * FROM articles WHERE id=? AND status=1', int(req.params.id)); if (a && a.category === 'about' && a.id === (db.get("SELECT id FROM articles WHERE category='about' ORDER BY status DESC, sort, id LIMIT 1") || {}).id && aboutPage(res)) return db.exec1('UPDATE articles SET views=views+1 WHERE id=?', a.id); showArticle(a, res); });
   // 积分规则(公开页面,数值随后台配置自动更新)
   app.get('/points-rules', (req, res) => showArticle(db.get("SELECT * FROM articles WHERE topic='points_rules' AND status=1 ORDER BY id LIMIT 1"), res));
   // ---------------- 在线客服(微信风格会话:文字/图片/订单卡片) ----------------

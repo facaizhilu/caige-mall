@@ -694,8 +694,8 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
       ok(/home-1\.jpg/.test(t) && /home-2\.jpg/.test(t) && /home-3\.jpg/.test(t) && /width="1500" height="600"/.test(t), '图片来自后台 Banner 记录(1500×600)');
       ok(!sl.some(x => x.startsWith('/cloud-zone')), '云商图不直接进云商专区');
       ok(!/联系客服办理|七天无理由|最低价|产地直发|立即购买/.test(t), '首页无「联系客服办理」等不合规文案');
-      { const ra = await anon.get('/about'); const ab = db.get("SELECT id FROM articles WHERE category='about' AND status=1 ORDER BY sort, id LIMIT 1"); ok(ra.status === 302 && ra.loc === (ab ? '/article/' + ab.id : '/help'), '「关于我们」固定入口跳转正确', ra.loc);
-        const ar = await anon.get(ra.loc); ok(ar.status === 200, '关于我们页面可打开'); }
+      { const ra = await anon.get('/about'); ok(ra.status === 200 && ra.text.includes('韵农甄选由海南韵农科技有限公司运营'), '「关于我们」固定入口直接显示后台编辑的关于韵农甄选内容', ra.status);
+        ok(ra.text.includes('class="card about-page"'), '关于我们页面可打开'); }
       { const fr = await anon.get(sl[1]); const n = db.get(`SELECT COUNT(*) n FROM catalog_products WHERE status=1 AND category_id=?`, fruit.id).n; ok(fr.status === 200 && n > 0 && !fr.text.includes('暂无商品'), '鲜果图跳转的分类有在售商品(' + n + ')'); }
       { const cr = await anon.get('/me/cloud'); ok(cr.status === 302 && /\/login/.test(cr.loc || ''), '未登录点云商图先去登录(与首页云商卡一致)'); }
       await adm.get('/admin/banners/new');
@@ -1042,5 +1042,25 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     }
   }
 
+  { // 关于韵农甄选:后台上传图片、编辑文字,前台显示
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const send = async (obj, files = {}) => { const fd = new FormData(); Object.entries(obj).forEach(([k, v]) => fd.append(k, v)); Object.entries(files).forEach(([k, n]) => fd.append(k, new Blob([png], { type: 'image/png' }), n)); await adm.get('/admin/about'); return adm.req('POST', '/admin/about', fd, { form: true }); };
+    let y = await adm.get('/admin'); ok(y.text.includes('href="/admin/about"') && y.text.includes('关于韵农甄选'), '后台内容菜单有「关于韵农甄选」');
+    y = await adm.get('/admin/about'); ok(y.status === 200 && y.text.includes('name="cover_file"') && y.text.includes('name="img_file_0"') && y.text.includes('name="text_0"') && y.text.includes('保存并发布') && y.text.includes('韵农甄选由海南韵农科技有限公司运营'), '编辑页带出原有介绍文字,可上传封面和段落图片');
+    y = await send({ title: '', intro: '', text_0: '' }); ok(y.text.includes('请填写标题') && y.text.includes('至少填写一段文字或上传一张图片'), '标题和内容必填');
+    y = await send({ title: '关于韵农甄选', text_0: '全网最低价包赔' }); ok(y.text.includes('含违禁词') && !(await b.get('/about')).text.includes('全网最低价'), '文字含违禁词不能发布');
+    y = await send({ title: '关于韵农甄选', text_0: '<script>x</script>', img_url_0: 'javascript:alert(1)' }); ok(y.text.includes('图片仅支持本站上传或 HTTPS 地址'), '非法图片地址被拒');
+    y = await send({ title: '关于韵农甄选测试', intro: '海南农产品甄选平台', text_0: '平台介绍文字\n第二行<b>x</b>', text_1: '', text_2: '产地直采说明' }, { cover_file: 'c.png', img_file_0: 'a.png', img_file_2: 'b.png' });
+    const d = JSON.parse(db.get("SELECT value FROM settings WHERE key='about_page'").value);
+    ok(y.status === 302 && d.title === '关于韵农甄选测试' && /^\/uploads\//.test(d.cover) && d.blocks.length === 2 && /^\/uploads\//.test(d.blocks[0].image) && /^\/uploads\//.test(d.blocks[1].image) && d.blocks[1].text === '产地直采说明', '保存成功:封面和两段图文,空段自动去掉');
+    ok((await fetch(base + d.blocks[0].image)).headers.get('content-type').includes('image'), '段落图片可访问');
+    for (const u of ['/about', '/article/' + db.get("SELECT id FROM articles WHERE category='about' ORDER BY status DESC, sort, id LIMIT 1").id]) { y = await b.get(u); ok(y.status === 200 && y.text.includes('关于韵农甄选测试') && y.text.includes(d.cover) && y.text.includes(d.blocks[0].image) && y.text.includes('<p>平台介绍文字</p>') && y.text.includes('第二行&lt;b&gt;x&lt;/b&gt;') && y.text.includes('产地直采说明') && y.text.includes('海南农产品甄选平台'), '前台 ' + u + ' 显示后台发布的图文(文字已转义)'); }
+    y = await b.get('/me'); const aid = (y.text.match(/href="\/article\/(\d+)">关于我们/) || [])[1]; ok(aid && (await b.get('/article/' + aid)).text.includes('关于韵农甄选测试'), '「我的 → 关于我们」进入新内容');
+    y = await adm.get('/admin/about'); ok(y.text.includes('value="' + d.cover + '"') && y.text.includes('删除封面图') && y.text.includes('产地直采说明'), '再次编辑带出已保存的图文');
+    y = await send({ title: '关于韵农甄选', cover_url: d.cover, cover_del: '1', text_0: '平台介绍文字', img_url_0: d.blocks[0].image, img_del_0: '1' }); const d2 = JSON.parse(db.get("SELECT value FROM settings WHERE key='about_page'").value);
+    ok(!d2.cover && d2.blocks.length === 1 && !d2.blocks[0].image && !(await b.get('/about')).text.includes(d.cover) && (await b.get('/about')).text.includes('logo-horizontal'), '可删除封面和段落图片,无封面显示 Logo,删掉的段落不再显示');
+    ok(db.get("SELECT 1 FROM admin_logs WHERE action='编辑关于韵农甄选'"), '保存写入操作日志');
+    const anon = new C(); y = await anon.get('/admin/about'); ok(y.status !== 200 || !y.text.includes('保存并发布'), '未登录不能进入编辑页');
+  }
   console.log(`\n结果: ${pass} 通过, ${fail} 失败`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
