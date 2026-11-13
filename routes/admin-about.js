@@ -1,6 +1,6 @@
 // 「关于韵农甄选」后台编辑:标题、封面图、简介、图文段落(文字+图片),保存即发布到前台 /about
 const db=require('../lib/db'),U=require('../lib/util'),B=require('../lib/banned'),svc=require('../lib/svc');
-const MAX=8,MAXB=1024*1024;
+const MAX=8,MAXB=3*1024*1024;
 // 关于页额外拦截的医疗/功效用语(商品违禁词库之外)
 const MED_WORDS=['治疗','治愈','疗效','药用','防癌','抗癌','降血压','降血糖','降血脂','消炎','根治','药效'];
 const fs=require('fs'),path=require('path');
@@ -22,7 +22,7 @@ module.exports=(r,{need,flash,log,filesOf})=>{
   const bad=new Set(req.rejectedFiles||[]);const magic=f=>{try{const h=Buffer.alloc(4),fd=fs.openSync(f.path,'r');fs.readSync(fd,h,0,4,0);fs.closeSync(fd);return h.toString('hex');}catch{return'';}};
   for(const f of req.files||[]){const m=magic(f);const real=m==='89504e47'||m.startsWith('ffd8ff');if(!real)f.fake=true;if(!/\.(png|jpe?g)$/i.test(f.originalname)||!real||f.size>MAXB)bad.add(f.fieldname);}
   const cleanup=()=>{for(const f of req.files||[])try{fs.unlinkSync(f.path);}catch{}};
-  const imgErr=k=>{const f=(req.files||[]).find(x=>x.fieldname===k);return f&&!f.fake&&f.size>MAXB&&/\.(png|jpe?g)$/i.test(f.originalname)?'图片不能超过 1MB，请压缩后再传':'只支持 JPG/PNG 图片';};
+  const imgErr=k=>{const f=(req.files||[]).find(x=>x.fieldname===k);return f&&!f.fake&&f.size>MAXB&&/\.(png|jpe?g)$/i.test(f.originalname)?'图片不能超过 3MB，手机原图请先压缩再上传':'只支持 JPG/PNG 图片';};
   if(bad.size){for(const k of bad){if(k==='cover_file')errs.cover=imgErr(k);else{const m=/^img_file_(\d+)$/.exec(k);if(m)errs['text_'+m[1]]=imgErr(k);}}}
   const img=(file,url,del)=>{const up=filesOf(req,file)[0];if(up)return up;if(b[del])return'';return String(b[url]||'').trim();};
   const d={title:String(b.title||'').trim(),cover:img('cover_file','cover_url','cover_del'),intro:String(b.intro||'').trim(),blocks:[]};
