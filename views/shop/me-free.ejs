@@ -4,10 +4,11 @@
 <% if (!list.length) { %><div class="card empty">还没有可邀请的订单。<a href="/activity" style="color:#2E9E5B">先选一件活动专区商品下单，就能开始邀请</a></div><% } %>
 <% list.forEach(p=>{ const link=origin+'/activity?ac='+p.code; %>
 <div class="card ac-card mb" id="ac<%= p.id %>">
-  <div class="flex between"><b>订单 <%= p.orderNo %></b><span class="ac-st <%= p.status==='done'?'ok':p.status==='open'?'review':'void' %>"><%= p.statusLabel %></span></div>
-  <div class="muted" style="font-size:12px">已计入 <b style="color:#2E9E5B"><%= p.counted %></b>/<%= p.need %><% if (p.status==='open') { %>，还差 <%= p.left %> 位 · 截止 <%= p.deadline %><% } %><% if (p.status==='done' && p.reward!=null) { %> · 已发 ¥<%= (+p.reward).toFixed(2) %> 专享券<% } %></div>
+  <div class="flex between"><b>订单 <%= p.orderNo %></b><span class="ac-st <%= p.status==='done'?'ok':(p.status==='open'||p.status==='frozen')?'review':'void' %>"><%= p.statusLabel %></span></div>
+  <div class="muted" style="font-size:12px">已计入 <b style="color:#2E9E5B"><%= p.counted %></b>/<%= p.need %><% if (p.status==='open' || p.status==='frozen') { %>，还差 <%= p.left %> 位 · 截止 <%= p.deadline %><% } %><% if (p.status==='done' && p.reward!=null) { %> · 已发 ¥<%= (+p.reward).toFixed(2) %> 专享券<% } %></div>
+  <% if (p.status==='frozen') { %><div style="color:#B26B00;font-size:12px">好友退款，免单券已冻结，再邀 <%= p.left %> 位好友下单即可恢复</div><% } %>
   <%- include('_ac-slots',{p}) %>
-  <% if (p.status==='open') { %><div class="flex" style="gap:8px;flex-wrap:wrap"><button type="button" class="ac-btn ac-share" data-link="<%= link %>" data-title="<%= ac.shareTitle %>">发给微信好友</button><a class="btn sm" href="/me/free/<%= p.id %>/poster">生成海报</a></div><% } %>
+  <% if (p.status==='open' || p.status==='frozen') { %><div class="flex" style="gap:8px;flex-wrap:wrap"><button type="button" class="ac-btn ac-share" data-link="<%= link %>" data-title="<%= ac.shareTitle %>">发给微信好友</button><a class="btn sm" href="/me/free/<%= p.id %>/poster">生成海报</a></div><% } %>
   <% if (p.friends.length) { %><div class="mt"><% p.friends.forEach(f=>{ %><div class="ac-fr"><div><img class="ac-av" src="/static/img/mark-green.svg?v=1" alt="默认头像" width="24" height="24"><b><%= f.who %></b> <span class="muted" style="font-size:12px"><%= String(f.created_at).slice(0,16) %></span><% if (f.slot.reason) { %><div class="why"><%= f.slot.reason %></div><% } %></div><span class="ac-st <%= f.slot.k %>"><%= f.slot.label %></span></div><% }) %></div><% } %>
 </div><% }) %>
 <script>(function(){document.querySelectorAll('.ac-share').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-title')+' '+b.getAttribute('data-link');var done=function(){window.toast&&toast('链接已复制，粘贴发给微信好友即可')};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,function(){prompt('复制下面的链接发给好友',t)});else prompt('复制下面的链接发给好友',t)})})})()</script>

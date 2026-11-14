@@ -653,7 +653,7 @@ module.exports = function (app, { filesOf }) {
   // 优惠券
   app.get('/me/coupons', needLogin, (req, res) => {
     const st = req.query.status || 'unused';
-    res.page('shop/me-coupons', { title: '我的优惠券', st, rows: svc.userCoupons(req.user.id, st) });
+    res.page('shop/me-coupons', { title: '我的优惠券', st, rows: st === 'unused' ? svc.userCoupons(req.user.id).filter(c => c.state === 'unused' || c.state === 'frozen') : svc.userCoupons(req.user.id, st) });
   });
   app.get('/coupons', (req, res) => {
     const rows = db.all('SELECT c.*, cat.name cat_name FROM coupons c LEFT JOIN categories cat ON cat.id=c.category_id WHERE c.status=1 AND COALESCE(c.scope,\'\')<>\'activity\' ORDER BY c.id').map(c => ({ ...c, mine: req.user ? db.get('SELECT COUNT(*) n FROM user_coupons WHERE user_id=? AND coupon_id=?', req.user.id, c.id).n : 0 }));
@@ -720,9 +720,9 @@ module.exports = function (app, { filesOf }) {
   app.get('/activity', (req, res) => {
     const t = now();
     const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN catalog_products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
-    res.page('shop/activity', { title: '活动专区', rows, ac: AC.cfg(), acp: req.user ? AC.current(req.user.id) : null });
+    res.page('shop/activity', { title: '活动专区', rows, ac: AC.cfg(), bn: AC.banner(req.user && req.user.id) });
   });
-  app.get('/activity/rules', (req, res) => res.page('shop/activity-rules', { title: '活动规则', ac: AC.cfg() }));
+  app.get('/activity/rules', (req, res) => res.page('shop/activity-rules', { title: '活动规则', ac: AC.cfg(), rules: AC.rules() }));
   app.get('/me/free', needLogin, (req, res) => {
     const list = AC.ofUser(req.user.id), pop = db.get('SELECT id, reward_amount FROM ac_campaigns WHERE user_id=? AND popup=1 ORDER BY id DESC LIMIT 1', req.user.id);
     db.exec1('UPDATE ac_campaigns SET unread=0, popup=0 WHERE user_id=?', req.user.id);

@@ -24,8 +24,12 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
  ok(!/免单|奖励|返/.test(cfg.shareTitle)&&B.check({a:cfg.title,b:cfg.note,c:cfg.shareTitle}).length===0&&!/越分享|全额返还/.test(cfg.title+cfg.note),'copy passes banned-word check; share title has no reward wording');
  ok(svc.S('policy_version')==='1.2','privacy policy version bumped to 1.2');
  const g=new C();let r=await g.get('/privacy');ok(r.text.includes('邀请活动风控信息（收货地址、收货手机号、微信支付付款人标识、活动订单状态）')&&r.text.includes('计算邀请好友积分奖励及活动专区邀请免单专享券')&&r.text.includes('180 天删除或匿名化')&&!r.text.includes('计算邀请好友首单积分奖励'),'privacy policy rows updated');
- r=await g.get('/activity');ok(r.text.includes('id="acBanner"')&&r.text.includes('#EEF8F2')&&r.text.includes('font-size:17px')&&r.text.includes('<a href="/activity/rules">活动规则</a>')&&r.text.includes('① 买活动专区商品')&&r.text.includes('先选一件活动专区商品下单，就能开始邀请')&&!/限时|倒计时/.test(r.text.slice(r.text.indexOf('acBanner'),r.text.indexOf('acList'))),'guest banner + 3 steps + toast for no-order users');
- r=await g.get('/activity/rules');ok(r.text.includes('¥100.00')&&r.text.includes('活动专区专享券')&&r.text.includes('30</b> 天内有效')&&r.text.includes('不与其他优惠叠加')&&r.text.includes('不可兑换现金')&&r.text.includes('3</b> 个工作日')&&r.text.includes('限制账号'),'rules page reads configured cap/validity/review days');
+ r=await g.get('/activity');ok(r.text.includes('id="acBanner"')&&r.text.includes('#EEF8F2')&&r.text.includes('font-size:17px')&&r.text.includes('<a href="/activity/rules">活动规则</a>')&&r.text.includes('① 买活动专区商品')&&r.text.includes('先选一件活动专区商品下单，就能开始邀请')&&!/限时|倒计时/.test(r.text.slice(r.text.indexOf('id="acBanner"'),r.text.indexOf('acList'))),'guest banner + 3 steps + toast for no-order users');
+ r=await g.get('/activity/rules');{const R=AC.rules(),t=r.text;ok(R.items.length===11,'rules: 11 items');
+  const need=[['活动对象','不限新老用户'],['参与方式','我的免单'],['好友计入','不限金额'],['计入限制','好友的一笔订单只计入一位邀请人'],['免单券发放','单张最高 ¥100.00'],['专享券使用','30 天内有效，仅限活动专区商品使用，不与其他优惠叠加，不可兑换现金'],['退款处理','冻结'],['风控审核','3 个工作日内出结果'],['个人信息','默认头像和打码手机号'],['进度通知','站内消息'],['活动咨询','「我的」→「在线客服」']];
+  need.forEach(([h,w],n)=>ok(t.includes('<li><b>'+h+'：</b>')&&R.items[n][0]===h&&R.items[n][1].includes(w)&&t.includes(w),'rules item '+(n+1)+' '+h+' contains 「'+w+'」'));
+  ok(t.includes('活动主办：海南韵农科技有限公司'),'rules body names 活动主办');ok(!t.slice(t.indexOf('ac-rules'),t.indexOf('返回活动专区')).includes('待公布'),'no 待公布 placeholder in rules');
+  svc.setSetting('service_phone','0898-12345678');ok(AC.rules().items[10][1].includes('0898-12345678'),'configured customer-service phone used when set');svc.setSetting('service_phone','');}
 
  const I=user('邀请人甲'),F1=user('友一'),F2=user('友二'),F3=user('友三'),F4=user('友四'),F5=user('友五'),F6=user('友六');
  // non-activity order with code is excluded
@@ -91,9 +95,18 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
  r=await g.get('/coupons');ok(!r.text.includes('活动专区专享券'),'专享券 never listed in coupon center');
  r=await ic.post('/checkout',{sku_id:P.sku_id,qty:1,promo_type:'activity',promo_id:P.sk,no7_ok:'1'});ok(r.text.includes('活动专区专享券')&&!r.text.includes('name="use_points"'),'checkout offers 专享券 for activity order, no points');
  // friend refund after coupon issued (unused) → revoke
- svc.refundOrder(o3,'商家取消:测试');ok(!db.get('SELECT 1 FROM user_coupons WHERE id=?',uc.id)&&camp(io).status==='open'&&AC.progress(c.id).counted===2&&msgs(I.id,'未使用的免单券已收回')===1,'friend refund after issue: unused coupon revoked, back to 2/3, notified');
- const o4=buy(F4.id,{code:c.code});const c3=camp(io);ok(c3.status==='done'&&c3.user_coupon_id&&msgs(I.id,'你这单的免单券已到账')===2,'next friend → coupon re-issued');
- const use=buy(I.id,{couponId:c3.user_coupon_id});ok(db.get('SELECT status FROM user_coupons WHERE id=?',c3.user_coupon_id).status==='used','inviter used coupon');
+ const agree=async(cl,oid,n,label)=>{const a=await cl.get('/activity'),b=await cl.get('/me/free'),o=await cl.get('/order/'+oid);const cnt=x=>(x.match(/已计入 <b style="color:#2E9E5B">(\d+)<\/b>\/3/)||[])[1];const lit=x=>(x.match(/class="ac-slot ok"/g)||[]).length;const ban=a.text.slice(a.text.indexOf('id="acBanner"'),a.text.indexOf('class="ac-steps"'));return {a:a.text,ban,b:b.text,o:o.text,ok:+cnt(b.text.slice(b.text.indexOf('id="ac'+camp(oid).id+'"')))===n&&+cnt(o.text)===n&&lit(ban)===n};};
+ db.exec1("UPDATE ac_campaigns SET status='expired' WHERE user_id=? AND order_id<>?",I.id,io); // 只保留本单,便于核对横幅(横幅优先显示邀请中的单)
+ let s0=await agree(ic,io,3,'done');ok(s0.ok&&s0.ban.includes('免单券已到账')&&s0.ban.includes('href="/me/coupons">去使用')&&!s0.ban.includes('先选一件'),'completed: banner 3 lit slots + 免单券已到账 + 去使用; matches order card and 我的免单');
+ svc.refundOrder(o3,'商家取消:测试');ok(db.get('SELECT status FROM user_coupons WHERE id=?',uc.id).status==='frozen'&&camp(io).status==='frozen'&&AC.progress(c.id).counted===2&&msgs(I.id,'免单券已冻结，再邀 1 位')===1,'friend refund after issue: unused coupon frozen, 2/3, notified');
+ ok(svc.quote(I.id,{items:[{sku_id:P.sku_id,qty:1}],promo:{type:'seckill',id:P.sk},address:addrOf(I.id),couponId:uc.id}).couponDiscount===0,'frozen coupon cannot be used');
+ s0=await agree(ic,io,2,'frozen');ok(s0.ok&&s0.ban.includes('免单券已冻结，再邀 1 位好友下单即可恢复')&&s0.ban.includes('>去邀请</a>')&&s0.o.includes('免单券已冻结')&&s0.b.includes('免单券已冻结')&&!s0.ban.includes('先选一件'),'frozen: banner/order card/我的免单 agree (2 lit) with frozen note and 去邀请');
+ r=await ic.get('/me/coupons');ok(r.text.includes('已冻结'),'我的优惠券 shows frozen coupon');
+ const o4=buy(F4.id,{code:c.code});const c3=camp(io);ok(c3.status==='done'&&c3.user_coupon_id===uc.id&&db.get('SELECT status FROM user_coupons WHERE id=?',uc.id).status==='unused'&&msgs(I.id,'免单券已恢复')===1,'refill to 3/3 → frozen coupon restored + notified');
+ s0=await agree(ic,io,3,'done2');ok(s0.ok&&s0.ban.includes('去使用'),'restored: all pages agree at 3/3');
+ const use=buy(I.id,{couponId:c3.user_coupon_id});ok(db.get('SELECT status FROM user_coupons WHERE id=?',c3.user_coupon_id).status==='used','inviter used coupon');ok(!camp(use),'order paid with 专享券 does not start a new round');
+ r=await ic.get('/activity');{const ban=r.text.slice(r.text.indexOf('id="acBanner"'),r.text.indexOf('class="ac-steps"'));ok(!ban.includes('去使用')&&ban.includes('再买一件活动专区商品，就能开始新一轮邀请')&&!ban.includes('先选一件')&&!ban.includes('class="ac-slot'),'coupon used: banner reverts to initial 去邀请, prompts next round (not 先下单)');}
+ ok(AC.banner(I.id).mode!=='none','user with qualifying orders never gets the 先下单 mode');
  svc.refundOrder(o4,'商家取消:测试');ok(db.get('SELECT status FROM user_coupons WHERE id=?',c3.user_coupon_id).status==='used'&&/已使用/.test(camp(io).review_note)&&msgs(I.id,'平台将人工审核')===1,'friend refund after coupon used → no clawback, flagged for admin review');
  r=await adm.get('/admin/ac?status=review');ok(r.text.includes('标记已处理'),'admin sees used-coupon review note');
  // inviter refund → void
