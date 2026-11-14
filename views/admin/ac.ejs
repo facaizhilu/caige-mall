@@ -2,6 +2,7 @@
 <div class="card"><h3>活动设置</h3>
 <form method="post" action="/admin/ac/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
   <div class="form-row"><label><input type="checkbox" name="ac_on" value="1" <%= s.on?'checked':'' %>> 开启活动（活动专区横幅、订单生成邀请）</label></div>
+  <div class="form-row"><label>活动时间（显示在活动规则第 1 条）</label><input name="ac_time" maxlength="40" value="<%= s.time %>"></div>
   <div class="form-row"><label>横幅主标题</label><input name="ac_title" maxlength="40" value="<%= s.title %>" required></div>
   <div class="form-row"><label>横幅副标题（可留空，留空不显示）</label><input name="ac_subtitle" maxlength="40" value="<%= s.subtitle %>"></div>
   <div class="form-row"><label>横幅小字（「活动规则」四字自动变为链接）</label><input name="ac_note" maxlength="60" value="<%= s.note %>" required></div>

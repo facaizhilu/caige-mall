@@ -25,11 +25,20 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
  ok(svc.S('policy_version')==='1.2','privacy policy version bumped to 1.2');
  const g=new C();let r=await g.get('/privacy');ok(r.text.includes('邀请活动风控信息（收货地址、收货手机号、微信支付付款人标识、活动订单状态）')&&r.text.includes('计算邀请好友积分奖励及活动专区邀请免单专享券')&&r.text.includes('180 天删除或匿名化')&&!r.text.includes('计算邀请好友首单积分奖励'),'privacy policy rows updated');
  r=await g.get('/activity');ok(r.text.includes('id="acBanner"')&&r.text.includes('#EEF8F2')&&r.text.includes('font-size:17px')&&r.text.includes('<a href="/activity/rules">活动规则</a>')&&r.text.includes('① 买活动专区商品')&&r.text.includes('先选一件活动专区商品下单，就能开始邀请')&&!/限时|倒计时/.test(r.text.slice(r.text.indexOf('id="acBanner"'),r.text.indexOf('acList'))),'guest banner + 3 steps + toast for no-order users');
- r=await g.get('/activity/rules');{const R=AC.rules(),t=r.text;ok(R.items.length===11,'rules: 11 items');
-  const need=[['活动对象','不限新老用户'],['参与方式','我的免单'],['好友计入','不限金额'],['计入限制','好友的一笔订单只计入一位邀请人'],['免单券发放','单张最高 ¥100.00'],['专享券使用','30 天内有效，仅限活动专区商品使用，不与其他优惠叠加，不可兑换现金'],['退款处理','冻结'],['风控审核','3 个工作日内出结果'],['个人信息','默认头像和打码手机号'],['进度通知','站内消息'],['活动咨询','「我的」→「在线客服」']];
-  need.forEach(([h,w],n)=>ok(t.includes('<li><b>'+h+'：</b>')&&R.items[n][0]===h&&R.items[n][1].includes(w)&&t.includes(w),'rules item '+(n+1)+' '+h+' contains 「'+w+'」'));
-  ok(t.includes('活动主办：海南韵农科技有限公司'),'rules body names 活动主办');ok(!t.slice(t.indexOf('ac-rules'),t.indexOf('返回活动专区')).includes('待公布'),'no 待公布 placeholder in rules');
-  svc.setSetting('service_phone','0898-12345678');ok(AC.rules().items[10][1].includes('0898-12345678'),'configured customer-service phone used when set');svc.setSetting('service_phone','');}
+ r=await g.get('/activity/rules');{const t=r.text,R=AC.rules();
+  // 伙伴定稿原文(默认设置、未配置客服电话时),逐行比对页面渲染出的纯文本
+  const EXP="1. 活动时间：以活动页公告为准。\n2. 参与范围：仅限「活动专区」内的商品，其他商品不参加本活动。所有注册用户都可以参加，不限新老用户，也不限金额。\n3. 怎么参加：你在活动专区下单付款后，把商品分享给好友。好友通过你的分享进入并下单付款活动专区商品，就算邀请成功一位。\n4. 免单条件：自你的订单付款之日起 30 天内，邀请成功 3 位好友，即可获得这一单的免单券。\n5. 计入规则：\n- 自己给自己下单不计入；\n- 同一位好友只计入一次；\n- 好友的一笔订单只计入一位邀请人；\n- 超过 30 天才下单的好友不计入。\n6. 免单券说明：\n- 面额等于你这一单的实付金额，单张最高 100 元；\n- 有效期 30 天，只能用于活动专区商品；\n- 不和其他优惠叠加，不能兑换现金，不能转让；\n- 每笔订单只能免单一次。\n7. 好友退款：\n- 凑满之前有好友退款，这一位不计入，你可以继续邀请；\n- 免单券发放后有好友退款，未使用的券会先冻结，30 天内再邀请成功一位即自动恢复，逾期作废；\n- 券已经用掉的，由客服人工处理。\n8. 公平规则：\n- 同一收货地址、手机号或支付账户下的多笔订单会转入人工审核，3 个工作日内给出结果；\n- 刷单、虚假交易等违规行为，平台将取消相关奖励，情节严重的限制账号参加活动。\n9. 个人信息：\n- 你只能看到好友的脱敏手机号（如 138****0001）和计入状态，看不到好友买了什么、花了多少钱；\n- 为防作弊审核使用的信息，只用于本活动，不用于推荐或广告，详见《隐私政策》。\n10. 活动调整：如需提前结束或修改规则，平台会提前在活动页公告。已经满足条件的奖励照常发放。\n11. 如有疑问，请在「我的」→「在线客服」咨询。\n\n活动主办：海南韵农科技有限公司";
+  const body=t.slice(t.indexOf('class="card article"'),t.indexOf('返回活动专区'));
+  const lines=[];body.replace(/<h2[^>]*>([^<]*)<\/h2>/,(m,x)=>lines.push('T '+x));
+  let n=0;for(const m of body.matchAll(/<li>([\s\S]*?)(?=<li>|<\/ol>|<ul|$)/g)){const x=m[1].replace(/<[^>]+>/g,'').trim();if(x)lines.push(x);}
+  const flat=body.replace(/<[^>]+>/g,'\n').split('\n').map(x=>x.trim()).filter(Boolean).join('');
+  ok(t.includes('<h2 style="margin-top:0;color:#2E9E5B;font-size:18px">「好物一起买」活动规则</h2>'),'rules title 「好物一起买」活动规则');
+  ok(R.items.length===11,'rules: 11 items');
+  EXP.split('\n').filter(Boolean).forEach((ln,k)=>{const txt=ln.replace(/^\d+\.\s*/,'').replace(/^-\s*/,'');ok(flat.includes(txt.replace(/\s+/g,'')===txt.replace(/\s+/g,'')?txt:txt),'rules verbatim line '+(k+1)+': '+txt.slice(0,24),txt);});
+  ok(t.includes('详见<a href="/privacy">《隐私政策》</a>'),'《隐私政策》 is a link');
+  ok((body.match(/<ol class="ac-rules"/g)||[]).length===1&&(body.split('</ol>')[0].match(/<li>/g)||[]).length===11+4+4+3+2+2,'list structure: 11 items with sub-bullets');
+  svc.setSetting('service_phone','0898-12345678');ok(AC.rules().items[10][1]==='如有疑问，请联系客服：电话 0898-12345678。','configured customer-service phone line');svc.setSetting('service_phone','');
+  svc.setSetting('ac_time','2026年11月15日至12月31日');ok(AC.rules().items[0][1]==='2026年11月15日至12月31日。','活动时间 from settings');svc.setSetting('ac_time','以活动页公告为准');}
 
  const I=user('邀请人甲'),F1=user('友一'),F2=user('友二'),F3=user('友三'),F4=user('友四'),F5=user('友五'),F6=user('友六');
  // non-activity order with code is excluded
@@ -124,7 +133,7 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
  // settings validation
  r=await adm.post('/admin/ac/settings',{ac_on:'1',ac_title:cfg.title,ac_subtitle:'',ac_note:cfg.note,ac_share_title:'邀好友免单',ac_days:'30',ac_cap:'100',ac_coupon_days:'30',ac_review_days:'3'});ok(db.get("SELECT value FROM settings WHERE key='ac_share_title'").value===cfg.shareTitle,'share title with 免单 rejected');
  r=await adm.post('/admin/ac/settings',{ac_on:'1',ac_title:cfg.title,ac_subtitle:'一起逛逛活动专区',ac_note:cfg.note,ac_share_title:cfg.shareTitle,ac_days:'30',ac_cap:'88',ac_coupon_days:'30',ac_review_days:'3'});ok(db.get("SELECT value FROM settings WHERE key='ac_cap'").value==='88'&&db.get("SELECT 1 FROM admin_logs WHERE action='修改邀好友免单设置'"),'valid settings saved and logged');
- r=await g.get('/activity');ok(r.text.includes('<div class="acb-sub">一起逛逛活动专区</div>'),'optional subtitle shown when set');r=await g.get('/activity/rules');ok(r.text.includes('¥88.00'),'rules page follows cap setting');
+ r=await g.get('/activity');ok(r.text.includes('<div class="acb-sub">一起逛逛活动专区</div>'),'optional subtitle shown when set');r=await g.get('/activity/rules');ok(r.text.includes('单张最高 88 元；'),'rules page follows cap setting');
  r=await adm.post('/admin/ac/settings',{ac_on:'1',ac_title:cfg.title,ac_subtitle:'',ac_note:cfg.note,ac_share_title:cfg.shareTitle,ac_days:'30',ac_cap:'100',ac_coupon_days:'30',ac_review_days:'3'});
  r=await g.get('/activity');ok(!r.text.includes('class="acb-sub"'),'empty subtitle hidden');
  // poster

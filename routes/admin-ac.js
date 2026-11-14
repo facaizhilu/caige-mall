@@ -19,7 +19,7 @@ module.exports = (r, { need, flash, log, sendCSV }) => {
     if (!Number.isFinite(cap) || cap < 0 || cap > 10000) e.push('专享券上限需为 0~10000 元');
     if (cdays < 1 || cdays > 365) e.push('专享券有效期需为 1~365 天');
     if (rdays < 1 || rdays > 15) e.push('人工审核时限需为 1~15 个工作日');
-    const txt = { ac_title: T('ac_title').slice(0, 40), ac_subtitle: T('ac_subtitle').slice(0, 40), ac_note: T('ac_note').slice(0, 60), ac_share_title: T('ac_share_title').slice(0, 30) };
+    const txt = { ac_time: T('ac_time').slice(0, 40) || '以活动页公告为准', ac_title: T('ac_title').slice(0, 40), ac_subtitle: T('ac_subtitle').slice(0, 40), ac_note: T('ac_note').slice(0, 60), ac_share_title: T('ac_share_title').slice(0, 30) };
     if (!txt.ac_title) e.push('请填写横幅主标题'); if (!txt.ac_note) e.push('请填写横幅小字'); if (!txt.ac_share_title) e.push('请填写分享标题');
     if (SHARE_BAD.test(txt.ac_share_title)) e.push('分享标题不能出现免单、奖励、返还等诱导分享字样（微信规则）');
     if (/越分享|全额返还|分享.*得/.test(txt.ac_title + txt.ac_subtitle + txt.ac_note)) e.push('横幅文案不能出现「越分享越划算」「全额返还」等诱导分享表述');

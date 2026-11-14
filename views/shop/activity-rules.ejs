@@ -1,5 +1,5 @@
 <div class="crumb"><a href="/activity">活动专区</a> › 活动规则</div>
-<div class="card article"><h2 style="margin-top:0;color:#2E9E5B;font-size:18px"><%= ac.title %> · 活动规则</h2>
-<ol class="ac-rules" style="line-height:1.8;padding-left:20px"><% rules.items.forEach(([h,t])=>{ %><li><b><%= h %>：</b><%= t %></li><% }) %></ol>
-<p class="muted" style="margin:8px 0 12px">活动主办：<%= rules.company %></p>
+<div class="card article"><h2 style="margin-top:0;color:#2E9E5B;font-size:18px"><%= rules.title %></h2>
+<ol class="ac-rules" style="line-height:1.8;padding-left:20px"><% rules.items.forEach(([h,t])=>{ %><li><% if (h) { %><b><%= h %>：</b><% } %><% if (Array.isArray(t)) { %><ul style="padding-left:18px;margin:2px 0"><% t.forEach(x=>{ %><li><%- x %></li><% }) %></ul><% } else { %><%- t %><% } %></li><% }) %></ol>
+<p style="margin:8px 0 12px">活动主办：<%- rules.company %></p>
 <a class="btn primary" href="/activity">返回活动专区</a></div>
