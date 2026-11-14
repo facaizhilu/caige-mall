@@ -3,6 +3,8 @@
 if(process.env.DEMO_MODE!=='1'||!process.env.DATA_DIR||!process.env.AC_TEST_FRESH)throw Error('Requires isolated demo DATA_DIR from test/run-ac.js');
 if(!require('fs').existsSync(require('path').join(process.env.DATA_DIR,'.ac-test-only')))throw Error('Missing fresh harness marker');
 const db=require('../lib/db'),svc=require('../lib/svc'),AC=require('../lib/ac'),U=require('../lib/util'),bcrypt=require('bcryptjs'),B=require('../lib/banned');
+// 测试进程与本地服务进程同时写同一个 SQLite 库:本进程的事务改用 BEGIN IMMEDIATE,开头就拿写锁(由 busy_timeout 排队),避免偶发 SQLITE_BUSY_SNAPSHOT。线上只有一个进程,不受影响
+{const _t=db.transaction.bind(db);db.transaction=f=>{const t=_t(f),w=(...a)=>t.immediate(...a);return Object.assign(w,{deferred:t.deferred,immediate:t.immediate,exclusive:t.exclusive});};}
 const base=process.argv[2];if(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base||''))throw Error('Local synthetic server required');
 let passed=0,failed=0;const ok=(v,n,extra)=>{v?passed++:failed++;console.log((v?'PASS ':'FAIL ')+n+(v||extra===undefined?'':' :: '+extra));};
 class C{constructor(){this.k={};this.t='';}async req(m,p,b){const headers={Cookie:Object.entries(this.k).map(([k,v])=>k+'='+v).join('; ')};let body;if(b){body=new URLSearchParams({_csrf:this.t,...b});headers['Content-Type']='application/x-www-form-urlencoded';}const r=await fetch(base+p,{method:m,headers,body,redirect:'manual'});for(const c of r.headers.getSetCookie()){const [kv]=c.split(';'),i=kv.indexOf('=');this.k[kv.slice(0,i)]=kv.slice(i+1);}const text=await r.text(),t=text.match(/name="csrf" content="([a-f0-9]+)"/)||text.match(/name="_csrf" value="([a-f0-9]+)"/);if(t)this.t=t[1];return {status:r.status,text,loc:r.headers.get('location'),type:r.headers.get('content-type')};}get(p){return this.req('GET',p);}post(p,b={}){return this.req('POST',p,b);}
@@ -12,7 +14,9 @@ const pw=bcrypt.hashSync('ac-test-only',4);let seq=0;
 const user=(nick)=>{const phone='1308222'+String(++seq).padStart(4,'0');const id=Number(svc.createUser({phone,password_hash:pw,nickname:nick}));const n=seq;db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,1)',id,nick,'1397777'+String(n).padStart(4,'0'),'海南省','海口市','龙华区','测试路'+n+'号');return {id,phone,nick};};
 const P=db.get("SELECT p.id, s.id sk, s.sku_id FROM products p JOIN seckills s ON s.product_id=p.id WHERE p.name='【测试】红富士苹果'");
 const addrOf=uid=>db.get('SELECT * FROM addresses WHERE user_id=? ORDER BY id LIMIT 1',uid);
-const buy=(uid,{code,qty=1,addr,payer,couponId}={})=>{const r=svc.createOrder(uid,{items:[{sku_id:P.sku_id,qty}],promo:{type:'seckill',id:P.sk},address:addr||addrOf(uid),acCode:code,couponId});if(!r.ok)throw Error('order: '+r.msg);if(payer)db.exec1('UPDATE orders SET payer_id=? WHERE id=?',payer,r.id);const p=svc.payOrder(r.id,uid,'wechat');if(!p.ok)throw Error('pay: '+p.msg);return r.id;};
+// 测试进程与本地服务进程共用同一个 SQLite 库,偶发 SQLITE_BUSY(_SNAPSHOT) 时短暂重试(线上只有一个进程,不受影响)
+const retry=f=>{for(let i=0;;i++){try{return f();}catch(e){if(!/^SQLITE_BUSY/.test(e.code||'')||i>=20)throw e;Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);}}};
+const buy=(uid,{code,qty=1,addr,payer,couponId}={})=>{const r=retry(()=>svc.createOrder(uid,{items:[{sku_id:P.sku_id,qty}],promo:{type:'seckill',id:P.sk},address:addr||addrOf(uid),acCode:code,couponId}));if(!r.ok)throw Error('order: '+r.msg);if(payer)db.exec1('UPDATE orders SET payer_id=? WHERE id=?',payer,r.id);const p=retry(()=>svc.payOrder(r.id,uid,'wechat'));if(!p.ok)throw Error('pay: '+p.msg);return r.id;};
 const camp=oid=>db.get('SELECT * FROM ac_campaigns WHERE order_id=?',oid);
 const frow=oid=>db.get('SELECT * FROM ac_friends WHERE order_id=?',oid);
 const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='system' AND content LIKE ?",uid,'%'+like+'%').n;
@@ -36,6 +40,8 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
   ok(R.items.length===11,'rules: 11 items');
   EXP.split('\n').filter(Boolean).forEach((ln,k)=>{const txt=ln.replace(/^\d+\.\s*/,'').replace(/^-\s*/,'');ok(flat.includes(txt.replace(/\s+/g,'')===txt.replace(/\s+/g,'')?txt:txt),'rules verbatim line '+(k+1)+': '+txt.slice(0,24),txt);});
   ok(t.includes('详见<a href="/privacy">《隐私政策》</a>'),'《隐私政策》 is a link');
+  ok(t.includes('如有疑问，请在「我的」→「<a href="/service">在线客服</a>」咨询。'),'item 11 fallback: 在线客服 links to /service (same as 我的→在线客服)');
+  {const me=await g.get('/me');ok(/class="me-kf"[^>]*href="\/service"/.test(me.text),'我的→在线客服 entry uses /service');const sv=await g.get('/service');ok(sv.status===200||sv.status===302,'/service route reachable','status '+sv.status);}
   ok((body.match(/<ol class="ac-rules"/g)||[]).length===1&&(body.split('</ol>')[0].match(/<li>/g)||[]).length===11+4+4+3+2+2,'list structure: 11 items with sub-bullets');
   svc.setSetting('service_phone','0898-12345678');ok(AC.rules().items[10][1]==='如有疑问，请联系客服：电话 0898-12345678。','configured customer-service phone line');svc.setSetting('service_phone','');
   svc.setSetting('ac_time','2026年11月15日至12月31日');ok(AC.rules().items[0][1]==='2026年11月15日至12月31日。','活动时间 from settings');svc.setSetting('ac_time','以活动页公告为准');}
