@@ -1,0 +1,16 @@
+<div class="crumb"><a href="/me/free">我的免单</a> › 生成海报</div>
+<div class="card" style="max-width:360px;margin:0 auto;text-align:center">
+  <canvas id="poster" width="600" height="900" style="width:100%;max-width:300px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08)"></canvas>
+  <p class="muted" style="font-size:12px">长按图片保存，或点下方按钮下载后发给好友</p>
+  <a class="ac-btn" id="dl" download="poster.png" href="#" style="display:inline-block;border-radius:999px;padding:7px 16px;color:#fff;background:linear-gradient(90deg,#5CC487,#23894C)">保存海报</a>
+</div>
+<script src="/static/js/qrcode.js"></script>
+<script>(function(){var cv=document.getElementById('poster'),x=cv.getContext('2d'),title=<%- JSON.stringify(ac.shareTitle) %>,link=<%- JSON.stringify(link) %>,code=<%- JSON.stringify(c.code) %>;
+x.fillStyle='#EEF8F2';x.fillRect(0,0,600,900);x.fillStyle='#fff';x.fillRect(40,40,520,820);
+var left=2;function done(){if(--left>0)return;try{document.getElementById('dl').href=cv.toDataURL('image/png')}catch(e){}}
+var img=new Image();img.onload=function(){var s=Math.min(img.width,img.height);x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,80,80,440,440);done()};img.onerror=done;img.src=<%- JSON.stringify(img) %>;
+var logo=new Image();logo.onload=function(){x.drawImage(logo,60,560,48,48);done()};logo.onerror=done;logo.src='/static/img/mark-green.svg';
+x.fillStyle='#2E9E5B';x.font='bold 32px sans-serif';x.fillText(title,120,596);
+var q=qrcode(0,'M');q.addData(link);q.make();var n=q.getModuleCount(),sz=200,cell=sz/n,ox=200,oy=630;x.fillStyle='#fff';x.fillRect(ox-8,oy-8,sz+16,sz+16);x.fillStyle='#000';
+for(var r=0;r<n;r++)for(var k=0;k<n;k++)if(q.isDark(r,k))x.fillRect(ox+k*cell,oy+r*cell,Math.ceil(cell),Math.ceil(cell));
+x.fillStyle='#999';x.font='20px sans-serif';x.textAlign='center';x.fillText(code,300,856);})()</script>

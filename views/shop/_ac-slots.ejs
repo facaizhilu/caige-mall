@@ -1,0 +1,1 @@
+<div class="ac-slots"><% p.slots.forEach((s,i)=>{ %><div class="ac-slot <%= s.k %>"><i><%= s.k==='ok'?'✓':s.k==='review'?'…':(i+1) %></i><%= s.nick||'' %><small><%= s.label %></small></div><% }) %></div>

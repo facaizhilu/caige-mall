@@ -253,6 +253,12 @@ svc.cloud.ensureDefaults();
     if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('用户协议已修订(七天无理由),版本号提升为 v' + svc.S('policy_version')); }
     mark('all_7day_20261020');
   }
+  if (!done('policy_ac_invite_20261114')) { // 隐私政策:活动专区邀请好友风控信息条目;有改动时协议版本 +0.1,老用户下次登录重新确认
+    const n = require('./lib/policies').applyAcPolicy(db), m = String(svc.S('policy_version') || '1.1').match(/^(\d+)\.(\d+)$/);
+    if (n && m) { svc.setSetting('policy_version', m[1] + '.' + (+m[2] + 1)); console.log('隐私政策已修订(活动专区邀请风控),版本号提升为 v' + svc.S('policy_version')); }
+    mark('policy_ac_invite_20261114');
+  }
+  if (process.env.DEMO_MODE === '1') try { require('./lib/seed').ensureAcTestProduct(); } catch (e) { console.error('[demo] ensureAcTestProduct', e.message); }
   if (!done('per_product_7day_20261104')) { // 七天无理由改为按商品(供应商商品按接口):帮助文/协议去掉「常规商品均支持」;已导入供应商商品按 SKU 的 returnRuleType 回填
     const [o, nw] = require('./lib/seed-texts').RETURN_HELP_PER_PRODUCT_EDIT;
     for (const a of db.all("SELECT id, content FROM articles WHERE category='help' AND title='退款退货政策'")) if (String(a.content).includes(o)) db.exec1('UPDATE articles SET content=? WHERE id=?', a.content.split(o).join(nw), a.id);

@@ -1,0 +1,13 @@
+<div class="crumb"><a href="/me">我的</a> › 我的免单</div><%- include('_ac-style') %>
+<% if (pop) { %><div id="acPop" role="dialog" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99" onclick="this.remove()"><div style="background:#fff;border-radius:12px;padding:22px 26px;text-align:center;max-width:280px"><b style="color:#2E9E5B;font-size:17px">你这单的免单券已到账</b><p class="muted">¥<%= (+pop.reward_amount||0).toFixed(2) %> 活动专区专享券，可在「我的-优惠券」查看</p><span class="ac-btn">知道了</span></div></div><% } %>
+<div class="card" style="font-size:13px"><b style="color:#2E9E5B"><%= ac.title %></b> <a href="/activity/rules" style="color:#2E9E5B">活动规则</a></div>
+<% if (!list.length) { %><div class="card empty">还没有可邀请的订单。<a href="/activity" style="color:#2E9E5B">先选一件活动专区商品下单，就能开始邀请</a></div><% } %>
+<% list.forEach(p=>{ const link=origin+'/activity?ac='+p.code; %>
+<div class="card ac-card mb" id="ac<%= p.id %>">
+  <div class="flex between"><b>订单 <%= p.orderNo %></b><span class="ac-st <%= p.status==='done'?'ok':p.status==='open'?'review':'void' %>"><%= p.statusLabel %></span></div>
+  <div class="muted" style="font-size:12px">已计入 <b style="color:#2E9E5B"><%= p.counted %></b>/<%= p.need %><% if (p.status==='open') { %>，还差 <%= p.left %> 位 · 截止 <%= p.deadline %><% } %><% if (p.status==='done' && p.reward!=null) { %> · 已发 ¥<%= (+p.reward).toFixed(2) %> 专享券<% } %></div>
+  <%- include('_ac-slots',{p}) %>
+  <% if (p.status==='open') { %><div class="flex" style="gap:8px;flex-wrap:wrap"><button type="button" class="ac-btn ac-share" data-link="<%= link %>" data-title="<%= ac.shareTitle %>">发给微信好友</button><a class="btn sm" href="/me/free/<%= p.id %>/poster">生成海报</a></div><% } %>
+  <% if (p.friends.length) { %><div class="mt"><% p.friends.forEach(f=>{ %><div class="ac-fr"><div><b><%= f.nick %></b> <span class="muted" style="font-size:12px"><%= String(f.created_at).slice(0,16) %></span><% if (f.slot.reason) { %><div class="why"><%= f.slot.reason %></div><% } %></div><span class="ac-st <%= f.slot.k %>"><%= f.slot.label %></span></div><% }) %></div><% } %>
+</div><% }) %>
+<script>(function(){document.querySelectorAll('.ac-share').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-title')+' '+b.getAttribute('data-link');var done=function(){window.toast&&toast('链接已复制，粘贴发给微信好友即可')};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,function(){prompt('复制下面的链接发给好友',t)});else prompt('复制下面的链接发给好友',t)})})})()</script>

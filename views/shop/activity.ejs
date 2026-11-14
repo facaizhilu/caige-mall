@@ -1,5 +1,16 @@
 <div class="crumb"><a href="/">首页</a> › 活动专区</div>
+<% if (ac.on) { %><%- include('_ac-style') %>
+<div class="acb" id="acBanner"><div class="acb-t">
+  <h2><%- String(ac.title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace('下单，','下单，<span class="br"></span>') %></h2>
+  <% if (ac.subtitle) { %><div class="acb-sub"><%= ac.subtitle %></div><% } %>
+  <% const nt=String(ac.note), ri=nt.lastIndexOf('活动规则'); %><div class="acb-n"><% if (ri>=0) { %><%= nt.slice(0,ri) %><a href="/activity/rules">活动规则</a><%= nt.slice(ri+4) %><% } else { %><%= nt %> <a href="/activity/rules">活动规则</a><% } %></div>
+  <% if (acp) { %><div class="acb-p" id="acProg">已有 <%= acp.counted %> 位好友计入，还差 <%= acp.left %> 位</div><% } %>
+</div><% if (acp) { %><a class="ac-btn" href="/me/free#ac<%= acp.id %>">去邀请</a><% } else { %><button type="button" class="ac-btn" id="acGo">去邀请</button><% } %></div>
+<div class="ac-steps"><span>① 买活动专区商品</span><span>② 邀三位好友下单</span><span>③ 你这单免单券到账</span></div>
+<script>(function(){var b=document.getElementById('acGo');if(b)b.addEventListener('click',function(){window.toast&&toast('先选一件活动专区商品下单，就能开始邀请');var l=document.getElementById('acList');if(l)l.scrollIntoView({behavior:'smooth',block:'start'})})})()</script>
+<% } else { %>
 <div class="flash-sale sk-page"><div class="hd"><h2 class="g-ih"><%- include('../partials/ic',{icn:'bolt',isz:20}) %>活动专区</h2></div></div>
-<div class="sk-body"><% if(!rows.length){ %><div class="empty">暂无活动</div><% } %>
+<% } %>
+<div class="sk-body" id="acList"><% if(!rows.length){ %><div class="empty">暂无活动</div><% } %>
 <div class="grid"><% rows.forEach(s=>{ %><a class="pcard" style="color:var(--ink)" href="/product/<%= s.product_id %>"><span class="ribbon"><%= s.live?'进行中':'即将开始' %></span><div class="pic"><img loading="lazy" decoding="async" src="<%= s.img %>"></div><div class="info"><div class="name"><%= s.name %></div><div class="meta"><span class="price"><big><%= (+s.price||0).toFixed(2) %></big><% if (showMkt(s.market_price, s.price)) { %><span class="mkt"><%= (+s.market_price||0).toFixed(2) %></span><% } %></span></div>
 <span class="btn primary sm block mt"><%= s.live?(s.sold>=s.stock?'已售罄':'去看看'):'即将开始' %></span></div></a><% }) %></div></div>

@@ -1,0 +1,33 @@
+<div class="grid g2" style="grid-template-columns:1fr 2fr"><div>
+<div class="card"><h3>活动设置</h3>
+<form method="post" action="/admin/ac/settings"><input type="hidden" name="_csrf" value="<%= csrf %>">
+  <div class="form-row"><label><input type="checkbox" name="ac_on" value="1" <%= s.on?'checked':'' %>> 开启活动（活动专区横幅、订单生成邀请）</label></div>
+  <div class="form-row"><label>横幅主标题</label><input name="ac_title" maxlength="40" value="<%= s.title %>" required></div>
+  <div class="form-row"><label>横幅副标题（可留空，留空不显示）</label><input name="ac_subtitle" maxlength="40" value="<%= s.subtitle %>"></div>
+  <div class="form-row"><label>横幅小字（「活动规则」四字自动变为链接）</label><input name="ac_note" maxlength="60" value="<%= s.note %>" required></div>
+  <div class="form-row"><label>分享标题（不能出现免单、奖励等字样）</label><input name="ac_share_title" maxlength="30" value="<%= s.shareTitle %>" required></div>
+  <div class="form-row"><label>邀请期限（天，自邀请人付款起）</label><input type="number" name="ac_days" min="1" max="90" value="<%= s.days %>" required></div>
+  <div class="form-row"><label>专享券上限（元，等于该单实付，不超过此数）</label><input type="number" name="ac_cap" min="0" step="0.01" value="<%= s.cap %>" required></div>
+  <div class="form-row"><label>专享券有效期（天）</label><input type="number" name="ac_coupon_days" min="1" max="365" value="<%= s.couponDays %>" required></div>
+  <div class="form-row"><label>人工审核时限（工作日，显示在前台）</label><input type="number" name="ac_review_days" min="1" max="15" value="<%= s.reviewDays %>" required></div>
+  <div class="help">需邀请 <%= s.need %> 位好友（与文案一致，固定）。好友下单付款即计入；退款即不计入。</div>
+  <button class="btn primary">保存设置</button>
+</form></div>
+<div class="card"><h3>待人工审核（<%= reviews.length %>）</h3>
+<% if (!reviews.length) { %><p class="muted">暂无</p><% } %>
+<% reviews.forEach(f=>{ %><div style="border-top:1px solid #eee;padding:6px 0;font-size:13px">好友订单 <a href="/admin/orders/<%= f.order_id %>"><%= f.order_no %></a> · <%= f.fphone %><br><span class="muted"><%= f.flag %></span>
+<form method="post" action="/admin/ac/friend/<%= f.id %>/review" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="approve" value="1"><button class="btn sm primary">通过</button></form>
+<form method="post" action="/admin/ac/friend/<%= f.id %>/review" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="approve" value="0"><button class="btn sm danger">驳回</button></form></div><% }) %>
+</div></div><div>
+<div class="card"><form class="toolbar" method="get"><input type="search" name="q" value="<%= q %>" placeholder="订单号（邀请人或好友）/手机号/邀请码"><select name="status" onchange="this.form.submit()"><option value="">全部状态</option><% [['open','邀请中'],['done','免单券已到账'],['expired','已结束'],['void','已失效'],['review','需审核']].forEach(([v,t])=>{ %><option value="<%= v %>" <%= st===v?'selected':'' %>><%= t %></option><% }) %></select><button class="btn">查询</button></form>
+<div class="tbl-wrap"><table class="t"><tr><th>邀请人</th><th>活动订单</th><th>进度</th><th>状态</th><th>截止</th><th>好友订单</th><th>专享券</th></tr>
+<% if (!pg.rows.length) { %><tr><td colspan="7" class="muted">暂无记录（活动专区订单付款后生成）</td></tr><% } %>
+<% pg.rows.forEach(p=>{ %><tr class="ac-row" data-id="<%= p.id %>"><td><%= p.nickname %><br><span class="muted"><%= U.maskPhone(p.phone) %></span><br><a href="/admin/ac/user/<%= p.user_id %>" style="color:#2E9E5B">活动邀请详情</a></td>
+<td><a href="/admin/orders/<%= p.c.order_id %>"><%= p.orderNo %></a><br><span class="muted"><%= p.code %></span></td>
+<td><b class="ac-prog"><%= p.counted %>/<%= p.need %></b><% if (p.inReview) { %><br><span class="tag gold">审核中 <%= p.inReview %></span><% } %></td>
+<td><%= p.statusLabel %><% if (p.reviewNote) { %><br><span class="tag red"><%= p.reviewNote %></span><form method="post" action="/admin/ac/<%= p.id %>/clear-note"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">标记已处理</button></form><% } %></td>
+<td><%= p.deadline %></td>
+<td style="font-size:12px"><% p.friends.forEach(f=>{ %><div><a href="/admin/orders/<%= f.order_id %>"><%= f.order_no %></a> <%= f.slot.label %><% if (f.slot.reason && f.state==='void') { %>（<%= f.slot.reason %>）<% } %></div><% }) %></td>
+<td><%= p.reward!=null ? '¥'+(+p.reward).toFixed(2) : '-' %></td></tr><% }) %>
+</table></div><%- include('../partials/apager') %></div>
+</div></div>

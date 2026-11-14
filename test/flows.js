@@ -376,9 +376,9 @@ class C { constructor(b) { this.k = {}; this.t = ''; this.b = b || base; }
     r = await c1.get('/notices'); ok2(!r.text.includes('积分翻倍'), 'D1:积分翻倍公告已下线');
     ok2(['全国联保', '假一赔十', '财哥严选'].every(w => require('../lib/banned').words().includes(w)), 'G6:违禁词表含全国联保/假一赔十/财哥严选');
     // 协议
-    ok2(svc.S('policy_version') === '1.1', '协议版本 1.1');
+    ok2(svc.S('policy_version') === '1.2', '协议版本 1.2(活动专区邀请风控条目修订后提升)');
     r = await c1.get('/privacy'); ok2(r.text.includes('如后续由供应商直接发货,我们会在订单页标注') && r.text.includes('头像使用默认头像,昵称由您自行填写') && !r.text.includes('头像昵称与手机号') && !r.text.includes('以商品页或订单页标注为准'), '隐私政策:供应商标注与头像昵称说明');
-    ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '海南韵农科技有限公司', '待公布', '版本号:1.1'].every(x => r.text.includes(x)) && !r.text.includes('【公司全称】'), '隐私政策补充 A2/A3/A4/A11,运营者名称已填充、联系方式待公布');
+    ok2(['商品供应商', '第三方 SDK 与服务清单', '评价内容(文字、星级评分)', '账号密码(加密存储)', '成长值、会员等级、优惠券', '海南韵农科技有限公司', '待公布', '版本号:1.2', '邀请活动风控信息'].every(x => r.text.includes(x)) && !r.text.includes('【公司全称】'), '隐私政策补充 A2/A3/A4/A11,运营者名称已填充、联系方式待公布');
     r = await c1.get('/terms'); ok2(r.text.includes('勾选同意,即表示') && !r.text.includes('注册、登录或使用本平台,即表示'), 'B1:用户协议不再默示同意');
     r = await new C().get('/login'); ok2(!r.text.includes('登录即表示') && r.text.includes('首次注册或协议更新时'), 'B1:登录页文案');
     r = await c1.get('/points-rules'); ok2(r.text.includes('与评分高低无关') && r.text.includes('最高每天 18 积分') && r.text.includes('最高每天 55 积分') && !r.text.includes('加赠') && !r.text.includes('{{'), '积分规则:评价积分与签到新规则');

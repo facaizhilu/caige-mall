@@ -1,0 +1,7 @@
+<%# 订单详情 / 支付成功:活动专区订单的邀请进度卡(数据来自 lib/ac.progress) %>
+<%- include('_ac-style') %>
+<div class="ac-card mb" id="acCard"><h3><%= ac.title %></h3>
+  <div class="muted" style="font-size:12px">已计入 <b style="color:#2E9E5B"><%= p.counted %></b>/<%= p.need %> · <%= p.statusLabel %><% if (p.status==='open') { %> · 截止 <%= p.deadline %><% } %></div>
+  <%- include('_ac-slots',{p}) %>
+  <% if (p.status==='open') { %><a class="ac-btn" href="/me/free#ac<%= p.id %>">去邀请</a><% } else if (p.status==='done') { %><a class="ac-btn" href="/me/coupons">查看免单券</a><% } %>
+</div>

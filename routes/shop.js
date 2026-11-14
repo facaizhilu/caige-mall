@@ -18,6 +18,10 @@ module.exports = function (app, { filesOf }) {
   const prodCard = 'SELECT p.*, b.name brand_name FROM catalog_products p LEFT JOIN brands b ON b.id=p.brand_id';
   const withImg = rows => rows.map(r => ({ ...r, img: U.firstImg(r.images) }));
   const catIds = cid => { const subs = db.all('SELECT id FROM categories WHERE parent_id=?', cid).map(r => r.id); return [cid, ...subs]; };
+  const AC=require('../lib/ac');
+  // 活动专区邀请:链接/二维码带 ?ac=邀请码,记在 cookie 中(登录/注册换会话也不丢),好友下单时自动关联,无需填写
+  const acCookie=req=>{const m=/(?:^|;\s*)ac=([A-Z0-9]{6,12})(?:;|$)/.exec(req.headers.cookie||'');return m?m[1]:'';};
+  app.use((req,res,next)=>{const c=String(req.query.ac||'').toUpperCase();if(req.method==='GET'&&/^[A-Z0-9]{6,12}$/.test(c)&&db.get("SELECT 1 FROM ac_campaigns WHERE code=?",c))res.cookie('ac',c,{httpOnly:true,sameSite:'lax',path:'/',maxAge:AC.cfg().days*86400000});next();});
   const Z=require('../lib/cloud-zone');
   const requireZone=(req,res,next)=>{
     if(Z.allowed(req.user.id,req.session.cloudZoneGate))return next();
@@ -204,7 +208,7 @@ module.exports = function (app, { filesOf }) {
     if (q.error) { flash(req, 'error', q.error); return back(req, res, '/cart'); }
     // 立即购买/参团:不支持7天无理由的商品须在商品页勾选「我已知晓」(服务端校验,购物车加购时已校验)
     if (!fromCart && !req.body.items && q.lines.some(l => !svc.noReasonOf(l.product_id)) && req.body.no7_ok !== '1') { flash(req, 'error', '本商品不支持7天无理由退货,请先勾选「我已知晓」后再购买'); return back(req, res, q.isCloudZone?'/cloud-zone/product/'+q.lines[0].product_id:'/cart'); }
-    const coupons = promo || q.isCloudZone ? [] : svc.userCoupons(req.user.id, 'unused').map(c => {
+    const coupons = (promo && promo.type !== 'seckill') || q.isCloudZone ? [] : svc.userCoupons(req.user.id, 'unused').filter(c => (c.scope === 'activity') === !!(promo && promo.type === 'seckill')).map(c => {
       const fit = svc.couponFit(c, q.lines, q.goods);
       return { ...c, ineligible: !fit.ok, why: fit.why };
     }).filter(c => !c.ineligible || (c.category_id && c.ineligible)); // 可用券 + 分类不符的券(禁用并注明原因);纯门槛不足的不展示
@@ -238,7 +242,7 @@ module.exports = function (app, { filesOf }) {
       const has = db.get('SELECT COUNT(*) n FROM addresses WHERE user_id=?', req.user.id).n;
       db.exec1('INSERT INTO addresses(user_id,name,phone,province,city,district,detail,is_default) VALUES(?,?,?,?,?,?,?,?)', req.user.id, addr.name, addr.phone, addr.province, addr.city, addr.district, addr.detail, has ? 0 : 1);
     }
-    const base = { items, promo, address: addr,cloudZoneGate:req.session.cloudZoneGate, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1' };
+    const base = { items, promo, address: addr,cloudZoneGate:req.session.cloudZoneGate, couponId: int(req.body.coupon_id), usePoints: int(req.body.use_points), remark: req.body.remark, no7Confirmed: req.body.no7_confirm === '1', acCode: acCookie(req) };
     const pre = svc.quote(req.user.id, base);
     if (!pre.error && pre.hasSupplier) {
       const sup = await jdvop.checkout(pre.lines, addr);
@@ -289,7 +293,7 @@ module.exports = function (app, { filesOf }) {
     const invoice = db.get('SELECT * FROM invoices WHERE order_id=?', o.id);
     const group = o.group_id ? db.get('SELECT * FROM groups WHERE id=?', o.group_id) : null;
     const expireAt = o.status === 'unpaid' ? U.fmtDate(new Date(U.parseDate(o.created_at).getTime() + int(svc.S('unpaid_cancel_minutes'), 30) * 60000)) : null;
-    res.page('shop/order', { title: '订单详情', o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o), afterInfo: aftersaleInfo(o), packages: shopperPackages(o) });
+    res.page('shop/order', { title: '订单详情', acp: AC.ofOrder(o.id), acCfg: AC.cfg(), acHelped: AC.helped(o.id), o, items, traces, aftersale, invoice, group, expireAt, canAfter: canAftersale(o), afterInfo: aftersaleInfo(o), packages: shopperPackages(o) });
   });
   // 分包裹(自营 / 供应商)展示:多个运单号;供应商物流统一显示为「供应商物流」
   function shopperPackages(o) {
@@ -503,7 +507,7 @@ module.exports = function (app, { filesOf }) {
     const stats = { coupons: svc.userCoupons(u.id, 'unused').length, favs: db.get('SELECT COUNT(*) n FROM favorites WHERE user_id=?', u.id).n, hist: db.get('SELECT COUNT(*) n FROM history WHERE user_id=?', u.id).n, as: db.get("SELECT COUNT(*) n FROM aftersales WHERE user_id=? AND status IN ('pending','approved_return','returned')", u.id).n };
     const recent = db.all('SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 3', u.id).map(o => ({ ...o, items: db.all('SELECT * FROM order_items WHERE order_id=?', o.id) }));
     const today = U.today();
-    res.page('shop/me', { title: '我的', guest: false, cloudOn: svc.cloud.isCardActive(u), cnt, next, prev, stats, recent, signed: u.last_signin === today, recs });
+    res.page('shop/me', { title: '我的', guest: false, cloudOn: svc.cloud.isCardActive(u), cnt, next, prev, stats, recent, signed: u.last_signin === today, recs, acUnread: AC.unread(u.id) });
   });
   app.post('/me/profile', needLogin, (req, res) => {
     const nick = String(req.body.nickname || '').trim().slice(0, 20) || req.user.nickname;
@@ -652,7 +656,7 @@ module.exports = function (app, { filesOf }) {
     res.page('shop/me-coupons', { title: '我的优惠券', st, rows: svc.userCoupons(req.user.id, st) });
   });
   app.get('/coupons', (req, res) => {
-    const rows = db.all('SELECT c.*, cat.name cat_name FROM coupons c LEFT JOIN categories cat ON cat.id=c.category_id WHERE c.status=1 ORDER BY c.id').map(c => ({ ...c, mine: req.user ? db.get('SELECT COUNT(*) n FROM user_coupons WHERE user_id=? AND coupon_id=?', req.user.id, c.id).n : 0 }));
+    const rows = db.all('SELECT c.*, cat.name cat_name FROM coupons c LEFT JOIN categories cat ON cat.id=c.category_id WHERE c.status=1 AND COALESCE(c.scope,\'\')<>\'activity\' ORDER BY c.id').map(c => ({ ...c, mine: req.user ? db.get('SELECT COUNT(*) n FROM user_coupons WHERE user_id=? AND coupon_id=?', req.user.id, c.id).n : 0 }));
     res.page('shop/coupons', { title: '领券中心', rows });
   });
   app.post('/coupons/:id/claim', needLogin, (req, res) => {
@@ -716,7 +720,19 @@ module.exports = function (app, { filesOf }) {
   app.get('/activity', (req, res) => {
     const t = now();
     const rows = db.all(`SELECT s.*, p.name, p.images, p.market_price, p.subtitle FROM seckills s JOIN catalog_products p ON p.id=s.product_id WHERE s.status=1 AND p.status=1 AND s.end_at>=? ORDER BY s.start_at`, t).map(s => ({ ...s, img: U.firstImg(s.images), live: s.start_at <= t }));
-    res.page('shop/activity', { title: '活动专区', rows });
+    res.page('shop/activity', { title: '活动专区', rows, ac: AC.cfg(), acp: req.user ? AC.current(req.user.id) : null });
+  });
+  app.get('/activity/rules', (req, res) => res.page('shop/activity-rules', { title: '活动规则', ac: AC.cfg() }));
+  app.get('/me/free', needLogin, (req, res) => {
+    const list = AC.ofUser(req.user.id), pop = db.get('SELECT id, reward_amount FROM ac_campaigns WHERE user_id=? AND popup=1 ORDER BY id DESC LIMIT 1', req.user.id);
+    db.exec1('UPDATE ac_campaigns SET unread=0, popup=0 WHERE user_id=?', req.user.id);
+    res.page('shop/me-free', { title: '我的免单', list, pop, ac: AC.cfg(), origin: `${req.protocol}://${req.get('host')}` });
+  });
+  app.get('/me/free/:id/poster', needLogin, (req, res) => {
+    const c = db.get('SELECT * FROM ac_campaigns WHERE id=? AND user_id=?', int(req.params.id), req.user.id);
+    if (!c) return res.status(404).page('shop/error', { title: '不存在', code: 404, message: '邀请记录不存在' });
+    const it = db.get('SELECT image, product_id FROM order_items WHERE order_id=? ORDER BY id LIMIT 1', c.order_id) || {};
+    res.page('shop/ac-poster', { title: '生成海报', c, img: it.image || U.PLACEHOLDER, ac: AC.cfg(), link: `${req.protocol}://${req.get('host')}/activity?ac=${c.code}` });
   });
   app.get('/groupbuy', (req, res) => {
     const rows = withImg(db.all('SELECT g.*, p.name, p.images, p.market_price, p.subtitle FROM groupbuys g JOIN catalog_products p ON p.id=g.product_id WHERE g.status=1 AND p.status=1'));

@@ -7,6 +7,8 @@
   <% if (group) { %><div class="sim mb g-info"><%- include('../partials/ic',{icn:'users',isz:16}) %>拼团状态:<b><%= {open:'邀请好友一起拼',success:'拼团成功',failed:'拼团已结束'}[group.status] %></b> <% if (group.status==='open') { %><a href="/group/<%= group.id %>">邀请好友参团 ›</a><% } %></div><% } %>
   <% if (o.status==='cancelled'||o.status==='refunded') { %><p class="muted">原因:<%= o.cancel_reason %> · <%= o.cancelled_at %></p><% } %>
 </div>
+<% if (acp) { %><%- include('_ac-card',{p:acp,ac:acCfg}) %><% } %>
+<% if (acHelped) { %><div class="sim mb" style="background:#EEF8F2;color:#23894C">已为好友助力</div><% } %>
 <div class="grid g2" style="grid-template-columns:1fr 1fr">
   <div class="card"><h3 style="margin-top:0">收货信息</h3><dl class="kv"><dt>收货人</dt><dd><%= o.receiver %> <%= U.maskPhone(o.phone) %></dd><dt>地址</dt><dd><%= o.province %> <%= o.city %> <%= o.district %> <%= o.detail %></dd><dt>备注</dt><dd><%= o.remark||'-' %></dd></dl>
     <% if (packages.length) { %><h4 class="mt" style="margin-bottom:6px"><span class="g-ic"><%- include('../partials/ic', { icn: 'box', isz: 18 }) %></span> 分包裹配送(<%= packages.length %> 个包裹)</h4><%- include('../partials/packages', { packages }) %><a class="btn sm mt" href="/order/<%= o.id %>/logistics">查看物流轨迹</a><% } else if (o.tracking_no) { %><dl class="kv mt"><dt>物流公司</dt><dd><%= o.express_company %></dd><dt>运单号</dt><dd><%= o.tracking_no %></dd></dl><a class="btn sm mt" href="/order/<%= o.id %>/logistics">查看物流轨迹</a><% } %></div>
