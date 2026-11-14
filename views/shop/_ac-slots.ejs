@@ -1,1 +1,1 @@
-<div class="ac-slots"><% p.slots.forEach((s,i)=>{ %><div class="ac-slot <%= s.k %>"><i><%= s.k==='ok'?'✓':s.k==='review'?'…':(i+1) %></i><%= s.nick||'' %><small><%= s.label %></small></div><% }) %></div>
+<div class="ac-slots"><% p.slots.forEach((s,i)=>{ %><div class="ac-slot <%= s.k %>"><i><% if (s.who) { %><img src="/static/img/mark-green.svg?v=1" alt="默认头像" width="28" height="28"><% } else { %><%= i+1 %><% } %></i><span class="who"><%= s.who||'' %></span><small><%= s.label %></small></div><% }) %></div>

@@ -67,7 +67,9 @@ const msgs=(uid,like)=>db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? A
  const ic=new C();await ic.login(I.phone);
  r=await ic.get('/me');ok(r.text.includes('id="acEntry"')&&/acEntry[^]*?qbadge/.test(r.text.slice(r.text.indexOf('acEntry'),r.text.indexOf('acEntry')+400)),'red dot on 我的免单 when unread');
  r=await ic.get('/me/free');const free=r.text;ok(free.includes('你这单的免单券已到账')&&free.includes('已计入 <b style="color:#2E9E5B">3</b>/3'),'popup on reaching 3; 我的免单 shows 3/3');
- ok(free.includes('友**')&&!free.includes('友一')&&!free.includes(F1.phone)&&!free.includes(db.get('SELECT order_no FROM orders WHERE id=?',o1).order_no)&&!free.includes('测试路'),'inviter page masks friends: no full nickname, phone, friend order no. or address');
+ ok(free.includes(U.maskPhone(F1.phone))&&free.includes('mark-green.svg')&&!free.includes('友**')&&!free.includes('友一')&&!free.includes(F1.phone)&&!free.includes(db.get('SELECT order_no FROM orders WHERE id=?',o1).order_no)&&!free.includes('测试路'),'inviter page shows default avatar + masked phone only: no nickname, full phone, friend order no. or address');
+ ok(db.get("SELECT COUNT(*) n FROM messages WHERE user_id=? AND sender='system' AND content LIKE ?",I.id,'%好友 '+U.maskPhone(F1.phone)+' 已下单付款%').n>=1&&!db.get("SELECT 1 FROM messages WHERE user_id=? AND content LIKE '%活动专区邀请%' AND (content LIKE '%友一%' OR content LIKE '%友**%' OR content LIKE ?)",I.id,'%'+F1.phone+'%'),'inviter messages use masked phone, never nickname or full phone');
+ ok(AC.progress(c.id).slots.every(x=>x.k==='empty'||/^\d{3}\*{4}\d{4}$/.test(x.who)),'progress slots carry masked phone');
  ok(free.includes('本人下单不计入')&&free.includes('该好友已计入过')&&free.includes('审核未通过，未计入'),'progress lists every attributed order incl. not-counted with reasons');
  r=await ic.get('/me/free');ok(!r.text.includes('id="acPop"'),'popup shown only once');r=await ic.get('/me');ok(!/acEntry[^]*?qbadge/.test(r.text.slice(r.text.indexOf('acEntry'),r.text.indexOf('acEntry')+300)),'red dot cleared after viewing');
  const i2c=new C();await i2c.login(I2.phone);
